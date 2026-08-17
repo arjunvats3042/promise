@@ -1,0 +1,68 @@
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# Android / Gradle
+# =========================
+.gradle/
+build/
+**/build/
+local.properties
+*.apk
+*.aab
+
+# Android Studio
+.idea/
+*.iml
+.externalNativeBuild/
+.cxx/
+
+# =========================
+# macOS
+# =========================
+.DS_Store
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Node (if needed later)
+# =========================
+node_modules/
+
+# =========================
+# Docker
+# =========================
+docker-data/
+
+# =========================
+# Test / Coverage
+# =========================
+.coverage
+htmlcov/
+.pytest_cache/
+
+# =========================
+# Temporary
+# =========================
+tmp/
+temp/
