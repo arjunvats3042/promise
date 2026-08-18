@@ -92,7 +92,7 @@ Kafka
 Later:
 
 ```text
-FastAPI
+Django
 AI Worker
 Notification Worker
 ```
@@ -159,17 +159,29 @@ feat: add local infrastructure
 
 ## Goal
 
-Create a production-structured FastAPI modular monolith.
+Create a production-structured Django modular monolith using Django REST Framework.
 
 Target:
 
 ```text
 backend/
-├── app/
+├── manage.py
+├── config/
+│   ├── settings/
+│   │   ├── base.py
+│   │   └── local.py
+│   ├── urls.py
+│   ├── asgi.py
+│   └── wsgi.py
+├── apps/
+│   ├── users/
+│   ├── commitments/
+│   ├── goals/
+│   ├── challenges/
+│   └── notifications/
 ├── tests/
-├── Dockerfile
 ├── pyproject.toml
-└── ...
+└── README.md
 ```
 
 ## Tasks
@@ -178,12 +190,12 @@ backend/
 
 Create a project environment using Python 3.12.
 
-### 3.2 FastAPI
+### 3.2 Django REST Framework health endpoint
 
 Implement:
 
 ```text
-GET /health
+GET /api/v1/health/
 ```
 
 Expected:
@@ -196,7 +208,7 @@ Expected:
 
 ### 3.3 Configuration
 
-Create typed configuration for:
+Create Django settings for:
 
 - environment
 - database URL
@@ -209,10 +221,9 @@ Create typed configuration for:
 
 Add:
 
-- SQLAlchemy
-- Alembic
+- Django ORM
+- Django migrations
 - PostgreSQL connection
-- migration framework
 
 ### 3.5 Logging
 
@@ -228,6 +239,8 @@ Add:
 
 ### 3.7 Testing
 
+Use pytest, pytest-django, and Django API testing.
+
 Add:
 
 - health test
@@ -237,7 +250,7 @@ Add:
 Commit:
 
 ```text
-feat: bootstrap FastAPI backend
+feat: bootstrap Django backend
 ```
 
 ---
@@ -246,22 +259,27 @@ feat: bootstrap FastAPI backend
 
 ## Goal
 
-Create secure user identity.
+**This is the next major phase.** Implement authentication for Django REST Framework.
+
+Do not recreate the user model. Custom `users.User` already exists from Phase 3 (`AUTH_USER_MODEL`, email as `USERNAME_FIELD`, UUID primary key, Django password hashing). Keep it. Do not replace it.
+
+Follow [`docs/AUTHENTICATION_DESIGN.md`](AUTHENTICATION_DESIGN.md). The strategy is already decided (JWT access tokens + server-side rotating refresh sessions). Do not reopen that choice unless the design document is explicitly changed.
 
 Tasks:
 
-- choose authentication provider/strategy
-- user model
-- token verification
-- current-user dependency
-- protected routes
-- authorization checks
+- implement the designed auth APIs (`register`, `login`, `refresh`, `logout`, `logout-all`, `me`)
+- token issuance and verification
+- DRF authentication classes
+- DRF permission classes (`IsAuthenticated` for protected routes; `health/` stays public)
+- authorization checks on future resources
 
 Rules:
 
 - never trust client `user_id`
 - every protected resource must be scoped to the authenticated user
 - secrets remain outside Git
+
+Phase 4 is **not** complete until authentication is implemented and tested.
 
 Commit:
 
@@ -306,23 +324,22 @@ completed_at
 
 Implement:
 
-- model
-- schema
-- repository
+- Django model
+- DRF serializer
 - service
-- routes
+- DRF views/viewsets
 - state transitions
 
 API:
 
 ```text
-POST   /v1/commitments
-GET    /v1/commitments
-GET    /v1/commitments/{id}
-PATCH  /v1/commitments/{id}
-POST   /v1/commitments/{id}/complete
-POST   /v1/commitments/{id}/snooze
-POST   /v1/commitments/{id}/cancel
+POST   /api/v1/commitments
+GET    /api/v1/commitments
+GET    /api/v1/commitments/{id}
+PATCH  /api/v1/commitments/{id}
+POST   /api/v1/commitments/{id}/complete
+POST   /api/v1/commitments/{id}/snooze
+POST   /api/v1/commitments/{id}/cancel
 ```
 
 ## Events
@@ -387,8 +404,8 @@ Support:
 ## Check-in API
 
 ```text
-POST /v1/goals/{id}/check-ins
-GET  /v1/goals/{id}/history
+POST /api/v1/goals/{id}/check-ins
+GET  /api/v1/goals/{id}/history
 ```
 
 ## Events
@@ -449,6 +466,10 @@ Use for scheduled notification processing.
 
 Use for capture processing status if appropriate.
 
+### Notification coordination
+
+Use Redis for notification-related coordination where appropriate.
+
 ## Tasks
 
 - Redis client
@@ -473,6 +494,8 @@ feat: integrate redis
 
 Create reliable asynchronous processing.
 
+Kafka is the event backbone for asynchronous/domain events.
+
 Tasks:
 
 - Kafka client
@@ -491,6 +514,14 @@ Start with:
 goal.checkin.created
 commitment.created
 commitment.completed
+```
+
+Example domain events also include:
+
+```text
+shared.promise.completed
+challenge.joined
+notification.requested
 ```
 
 Consumers:
@@ -685,7 +716,7 @@ Android Share
  ↓
 Promise
  ↓
-POST /v1/captures
+POST /api/v1/captures
  ↓
 Kafka
  ↓
@@ -858,9 +889,9 @@ chore: harden security and privacy
 
 ## Backend
 
-Build Docker image.
+Build a Docker image for the Django application.
 
-Deploy to chosen container platform.
+Deploy the Django application served through an appropriate production WSGI/ASGI setup on the chosen container platform.
 
 Configure:
 
@@ -967,7 +998,7 @@ For each task, give Cursor a narrow prompt.
 
 Example:
 
-> Read `docs/PROJECT_PLAN.md`, `docs/ARCHITECTURE.md`, and `docs/DEVELOPMENT.md`. Implement Phase 3.2 only: the FastAPI health endpoint. Do not add authentication, database models, Kafka, Redis, or unrelated abstractions. Run the relevant tests and report exactly what changed.
+> Read `docs/PROJECT_PLAN.md`, `docs/ARCHITECTURE.md`, and `docs/DEVELOPMENT.md`. Implement Phase 3.2 only: the Django REST Framework health endpoint at `GET /api/v1/health/`. Do not add authentication, database models, Kafka, Redis, or unrelated abstractions. Run the relevant tests and report exactly what changed.
 
 Then inspect the code.
 
@@ -985,7 +1016,7 @@ Examples:
 chore: initialize Promise project
 docs: add architecture and development plan
 feat: add local infrastructure
-feat: bootstrap FastAPI backend
+feat: bootstrap Django backend
 feat: add authentication
 feat: add commitment domain
 feat: add goals and check-ins
@@ -1023,32 +1054,26 @@ Completed:
 [x] README
 [x] .gitignore
 [x] PROJECT_PLAN.md
+[x] ARCHITECTURE.md
+[x] DEVELOPMENT.md
+[x] Docker Compose (PostgreSQL, Redis, Kafka)
+[x] Phase 3 — Django Backend Foundation
+[x] Authentication architecture design (docs/AUTHENTICATION_DESIGN.md)
 ```
 
 Next:
 
 ```text
-[ ] ARCHITECTURE.md
-[ ] DEVELOPMENT.md
-[ ] Documentation commit
-[ ] Docker Compose
-[ ] PostgreSQL
-[ ] Redis
-[ ] Kafka
+[ ] Commit pending Django foundation and documentation
+[ ] Phase 4 — Authentication implementation
 ```
 
 ---
 
 # 28. Immediate Next Task
 
-Do not start backend or Android implementation yet.
+Phase 3 is complete.
 
-First complete:
+Next major phase: **Phase 4 — Authentication implementation**.
 
-1. `docs/ARCHITECTURE.md`
-2. `docs/DEVELOPMENT.md`
-3. Review both
-4. Commit documentation
-5. Start Docker infrastructure
-
-This ensures implementation begins from an agreed architecture rather than from generated code.
+Follow `docs/AUTHENTICATION_DESIGN.md`. Do not recreate `users.User`. Do not start domain apps (commitments, goals) or Android until authentication is in place.

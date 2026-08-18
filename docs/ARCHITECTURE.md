@@ -7,6 +7,7 @@ Promise should be technically strong enough to support a real Play Store launch 
 Primary architectural principles:
 
 - PostgreSQL is the source of truth.
+- Django ORM is the primary database access layer.
 - Redis is a cache/temporary coordination layer, never the primary database.
 - Kafka is the asynchronous event backbone, not a replacement for synchronous APIs.
 - Start as a modular monolith.
@@ -19,6 +20,16 @@ Primary architectural principles:
 ## 2. System Context
 
 ```text
+Android
+   ↓
+Django + Django REST Framework
+   ↓
+PostgreSQL
+   ├── Redis
+   └── Kafka
+```
+
+```text
                     +------------------+
                     |   Android App    |
                     | Kotlin + Compose |
@@ -27,8 +38,8 @@ Primary architectural principles:
                          HTTPS / JSON
                              |
                     +--------v---------+
-                    |     FastAPI      |
-                    |   API / Auth     |
+                    | Django + DRF     |
+                    | API / Auth       |
                     +---+---------+----+
                         |         |
                         |         |
@@ -73,7 +84,7 @@ Responsible for:
 
 Android must not contain business rules that belong to the backend.
 
-### FastAPI
+### Django + Django REST Framework
 
 Responsible for:
 
@@ -82,10 +93,10 @@ Responsible for:
 - synchronous commands
 - transactions
 - domain services
-- persistence
+- persistence through Django ORM
 - creating outbox events
 
-FastAPI should return quickly for asynchronous operations rather than waiting for AI/Kafka workers.
+Django/DRF should return quickly for asynchronous operations rather than waiting for AI/Kafka workers.
 
 ### PostgreSQL
 
@@ -113,6 +124,7 @@ Used for:
 - distributed locks
 - temporary processing state
 - short-lived coordination
+- notification-related coordination where appropriate
 
 Redis loss must not cause permanent application-data loss.
 
@@ -126,7 +138,9 @@ Used for:
 - replay
 - decoupling
 
-Kafka should not be placed between Android and FastAPI for ordinary CRUD.
+Kafka is the event backbone for asynchronous/domain events.
+
+Kafka should not be placed between Android and Django/DRF for ordinary CRUD.
 
 ### Workers
 
@@ -147,31 +161,34 @@ Use a modular monolith initially.
 
 ```text
 backend/
-└── app/
-    ├── api/
-    ├── core/
-    ├── domain/
-    │   ├── commitment/
-    │   ├── goal/
-    │   ├── checkin/
-    │   ├── notification/
-    │   └── capture/
-    ├── repositories/
-    ├── services/
-    ├── models/
-    ├── schemas/
-    ├── events/
-    ├── workers/
-    └── main.py
+├── manage.py
+├── config/
+│   ├── settings/
+│   │   ├── base.py
+│   │   └── local.py
+│   ├── urls.py
+│   ├── asgi.py
+│   └── wsgi.py
+├── apps/
+│   ├── users/
+│   ├── commitments/
+│   ├── goals/
+│   ├── challenges/
+│   └── notifications/
+├── tests/
+├── pyproject.toml
+└── README.md
 ```
+
+Workers remain part of the modular monolith and consume Kafka events. Do not create a separate microservice for every domain during MVP.
 
 ### Layer responsibilities
 
-**API layer**
+**API layer (Django REST Framework)**
 
 - HTTP concerns
-- authentication dependencies
-- request/response schemas
+- authentication and permission classes
+- serializers
 - status codes
 
 **Service/domain layer**
@@ -180,23 +197,23 @@ backend/
 - state transitions
 - transaction orchestration
 
-**Repository layer**
+**Django ORM layer**
 
-- database access
-- query composition
-- persistence abstraction
+- models
+- managers/querysets
+- persistence
 
 **Event layer**
 
 - event schemas
-- event publishing
+- event publishing through the transactional outbox
 - consumer contracts
 
 **Worker layer**
 
 - asynchronous processing
 
-Do not allow API routes to contain large business workflows.
+Do not allow DRF views to contain large business workflows.
 
 ---
 
@@ -209,13 +226,13 @@ Android
   ↓
 HTTP
   ↓
-FastAPI route
+Django REST Framework view
   ↓
-Validation
+Validation (DRF serializer)
   ↓
 Service
   ↓
-Repository
+Django ORM
   ↓
 PostgreSQL
   ↓
@@ -227,7 +244,7 @@ For asynchronous operations:
 ```text
 Android
   ↓
-FastAPI
+Django + Django REST Framework
   ↓
 PostgreSQL transaction
   ├── application state
@@ -263,6 +280,22 @@ After successful publication, mark the outbox event as published.
 
 The system must tolerate duplicate publication because a crash can happen after Kafka accepts an event but before the database records publication success.
 
+Intended flow:
+
+```text
+Application transaction
+    ↓
+PostgreSQL
+    ↓
+Outbox event
+    ↓
+Kafka
+    ↓
+Consumers
+```
+
+Do not replace the outbox with direct database-to-Kafka publishing.
+
 Therefore:
 
 - every event has a unique `event_id`
@@ -285,6 +318,18 @@ promise.notification.v1
 ```
 
 The exact topic split can be adjusted after implementation experience.
+
+Example events:
+
+```text
+commitment.created
+commitment.completed
+goal.created
+goal.checkin.created
+shared.promise.completed
+challenge.joined
+notification.requested
+```
 
 Event envelope:
 
@@ -360,6 +405,8 @@ promise:lock:notification:{notification_id}
 promise:processing:capture:{capture_id}
 ```
 
+Redis may also be used for notification-related coordination where appropriate.
+
 ### TTL policy
 
 Caches and temporary processing keys should have explicit TTLs.
@@ -389,7 +436,11 @@ Important writes should invalidate/update relevant cache entries.
 
 ## 10. Database Architecture
 
-PostgreSQL is the source of truth.
+PostgreSQL is the primary/source-of-truth database.
+
+Django ORM is the primary database access layer.
+
+Use Django migrations for schema evolution.
 
 Initial entities:
 
@@ -411,8 +462,6 @@ processed_events
 Use UUIDs for public identifiers.
 
 Use timestamps with explicit timezone semantics.
-
-Use Alembic migrations for schema evolution.
 
 ---
 
@@ -640,7 +689,7 @@ It is not required for the first MVP unless it materially improves the experienc
 
 ## 18. Authentication
 
-Initial architecture should support:
+Initial architecture should support Django REST Framework authentication and permissions:
 
 ```text
 Android
@@ -649,12 +698,14 @@ Authentication
   ↓
 Access token
   ↓
-FastAPI
+Django REST Framework
   ↓
-User context
+Authenticated user (request.user)
 ```
 
-The exact provider can be selected during backend implementation.
+Use DRF authentication classes to verify credentials/tokens and permission classes to authorize access.
+
+The exact token strategy can be selected during backend implementation.
 
 Every protected resource must be scoped to the authenticated user.
 
@@ -666,14 +717,22 @@ Never trust a client-provided `user_id` for authorization.
 
 API schemas and database models should not be treated as the same object.
 
+REST APIs are served by Django REST Framework and versioned under `/api/v1/`.
+
+Example:
+
+```text
+GET /api/v1/health/
+```
+
 ```text
 HTTP request
     ↓
-Pydantic schema
+DRF serializer
     ↓
 Domain/service logic
     ↓
-SQLAlchemy model
+Django ORM model
 ```
 
 This keeps external contracts stable even if database implementation changes.
@@ -708,7 +767,7 @@ Important mutation APIs should support idempotency where duplicate requests are 
 Example:
 
 ```text
-POST /v1/goals/{id}/check-ins
+POST /api/v1/goals/{id}/check-ins/
 Idempotency-Key: <uuid>
 ```
 
@@ -727,7 +786,7 @@ Android
    |
    | untrusted network
    v
-FastAPI
+Django / DRF
    |
    +-- authentication
    +-- authorization
@@ -776,7 +835,7 @@ Metrics:
 
 ```text
 Docker Compose
-├── FastAPI
+├── Django
 ├── PostgreSQL
 ├── Redis
 ├── Kafka
@@ -792,7 +851,7 @@ Docker Compose
                          |
                        HTTPS
                          |
-                  Container API
+              Django API (WSGI/ASGI)
                          |
         +----------------+----------------+
         |                |                |
@@ -806,6 +865,8 @@ Docker Compose
 ```
 
 Use managed infrastructure where it reduces operational burden.
+
+The Django application should be served through an appropriate production WSGI/ASGI setup. Do not introduce a specific deployment implementation yet.
 
 ---
 

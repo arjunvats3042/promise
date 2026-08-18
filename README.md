@@ -1,29 +1,27 @@
 # Promise
 
-AI-powered personal commitment and accountability platform.
+Personal commitment and accountability platform.
 
-## Core Concepts
+## Stack
 
-- Commitments — things I said I would do
-- Goals — things I want to do consistently
-- Challenges — time-bound goals
-- Check-ins — evidence of follow-through
-- AI Insights — patterns and personalized recommendations
+- Backend: Python 3.12, Django 6.1, Django REST Framework
+- PostgreSQL
+- Redis
+- Kafka
+- Local infrastructure: Docker Compose
+- Android: Kotlin + Jetpack Compose (not started)
 
-## Architecture
-
-- Android: Kotlin + Jetpack Compose
-- Backend: Python + FastAPI
-- Database: PostgreSQL
-- Cache: Redis
-- Event Streaming: Apache Kafka
-- AI: LLM-based processing
-- Infrastructure: Docker
-
-## Repository Structure
+## Repository
 
 ```text
-android/          Android application
-backend/          FastAPI backend
-infrastructure/   PostgreSQL, Redis, Kafka, Docker
-docs/             HLD, LLD, API and architecture documentation
+android/             Android application (not started)
+backend/             Django + Django REST Framework
+docs/                Product, architecture, and development documentation
+docker-compose.yml   PostgreSQL, Redis, Kafka
+```
+
+## Current API
+
+```text
+GET /api/v1/health/   →  {"status": "ok"}
+```

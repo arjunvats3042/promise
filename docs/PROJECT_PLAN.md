@@ -28,6 +28,7 @@ rather than a traditional task manager or aggressive habit tracker.
 -   Consistency and recovery matter more than fragile streaks.
 -   Privacy is a product requirement.
 -   PostgreSQL is the source of truth.
+-   Django ORM is the primary database access layer.
 -   Redis is for fast/temporary state.
 -   Kafka is for asynchronous business events.
 -   Start with a modular monolith and split services only when
@@ -342,17 +343,21 @@ Avoid animation that adds no functional value.
 ## Backend
 
 -   Python 3.12
--   FastAPI
--   Pydantic
--   SQLAlchemy
--   Alembic
+-   Django
+-   Django REST Framework
+-   Django ORM
 -   pytest
+-   pytest-django
 
 ## Database
 
 **PostgreSQL**
 
 Source of truth for application state.
+
+**Django ORM** is the primary database access layer.
+
+Schema changes use Django migrations.
 
 ## Cache / temporary state
 
@@ -365,12 +370,15 @@ Use for:
 -   distributed locks
 -   temporary processing state
 -   short-lived coordination
+-   notification-related coordination where appropriate
 
 Redis must never be the primary database.
 
 ## Event streaming
 
 **Apache Kafka**
+
+Kafka is the event backbone for asynchronous/domain events.
 
 Use for:
 
@@ -411,7 +419,8 @@ Development:
 
 Production direction:
 
--   Dockerized FastAPI
+-   Dockerized Django application served through an appropriate
+    production WSGI/ASGI setup
 -   Cloud Run or comparable container platform
 -   Managed PostgreSQL
 -   Managed Redis
@@ -424,12 +433,22 @@ Production direction:
 # 9. High-Level Architecture
 
 ``` text
+Android
+   ↓
+Django + Django REST Framework
+   ↓
+PostgreSQL
+   ├── Redis
+   └── Kafka
+```
+
+``` text
                          Android App
                               |
                          HTTPS / JSON
                               |
                      +--------v--------+
-                     |     FastAPI     |
+                     |  Django + DRF   |
                      |    API Layer    |
                      +---+---------+---+
                          |         |
@@ -460,7 +479,7 @@ Production direction:
 
 ## Responsibility boundaries
 
-**FastAPI:** What does the user want to do?
+**Django / DRF:** What does the user want to do?
 
 **PostgreSQL:** What is true?
 
@@ -481,31 +500,23 @@ Start as a modular monolith.
 
 ``` text
 backend/
-└── app/
-    ├── api/
-    │   ├── auth.py
-    │   ├── commitments.py
-    │   ├── goals.py
-    │   ├── checkins.py
-    │   ├── captures.py
-    │   └── insights.py
-    ├── domain/
-    │   ├── commitment/
-    │   ├── goal/
-    │   ├── checkin/
-    │   └── notification/
-    ├── services/
-    ├── repositories/
-    ├── models/
-    ├── events/
-    │   ├── producer.py
-    │   └── schemas.py
-    ├── workers/
-    │   ├── ai_worker.py
-    │   ├── notification_worker.py
-    │   └── analytics_worker.py
-    ├── config/
-    └── main.py
+├── manage.py
+├── config/
+│   ├── settings/
+│   │   ├── base.py
+│   │   └── local.py
+│   ├── urls.py
+│   ├── asgi.py
+│   └── wsgi.py
+├── apps/
+│   ├── users/
+│   ├── commitments/
+│   ├── goals/
+│   ├── challenges/
+│   └── notifications/
+├── tests/
+├── pyproject.toml
+└── README.md
 ```
 
 Do not create a separate microservice for every domain during MVP.
@@ -513,6 +524,12 @@ Do not create a separate microservice for every domain during MVP.
 ------------------------------------------------------------------------
 
 # 11. Database Design
+
+PostgreSQL is the primary/source-of-truth database.
+
+Django ORM is the primary database access layer.
+
+Schema evolution uses Django migrations.
 
 Core tables:
 
@@ -573,6 +590,9 @@ Use TTLs for cache and temporary state.
 
 Redis failures should not destroy core application state.
 
+Redis may also be used for notification-related coordination where
+appropriate.
+
 ------------------------------------------------------------------------
 
 # 13. Kafka Architecture
@@ -590,6 +610,12 @@ goal.created
 
 goal.checkin.created
 goal.checkin.missed
+
+shared.promise.completed
+
+challenge.joined
+
+notification.requested
 
 conversation.received
 
@@ -652,6 +678,22 @@ Outbox publisher
 ```
 
 The outbox publisher retries unsent events.
+
+Intended flow:
+
+``` text
+Application transaction
+    ↓
+PostgreSQL
+    ↓
+Outbox event
+    ↓
+Kafka
+    ↓
+Consumers
+```
+
+Do not replace the outbox with direct database-to-Kafka publishing.
 
 Consumers must be idempotent.
 
@@ -780,39 +822,45 @@ Raw captures should have short configurable retention.
 
 # 18. API Design
 
-Version under `/v1`.
+REST APIs are served by Django REST Framework.
+
+Version under `/api/v1/`.
+
+``` text
+GET /api/v1/health/
+```
 
 ## Commitments
 
 ``` text
-POST   /v1/commitments
-GET    /v1/commitments
-GET    /v1/commitments/{id}
-PATCH  /v1/commitments/{id}
+POST   /api/v1/commitments
+GET    /api/v1/commitments
+GET    /api/v1/commitments/{id}
+PATCH  /api/v1/commitments/{id}
 
-POST   /v1/commitments/{id}/complete
-POST   /v1/commitments/{id}/snooze
-POST   /v1/commitments/{id}/cancel
+POST   /api/v1/commitments/{id}/complete
+POST   /api/v1/commitments/{id}/snooze
+POST   /api/v1/commitments/{id}/cancel
 ```
 
 ## Goals
 
 ``` text
-POST   /v1/goals
-GET    /v1/goals
-GET    /v1/goals/{id}
-PATCH  /v1/goals/{id}
+POST   /api/v1/goals
+GET    /api/v1/goals
+GET    /api/v1/goals/{id}
+PATCH  /api/v1/goals/{id}
 
-POST   /v1/goals/{id}/check-ins
-GET    /v1/goals/{id}/history
+POST   /api/v1/goals/{id}/check-ins
+GET    /api/v1/goals/{id}/history
 ```
 
 ## AI captures
 
 ``` text
-POST /v1/captures
-GET  /v1/captures/{id}
-POST /v1/captures/{id}/confirm
+POST /api/v1/captures
+GET  /api/v1/captures/{id}
+POST /api/v1/captures/{id}/confirm
 ```
 
 API conventions:
@@ -822,7 +870,7 @@ API conventions:
 -   explicit timezone handling
 -   stable error codes
 -   pagination
--   request validation
+-   request validation via Django REST Framework
 -   idempotency keys for relevant mutations
 
 ------------------------------------------------------------------------
@@ -1000,7 +1048,7 @@ Docker Compose should eventually run:
 PostgreSQL
 Redis
 Kafka
-FastAPI
+Django
 AI Worker
 ```
 
@@ -1030,7 +1078,7 @@ Target direction:
 ``` text
 Android test build
        ↓
-Cloud Run / container platform
+Django (WSGI/ASGI) on a container platform
        ↓
 Managed PostgreSQL
        ↓
@@ -1046,7 +1094,7 @@ Google Play
      ↓
 Android
      ↓ HTTPS
-Container API
+Django API (WSGI/ASGI)
      |
      +---- PostgreSQL
      +---- Redis
@@ -1105,6 +1153,8 @@ Play Console
 # 27. Testing Strategy
 
 ## Backend
+
+Use pytest, pytest-django, and Django API testing.
 
 Unit tests for:
 
@@ -1204,10 +1254,12 @@ Completion
 
 ## Phase 3 --- Backend Foundation
 
--   FastAPI
+-   Django
+-   Django REST Framework
+-   Django ORM
 -   configuration
 -   database
--   migrations
+-   Django migrations
 -   health endpoint
 -   errors
 -   logging
@@ -1215,10 +1267,10 @@ Completion
 
 ## Phase 4 --- Commitment Domain
 
--   model
--   repository
+-   Django model
+-   DRF serializer
 -   service
--   API
+-   DRF API
 -   state transitions
 -   events
 -   outbox
@@ -1339,8 +1391,13 @@ Production AI usage may eventually create API costs.
   Repository              Monorepo                One product,
                                                   coordinated changes
 
-  Backend                 FastAPI                 Fast iteration + Python
-                                                  AI ecosystem
+  Backend                 Django + DRF            Batteries-included
+                                                  backend, REST APIs,
+                                                  and Python AI
+                                                  ecosystem
+
+  ORM                     Django ORM              Primary PostgreSQL
+                                                  access layer
 
   Database                PostgreSQL              Transactions +
                                                   relational consistency
@@ -1414,7 +1471,7 @@ Rules:
 13. Avoid premature abstraction.
 14. Avoid premature microservices.
 15. Write tests for important business logic.
-16. Use migrations for database changes.
+16. Use Django migrations for database changes.
 17. Consumers must be idempotent.
 18. Use transactional outbox for DB-to-Kafka publication.
 19. Explain significant trade-offs before architectural changes.
