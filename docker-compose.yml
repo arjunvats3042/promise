@@ -1,0 +1,88 @@
+# Local development infrastructure for Promise.
+# Copy .env.example to .env and set POSTGRES_PASSWORD before starting.
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: promise-postgres
+    restart: "no"
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: promise
+      POSTGRES_USER: promise
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - promise_postgres_data:/var/lib/postgresql/data
+    networks:
+      - promise-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U promise -d promise"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:8
+    container_name: promise-redis
+    restart: "no"
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - promise_redis_data:/data
+    networks:
+      - promise-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  kafka:
+    image: apache/kafka:4.3.1
+    container_name: promise-kafka
+    hostname: promise-kafka
+    restart: "no"
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      CLUSTER_ID: qqi8i8Z8R7-26BnbpD-95A
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:19092,EXTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://promise-kafka:19092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@promise-kafka:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - promise_kafka_data:/var/lib/kafka/data
+    networks:
+      - promise-network
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+networks:
+  promise-network:
+    name: promise-network
+    driver: bridge
+
+volumes:
+  promise_postgres_data:
+    name: promise_postgres_data
+  promise_redis_data:
+    name: promise_redis_data
+  promise_kafka_data:
+    name: promise_kafka_data
