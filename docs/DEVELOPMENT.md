@@ -1058,22 +1058,31 @@ Completed:
 [x] DEVELOPMENT.md
 [x] Docker Compose (PostgreSQL, Redis, Kafka)
 [x] Phase 3 — Django Backend Foundation
-[x] Authentication architecture design (docs/AUTHENTICATION_DESIGN.md)
+[x] Phase 4 — Authentication
+[x] Phase 5 — Commitment Domain + event backbone
+    (models, services, REST APIs, outbox, publisher, generic consumer)
+```
+
+Not in this checkpoint (deferred):
+
+```text
+[ ] Participant invite APIs / unwait HTTP
+[ ] Notifications, AI, analytics, Android
+[ ] Goals, Challenges
 ```
 
 Next:
 
 ```text
-[ ] Commit pending Django foundation and documentation
-[ ] Phase 4 — Authentication implementation
+[ ] Phase 6 — Goal Domain
 ```
 
 ---
 
 # 28. Immediate Next Task
 
-Phase 3 is complete.
+Phase 5 Commitment Domain + event backbone is complete.
 
-Next major phase: **Phase 4 — Authentication implementation**.
+Next major phase: **Phase 6 — Goal Domain**.
 
-Follow `docs/AUTHENTICATION_DESIGN.md`. Do not recreate `users.User`. Do not start domain apps (commitments, goals) or Android until authentication is in place.
+Do not start Android, notifications, or AI unless requested. Participant invites remain deferred product work, not a blocker for Goals.
