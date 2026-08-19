@@ -111,7 +111,7 @@ Clock skew: validators should allow **30 seconds** of leeway.
 | Format | Opaque: `{session_id}.{secret}` |
 | `session_id` | UUID of `AuthSession` |
 | `secret` | ≥ 256 bits, cryptographically random, URL-safe |
-| Server representation | HMAC-SHA256 of `secret` with a server pepper; **never** the raw secret |
+| Server representation | HMAC-SHA256 of `secret` with `AUTH_REFRESH_TOKEN_PEPPER` (**canonical verification**). The **current** secret is also stored as Fernet ciphertext under `AUTH_REFRESH_TOKEN_ENCRYPTION_KEY` for 30-second retry-grace recovery only. Previous secrets are HMAC-only. **Never** persist plaintext secrets or composed refresh tokens. |
 | Lifetime | **30 days sliding** from last successful refresh |
 | Absolute cap | **90 days** from session `created_at` |
 | Rotation | Every successful refresh issues a new secret; old secret becomes invalid |
@@ -122,7 +122,7 @@ Clock skew: validators should allow **30 seconds** of leeway.
 
 **Why not a JWT refresh token:** reuse detection needs a stable session id plus a rotatable secret. An opaque token with `session_id` in the prefix lets the server load the row even when the secret is wrong (the reuse case). A signed refresh JWT is possible later; it is not required.
 
-**Why not store the raw refresh token:** a database dump would become a bag of valid logins. HMAC with a pepper means the dump is not sufficient without the pepper.
+**Why not store the raw refresh token:** a database dump would become a bag of valid logins. HMAC with a pepper means the dump is not sufficient to verify a guessed secret without the pepper. The current-secret ciphertext is authenticated-encrypted with a **separate** key so a dump still needs both `AUTH_REFRESH_TOKEN_PEPPER` and `AUTH_REFRESH_TOKEN_ENCRYPTION_KEY`. Ciphertext exists only because HMAC cannot reconstruct the current secret for grace retry.
 
 ### 3.3 Authentication session / device
 
@@ -149,8 +149,9 @@ Recommended defaults vs trade-offs:
 AuthSession
 ├── id                    UUID  (session id, also JWT sid)
 ├── user                  FK users.User
-├── refresh_token_hmac    current secret’s HMAC (not plaintext)
-├── previous_token_hmac   nullable, for retry grace only
+├── refresh_token_hmac    current secret’s HMAC (canonical verification)
+├── current_refresh_secret_ciphertext  Fernet ciphertext of the CURRENT secret only
+├── previous_token_hmac   nullable, HMAC only, for retry grace / reuse
 ├── previous_rotated_at   nullable
 ├── created_at
 ├── last_used_at
@@ -166,6 +167,15 @@ AuthSession
 └── user_agent            optional last-seen
 ```
 
+**Current vs previous secret storage (DECIDED):**
+
+| Secret | HMAC | Ciphertext | Plaintext in DB |
+|---|---|---|---|
+| Current (`R_n`) | **Yes** — canonical verification | **Yes** — grace recovery only | **Never** |
+| Previous (`R_{n-1}`) | **Yes** — grace / reuse detection | **No** | **Never** |
+
+HMAC-SHA256 cannot reconstruct the current refresh secret. The 30-second retry grace must return the already-issued current refresh token (`{session_id}.{R_n}`), so the current secret is stored as authenticated-encrypted ciphertext (`current_refresh_secret_ciphertext`). Ciphertext is not used to authenticate a presented token. Previous secrets are HMAC-only: after the grace window they cannot be recovered, and presenting them is reuse.
+
 IP and User-Agent are telemetry for later “new device” UX and abuse investigation. They are **not** authorization factors. Clients can spoof them.
 
 **Active session** means:
@@ -177,7 +187,7 @@ AND now < absolute_expires_at
 AND user.is_active is True
 ```
 
-**NOT IMPLEMENTED.** Do not add this model or a migration until Phase 4.
+Implemented in Phase 4.1. `current_refresh_secret_ciphertext` was added in Phase 4.5.
 
 ### Session state machine
 
@@ -216,26 +226,29 @@ On `POST /api/v1/auth/refresh/`:
 
 ```text
 1. Parse {session_id}.{secret}. Reject malformed tokens as TOKEN_INVALID.
-2. Load AuthSession by session_id. If missing → TOKEN_INVALID.
+2. Load AuthSession by session_id with SELECT FOR UPDATE in one PostgreSQL
+   transaction. If missing → TOKEN_INVALID.
 3. If session not active → SESSION_REVOKED or TOKEN_EXPIRED (see §9).
 4. HMAC(secret) and compare to refresh_token_hmac (constant time).
-5. If match:
-     - generate new_secret
-     - previous_token_hmac ← old hmac
+5. If match (normal rotation):
+     - generate new_secret R2
+     - previous_token_hmac ← old hmac (previous plaintext is not stored)
      - previous_rotated_at ← now
-     - refresh_token_hmac ← HMAC(new_secret)
+     - refresh_token_hmac ← HMAC(R2)
+     - current_refresh_secret_ciphertext ← Fernet(R2)
      - last_used_at ← now
-     - expires_at ← now + 30 days (do not exceed absolute_expires_at)
-     - persist in one PostgreSQL transaction
-     - return new access JWT + new refresh token
+     - expires_at ← min(now + 30 days, absolute_expires_at)
+     - persist in the same transaction
+     - return new access JWT + refresh token {sid}.{R2}
+     - sid is unchanged
 6. If no match → reuse / retry path (§6)
 ```
 
 The client **must** replace both tokens. An access token is never used to mint another access token.
 
-Hold a **per-session refresh lock** in Redis (`promise:lock:auth:refresh:{session_id}`) during steps 4–5 so two parallel refreshes cannot both succeed and then each other’s result look like reuse. Android must also serialize refresh in-process (single OkHttp Authenticator / mutex).
+**Concurrency:** `transaction.atomic()` + `select_for_update()` on the `AuthSession` row so two concurrent current-token refreshes cannot both mint successor secrets. Redis `promise:lock:auth:refresh:{session_id}` was evaluated in Phase 4.7 and remains **DEFERRED** — PostgreSQL row locking is sufficient. Android must still serialize refresh in-process.
 
-If Redis is down, the lock is skipped and the grace window in §6 remains the safety net. PostgreSQL is still the source of truth.
+**Encryption key:** `AUTH_REFRESH_TOKEN_ENCRYPTION_KEY` is a dedicated Fernet key in the environment. Do not reuse `DJANGO_SECRET_KEY`, `JWT_SIGNING_KEY`, or `AUTH_REFRESH_TOKEN_PEPPER`. Do not commit the real key. Ciphertext, plaintext secrets, and the encryption key must never be logged.
 
 ---
 
@@ -250,8 +263,12 @@ HMAC(secret) != current hmac
         │
         ├── matches previous_token_hmac
         │     AND now - previous_rotated_at <= 30 seconds
-        │           → treat as retry, return the already-issued current tokens
-        │              (do not rotate again)
+        │           → GRACE RETRY
+        │              decrypt current_refresh_secret_ciphertext
+        │              return {sid}.{current secret} (already-issued R_n)
+        │              issue a NEW access JWT (new jti; same sub/sid)
+        │              do NOT rotate, do NOT revoke, do NOT extend absolute expiry
+        │              do not write rotation fields
         │
         ├── matches previous_token_hmac but grace expired
         │           → REUSE
@@ -262,17 +279,17 @@ HMAC(secret) != current hmac
 
 Because the token contains `session_id`, the server can always load the family/row even when the secret is wrong.
 
+**Why ciphertext exists:** HMAC verification cannot reconstruct `R_n`. Without a reversible copy of the current secret, a lost response or parallel retry that still presents `R_{n-1}` cannot be given `R_n`, so the retry would either rotate again (breaking the client that already stored `R_n`) or keep `R_{n-1}` (locking the client out after 30 seconds). Ciphertext is used **only** for that 30-second recovery. After grace, reuse of the previous token revokes the session.
+
 **On REUSE:**
 
-1. Set `revoked_at` on **that session** immediately.
-2. Add `sid` to the Redis access-token denylist with TTL ≥ remaining access TTL (15 minutes).
-3. Log a security event (session id, user id, not the token).
-4. Return the same client-visible error as an invalid refresh (`AUTHENTICATION_FAILED` / `TOKEN_INVALID`). Do **not** return `TOKEN_REUSE_DETECTED` to the client (it teaches attackers).
-5. **DEFERRED:** revoke all of the user’s sessions, email the user, or publish Kafka. First implementation revokes the compromised session. Escalating to logout-all is a product/security choice once notifications exist.
+1. Set `revoked_at` on **that session** immediately (`revoked_reason = reuse`).
+2. Add `sid` to the Redis access-token denylist with TTL = access TTL + leeway. Skip the write if Redis is down.
+3. Log a security event (session id, user id, not the token, ciphertext, HMAC, or secret).
+4. Return the same client-visible error as an invalid refresh (`TOKEN_INVALID`). Do **not** return `TOKEN_REUSE_DETECTED` to the client (it teaches attackers).
+5. **DEFERRED:** revoke all of the user’s sessions, email the user, or publish Kafka. First implementation revokes the compromised session.
 
-**Why a 30-second grace:** Android may refresh, the server rotates, then the client never stores the new token (process kill, 5xx after commit, timeout). The next retry would look identical to theft. Grace + storing `previous_token_hmac` makes refresh **idempotent** for that window.
-
-**NOT IMPLEMENTED.**
+**Why a 30-second grace:** Android may refresh, the server rotates, then the client never stores the new token (process kill, 5xx after commit, timeout). The next retry would look identical to theft. Grace + `previous_token_hmac` + current-secret ciphertext makes that retry **idempotent**.
 
 ---
 
@@ -282,16 +299,22 @@ Because the token contains `session_id`, the server can always load the family/r
 
 ### Logout this device — `POST /api/v1/auth/logout/`
 
-Identifies the session from the **refresh token** in the body (works even if the access token already expired).
+Requires a valid **access** JWT. The refresh token in the body identifies which of the authenticated user's sessions to revoke.
 
 ```text
-validate refresh token → load session
-  → revoked_at = now, reason = logout
-  → denylist sid in Redis (TTL ≥ access TTL)
-  → 204 No Content
+authenticate access JWT (existing JWTAccessAuthentication)
+parse {session_id}.{secret}
+load AuthSession FOR UPDATE where id = session_id AND user = request.user
+verify HMAC (current or previous)
+if already revoked → 204
+else revoked_at = now, reason = logout → 204
 ```
 
-If the session is already revoked or unknown, still return **204**. Logout is idempotent. Do not leak whether a token was valid.
+Redis `sid` denylist is written after PostgreSQL revoke (TTL = access JWT lifetime + leeway). Redis failure does not fail logout.
+
+If the session is already revoked **and** the refresh token is valid for that own session, still return **204**. Malformed tokens, unknown `session_id`, HMAC mismatch, and another user's session all return the same generic `TOKEN_INVALID`. Do not leak whether a foreign or missing session exists.
+
+If the access JWT's own session is already revoked, the existing authentication class rejects the request with `UNAUTHENTICATED` before the view runs.
 
 ### Logout all devices — `POST /api/v1/auth/logout-all/`
 
@@ -302,11 +325,12 @@ UPDATE AuthSession
    SET revoked_at = now, revoked_reason = logout_all
  WHERE user_id = request.user.id
    AND revoked_at IS NULL
-→ denylist every affected sid
 → 204 No Content
 ```
 
-Access tokens for other devices remain cryptographically valid until `exp` **unless** those `sid` values are denylisted. That is why access TTL is 15 minutes and why logout writes Redis.
+Already-revoked rows are left unchanged so prior `revoked_reason` values stay auditable. Each newly revoked `sid` is added to Redis `promise:auth:denylist:sid:{session_id}`. Redis failure does not fail logout-all.
+
+Access JWTs remain cryptographically valid until `exp`. Without Redis, `JWTAccessAuthentication` still loads PostgreSQL and rejects revoked sessions on protected routes. Refresh always consults PostgreSQL.
 
 ### Password change / reset / account disable
 
@@ -314,9 +338,9 @@ Revoke **all** sessions in the same PostgreSQL transaction as the password updat
 
 ### Access token after logout
 
-Without a denylist, a stolen access token works until `exp`. With denylist-on-revoke, subsequent API calls fail with `UNAUTHENTICATED` as soon as Redis is checked. If Redis is unavailable, verification **fails open** for access tokens (valid JWT still accepted until `exp`). Refresh always consults PostgreSQL.
+`decode_access_token` still accepts a JWT until `exp`. `JWTAccessAuthentication` then checks Redis `promise:auth:denylist:sid:{sid}`. A hit returns `UNAUTHENTICATED` without waiting for expiry. Whether Redis hits or misses, PostgreSQL `AuthSession.is_active()` remains required. Refresh always consults PostgreSQL.
 
-This matches the platform rule: Redis loss must not take down core tracking. A 15-minute residual access window in a Redis outage is the accepted trade-off.
+If Redis is down, the denylist check is skipped and PostgreSQL still rejects revoked sessions. Logout remains available. This is fail-open on Redis, fail-closed on PostgreSQL.
 
 ---
 
@@ -438,9 +462,8 @@ Auth-specific codes:
 
 | Code | When |
 |---|---|
-| `AUTHENTICATION_FAILED` | Login credentials wrong, or refresh token rejected (generic) |
+| `AUTHENTICATION_FAILED` | Login failed: unknown email, wrong password, or inactive user. Same generic 401 to reduce account enumeration. |
 | `EMAIL_ALREADY_EXISTS` | Register and the email is taken |
-| `ACCOUNT_DISABLED` | Password was correct but `is_active=False` |
 | `TOKEN_INVALID` | Malformed/forged access or refresh token |
 | `TOKEN_EXPIRED` | Refresh session idle or absolute expiry |
 | `SESSION_REVOKED` | Session revoked; client must re-authenticate |
@@ -485,12 +508,11 @@ Always run a password hash check, including when the email is unknown (dummy has
 
 | Failure | HTTP | Code |
 |---|---|---|
-| Unknown email or wrong password | 401 | `AUTHENTICATION_FAILED` — message: `"Invalid email or password."` |
-| Correct password, `is_active=False` | 403 | `ACCOUNT_DISABLED` (only after a successful password check) |
+| Unknown email, wrong password, or inactive user | 401 | `AUTHENTICATION_FAILED` — message: `"Invalid email or password."` |
 | Validation | 400 | `VALIDATION_ERROR` |
 | Too many attempts | 429 | `RATE_LIMITED` |
 
-Do not say “email not found” or “wrong password” separately.
+Login failures are intentionally generic so they do not enumerate accounts. Unknown email, wrong password, and `is_active=False` all return the same 401. Do not say “email not found”, “wrong password”, or “account disabled” separately. Do not use `403 ACCOUNT_DISABLED` on login.
 
 ---
 
@@ -519,12 +541,18 @@ On reuse, revoke first, then return `TOKEN_INVALID`. Login is the only endpoint 
 
 | | |
 |---|---|
-| **Purpose** | Revoke this device/session. |
-| **Auth** | Refresh token in body; access token not required |
+| **Purpose** | Revoke the session identified by the refresh token, if it belongs to the authenticated user. |
+| **Auth** | Required: `Authorization: Bearer <access>` plus `{ "refresh_token": "..." }` |
 | **Success** | `204 No Content` empty body |
-| **Request** | `{ "refresh_token": "..." }` |
+| **Request** | `{ "refresh_token": "<session_id>.<secret>" }` |
 
-Always 204 if the body is syntactically valid. Invalid JSON still 400 `INVALID_REQUEST` / `VALIDATION_ERROR`.
+| Failure | HTTP | Code |
+|---|---|---|
+| Missing/invalid access | 401 | `UNAUTHENTICATED` |
+| Malformed refresh, unknown session, HMAC mismatch, or another user's session | 401 | `TOKEN_INVALID` |
+| Missing/empty `refresh_token` | 400 | `VALIDATION_ERROR` |
+
+Own already-revoked session with a valid refresh token: **204**. Do not return a body on success.
 
 ---
 
@@ -539,9 +567,9 @@ Always 204 if the body is syntactically valid. Invalid JSON still 400 `INVALID_R
 
 | Failure | HTTP | Code |
 |---|---|---|
-| Missing/invalid/expired access | 401 | `UNAUTHENTICATED` / `TOKEN_INVALID` / `TOKEN_EXPIRED` |
+| Missing/invalid/expired access | 401 | `UNAUTHENTICATED` |
 
-If access is expired, the client refreshes (or logs in) then calls logout-all.
+If access is expired or the session is already revoked, the client logs in (or refreshes from another still-active session) then calls logout-all.
 
 ---
 
@@ -767,12 +795,11 @@ Refresh tokens are **not** JWTs.
 |---|---|---|
 | AuthSession, users, identities | **No** | PostgreSQL |
 | Login / register / refresh / forgot rate limits | **Yes** | Counters with TTL |
-| Per-session refresh lock | **Yes** | Lock only; session still in Postgres |
-| Access `sid` denylist after logout | **Yes** | Hint; Postgres `revoked_at` is truth for refresh |
+| Per-session refresh lock | **Deferred** | PostgreSQL `SELECT FOR UPDATE` is sufficient; Redis lock not added in 4.7 |
+| Access `sid` denylist after logout | **Yes** (Phase 4.7) | Hint; Postgres `revoked_at` is truth. Redis is a fast reject. |
 | Password reset tokens | **No** | PostgreSQL hashed token + expiry |
 | Email verification tokens | **No** (when built) | PostgreSQL |
-| Replay detection of refresh | **No** | Postgres hmac + previous hmac |
-| Caching `/me/` | **No** (not worth it) | — |
+| Replay detection of refresh | **No** | Postgres hmac + previous hmac + current ciphertext for grace |
 
 Keys (follow existing `promise:` prefix):
 
@@ -781,15 +808,19 @@ promise:ratelimit:ip:{ip}:auth:login
 promise:ratelimit:email:{email_hash}:auth:login
 promise:ratelimit:ip:{ip}:auth:register
 promise:ratelimit:ip:{ip}:auth:forgot
-promise:lock:auth:refresh:{session_id}
-promise:auth:denylist:sid:{session_id}    TTL ≥ access TTL
+promise:lock:auth:refresh:{session_id}     DEFERRED (Postgres row lock is enough)
+promise:auth:denylist:sid:{session_id}    TTL = access TTL + JWT leeway (900 + 30 = 930s)
 ```
 
 Hash emails in rate-limit keys so Redis is not a plaintext email directory.
 
-If Redis is down: skip rate limits and denylist (**fail open** for availability in local/dev and for core APIs); **never** skip PostgreSQL session checks on refresh. Do not over-engineer local dev: missing Redis must not block `runserver` for health checks, as today.
+If Redis is down: skip rate limits and denylist (**fail open** on the Redis shortcut); **never** skip PostgreSQL session checks on refresh **or** on `JWTAccessAuthentication`. Logout still revokes in PostgreSQL if the denylist write fails. Protected routes therefore still reject a logged-out session when Redis is unavailable. The 15-minute residual window applies only if PostgreSQL validation were skipped; it is not skipped.
 
-**DEFERRED:** actually wiring a Redis client and throttles.
+Missing Redis must not block `runserver` or health checks.
+
+Rate-limit counters (`incr_with_ttl`) exist as a primitive only. Login/register/refresh throttles are **not** wired in Phase 4.7.
+
+Redis refresh locking is **DEFERRED**: `transaction.atomic()` + `select_for_update()` already serializes rotation.
 
 ---
 
@@ -823,14 +854,14 @@ Publication path: **transactional outbox**, never “save user then emit to Kafk
 | Brute-force login | Redis throttle per IP and per email hash; generic 401 |
 | Rate limiting | Same; `429 RATE_LIMITED` already mapped in `config.exceptions` |
 | Credential stuffing | Throttles + common-password validator; breach list later |
-| Refresh theft | HMAC at rest, rotation, reuse revoke, Keystore on device |
-| Refresh replay | Rotation + grace; second use outside grace revokes |
+| Refresh theft | HMAC at rest, Fernet current-secret ciphertext for grace only, rotation, reuse revoke, Keystore on device |
+| Refresh replay | Rotation + 30s grace (return current secret from ciphertext); after grace, previous token revokes |
 | Account enumeration | Generic login/reset; register 409 is accepted and throttled |
 | Password-reset abuse | Throttle forgot; 1-hour single-use tokens; generic 202 |
 | Token expiration | 15 min access; 30d / 90d session |
 | Session revocation | Postgres + Redis denylist |
 | HTTPS | **Required in production.** Local emulator HTTP is allowed. |
-| Secrets | Env / secret manager. Never Git. Dedicated JWT key and refresh pepper. |
+| Secrets | Env / secret manager. Never Git. Dedicated `JWT_SIGNING_KEY`, `AUTH_REFRESH_TOKEN_PEPPER`, and `AUTH_REFRESH_TOKEN_ENCRYPTION_KEY`. Do not reuse `DJANGO_SECRET_KEY` for any of them. |
 | JWT key rotation | Dual `kid` HS256 keys (§14) |
 | CORS | Irrelevant to Android. Future web: explicit origin allowlist, never `*` with credentials. |
 | CSRF | Android uses Bearer headers, not cookies → CSRF does not apply. If a cookie web client appears, that client needs SameSite + CSRF; do not switch Android to cookies. |
@@ -903,9 +934,10 @@ Every API call looks up a session in Redis or PostgreSQL.
 | Architecture | Option B | **DECIDED** |
 | Access token | JWT, 15 min, memory on Android | **DECIDED** |
 | Refresh token | Opaque `{sid}.{secret}`, HMAC in Postgres, 30d sliding / 90d cap | **DECIDED** |
-| Rotation | Every refresh | **DECIDED** |
-| Reuse | Revoke session; generic client error; 30s retry grace | **DECIDED** |
-| Logout | Refresh body → one session; access → all sessions | **DECIDED** |
+| Current refresh secret ciphertext | Fernet with dedicated `AUTH_REFRESH_TOKEN_ENCRYPTION_KEY`; grace recovery only | **DECIDED** |
+| Rotation | Every successful current-token refresh; `sid` unchanged | **DECIDED** |
+| Reuse | Revoke session; client sees `TOKEN_INVALID`; 30s retry grace | **DECIDED** |
+| Logout | Access JWT required; refresh body identifies own session; logout-all revokes all own active sessions | **DECIDED** |
 | Signing | HS256, dedicated key, `kid` rotation | **DECIDED** |
 | RS256/JWKS | When a second verifier appears | **DEFERRED** |
 | Permissions in JWT | No | **DECIDED** |
@@ -918,7 +950,7 @@ Every API call looks up a session in Redis or PostgreSQL.
 | CSRF | N/A for Bearer Android client | **DECIDED** |
 | HTTPS | Production required | **DECIDED** |
 | Rate limits, email, reset, social, Android storage code | After this design | **DEFERRED** / **NOT IMPLEMENTED** |
-| This whole system in code | — | **NOT IMPLEMENTED** |
+| This whole system in code | Phase 4 in progress (4.1–4.7 complete; rate limits, Android remain) | **IN PROGRESS** |
 
 `users.User` remains: UUID pk, email `USERNAME_FIELD`, Django password field, timezone, `is_active`, `is_staff`, timestamps. Future additive columns: `email_verified_at` only when verification is built.
 
@@ -936,7 +968,7 @@ Do **not** start this sequence in the design task. When Phase 4 begins, implemen
 6. `POST /refresh/` with rotation, grace, reuse revoke, Android-parallel test cases.
 7. `POST /logout/` and `POST /logout-all/` + Redis denylist helper (skip if Redis down).
 8. `GET /me/`.
-9. Rate limiting on login/register/refresh (**DEFERRED** until Redis client exists, but keep tests’ 429 mapping).
+9. Rate limiting on login/register/refresh (**DEFERRED**; `incr_with_ttl` primitive exists).
 10. Password forgot/reset once email exists.
 11. `email_verified_at` + verification APIs.
 12. `UserIdentity` + Google/Apple.
@@ -979,7 +1011,8 @@ POST /api/v1/auth/login/  {email, password, device?}
 GET /api/v1/...
 Authorization: Bearer <access>
   → verify JWT (sig, iss, aud, exp, typ)
-  → if Redis denylist has sid → 401
+  → if Redis denylist has sid → 401 (skip this check if Redis is down)
+  → load User + AuthSession from PostgreSQL; inactive/revoked → 401
   → request.user loaded by sub
   → permission/ownership check
 ```
@@ -988,18 +1021,20 @@ Authorization: Bearer <access>
 
 ```text
 POST /api/v1/auth/refresh/  { refresh_token }
-  → lock sid
-  → verify hmac / grace / reuse
-  → rotate
-  → 200 { tokens }
+  → SELECT FOR UPDATE sid
+  → verify hmac / 30s grace (decrypt current secret) / reuse
+  → rotate current token or return current token on grace
+  → 200 { tokens }  (no user object)
 Android replaces both tokens
 ```
 
 ### Logout this device
 
 ```text
-POST /api/v1/auth/logout/  { refresh_token }
-  → revoke session, denylist sid
+POST /api/v1/auth/logout/
+Authorization: Bearer <access>
+  { refresh_token }
+  → revoke own session (Postgres); denylist sid in Redis (skip if Redis down)
   → 204
 Android deletes Keystore refresh + memory access
 ```
@@ -1009,7 +1044,7 @@ Android deletes Keystore refresh + memory access
 ```text
 POST /api/v1/auth/logout-all/
 Authorization: Bearer <access>
-  → revoke all user sessions, denylist all sids
+  → revoke all of this user's active sessions (Postgres); denylist each sid (skip if Redis down)
   → 204
 ```
 

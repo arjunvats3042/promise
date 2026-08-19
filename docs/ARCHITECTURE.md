@@ -689,23 +689,23 @@ It is not required for the first MVP unless it materially improves the experienc
 
 ## 18. Authentication
 
-Initial architecture should support Django REST Framework authentication and permissions:
+Authentication is **Option B**: short-lived JWT access tokens plus server-side rotating opaque refresh sessions (`AuthSession` in PostgreSQL). Details are in [`AUTHENTICATION_DESIGN.md`](AUTHENTICATION_DESIGN.md).
 
 ```text
 Android
   ↓
-Authentication
+POST /api/v1/auth/login/ or /auth/refresh/
   ↓
-Access token
+Bearer access JWT (15 min)
   ↓
-Django REST Framework
+Django REST Framework (JWTAccessAuthentication)
   ↓
 Authenticated user (request.user)
 ```
 
-Use DRF authentication classes to verify credentials/tokens and permission classes to authorize access.
+Refresh tokens are `{session_id}.{secret}`. HMAC-SHA256 of the secret is the canonical verifier. HMAC cannot reconstruct the current secret, so that secret is also stored as Fernet ciphertext (`AUTH_REFRESH_TOKEN_ENCRYPTION_KEY`) for a 30-second retry-grace only. Previous secrets are HMAC-only. After the grace window, presenting the previous token revokes the session. Plaintext refresh secrets are never persisted. Refresh concurrency uses PostgreSQL `SELECT FOR UPDATE` (Redis lock is deferred). Logout and logout-all set `revoked_at` on `AuthSession` rows and add each `sid` to Redis `promise:auth:denylist:sid:{sid}` with TTL = access JWT lifetime + leeway. Redis is a fast deny hint: if Redis is down, denylist reads/writes are skipped and PostgreSQL session checks still run. JWTs remain cryptographically valid until `exp`.
 
-The exact token strategy can be selected during backend implementation.
+Use DRF authentication classes to verify credentials/tokens and permission classes to authorize access.
 
 Every protected resource must be scoped to the authenticated user.
 

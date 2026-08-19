@@ -14,18 +14,18 @@ Update this file after every meaningful, verified development result. Never stor
 
 ## Current Status
 
-- **Current phase:** Phase 4 — Authentication (not started)
-- **Current step:** Phase 3 **COMPLETE**. Authentication architecture is designed (`docs/AUTHENTICATION_DESIGN.md`). Authentication **implementation is NOT started** and is Phase 4.
-- **Overall status:** Django 6.1 + DRF foundation is in place: custom `users.User` (`AUTH_USER_MODEL`), `/api/v1/`, error envelope, logging, abstract `BaseModel`. No auth APIs, JWT, session models, or auth packages.
-- **Last completed milestone:** Phase 3 — Django Backend Foundation (final review 2026-08-19)
-- **Immediate next step:** Phase 4 authentication **implementation**, following [`docs/AUTHENTICATION_DESIGN.md`](AUTHENTICATION_DESIGN.md). Do not recreate `users.User`. Phase 4 is **not** complete.
+- **Current phase:** Phase 5 — Commitment Domain
+- **Current step:** Phase 4.8 — Final authentication verification **COMPLETE**. Phase 4 Authentication is **COMPLETE**.
+- **Overall status:** Backend authentication (Option B) is implemented and automated-verified: register, login, JWT `/me/`, refresh rotation + 30s grace, logout / logout-all, Redis `sid` denylist with PostgreSQL fallback. `users.User` unchanged. Manual cURL against a live server was **not** executed in this step.
+- **Last completed milestone:** Phase 4.8 final authentication verification (2026-08-20)
+- **Immediate next step:** Phase 5 — Commitment domain (`commitments`, `commitment_events`). Deferred by design: login/register/refresh rate limits, password reset, email verification, social login, Kafka user events, Android.
 
 Phase checklist:
 
 - Phase 1 Repository Setup: **COMPLETE**
 - Phase 2 Local Infrastructure: **COMPLETE**
 - Phase 3 Django Backend Foundation: **COMPLETE**
-- Phase 4 Authentication: **NOT STARTED**
+- Phase 4 Authentication: **COMPLETE** (automated verification; manual cURL pending)
 
 ---
 
@@ -183,31 +183,179 @@ Phase checklist:
   - `python manage.py makemigrations --check` — **PASS** (No changes detected)
   - `pytest -v` — **15 passed**
 - **Authentication:** Architecture designed in [`docs/AUTHENTICATION_DESIGN.md`](AUTHENTICATION_DESIGN.md). Implementation belongs to **Phase 4** and is **not** complete.
+- **Git commit:** `d8e351e` — `feat: bootstrap Django backend`
+
+### 2026-08-19 — Phase 4.1 — Authentication session foundation: COMPLETE
+
+- **What was implemented:** `apps.authentication` with `AuthSession` (`BaseModel` UUID pk). Opaque refresh token format remains `{session_id}.{secret}`. Server stores HMAC-SHA256 of the secret with `AUTH_REFRESH_TOKEN_PEPPER` (`refresh_token_hmac` / `previous_token_hmac` for rotation/reuse). No raw refresh token, access token, or password on the session row. State is derived (`revoked_at`, `expires_at`, `absolute_expires_at`). Token helpers in `apps.authentication.tokens`.
+- **Migration:** `authentication.0001_initial` created and applied. Table `authentication_authsession` only (plus FK/indexes). `users.User` not modified.
+- **Not done:** Phase 4 not complete. No register/login/JWT/refresh/logout/`/me/` APIs, no DRF auth class, no Redis/Kafka, no Android.
+- **Verification:**
+  - `python manage.py check` — **PASS**
+  - `python manage.py migrate` — `authentication.0001_initial` **OK**
+  - `python manage.py showmigrations` — `authentication` `[X] 0001_initial`
+  - `python manage.py makemigrations --check` — **PASS**
+  - `pytest -v` — **27 passed** in 3.59s (15 Phase 3 + 12 AuthSession)
+- **Git commit:** not committed yet
+
+### 2026-08-19 — Phase 4.2 — JWT access-token infrastructure: COMPLETE
+
+- **What was implemented:** Access JWT issue/verify in `apps.authentication.access_tokens`. Library: **PyJWT** 2.13. Algorithm: **HS256** with dedicated `JWT_SIGNING_KEY` and `kid` (not `DJANGO_SECRET_KEY`). Lifetime **15 minutes**. Claims: `sub`, `sid`, `jti`, `iat`, `exp`, `iss`, `aud`, `typ=access`. No email/password/roles/refresh token in payload. `AccessTokenError` is a generic internal exception for a future 401 mapping. Optional previous key settings exist for rotation. No DRF authentication class, no HTTP auth APIs.
+- **Validation:** Rejects invalid signature, expiry, issuer, audience, `typ`, missing claims, non-UUID `sub`/`sid`, malformed tokens. Does not load User/AuthSession from the database.
+- **Migration:** **none**. `makemigrations --check` — No changes detected.
+- **Not done:** Phase 4 not complete. No register/login/refresh/logout/`/me/`, no DRF auth class.
+- **Verification:** `python manage.py check` PASS; `pytest -v` **41 passed** in 6.08s; `makemigrations --check` PASS.
+- **Git commit:** not committed yet
+
+### 2026-08-19 — Phase 4.3 — Registration + Login: COMPLETE
+
+- **Endpoints:** `POST /api/v1/auth/register/` (`201`) and `POST /api/v1/auth/login/` (`200`). Both remain public and issue one `AuthSession`, one 15-minute access JWT, and one opaque `{session_id}.{secret}` refresh token.
+- **Registration:** Canonical lowercase email, Django validation, Argon2id password hashing through Django, duplicate email/casing protection (`409 EMAIL_ALREADY_EXISTS`), and atomic User + AuthSession + token creation.
+- **Login:** Case-insensitive canonical email lookup, Django `check_password`, dummy hash check for unknown email, and the same generic `401 AUTHENTICATION_FAILED` for unknown email, wrong password, and inactive user.
+- **Security:** The API never returns or logs plaintext passwords, password hashes, refresh-token HMACs, or superuser state. Only the client receives the raw refresh token. PBKDF2 remains enabled for existing password hashes.
+- **Migration:** **none**. `python manage.py makemigrations --check` — No changes detected.
+- **Verification:** `python manage.py check` PASS; `pytest -v` **65 passed** in 2.81s; `makemigrations --check` PASS; IDE lint diagnostics clean.
+- **Manual cURL:** Not executed because `runserver` was intentionally not started.
+- **Not done:** Phase 4 is not complete. No refresh/logout/logout-all/`me`, DRF authentication class, Redis/Kafka, or Android work.
+- **Git commit:** not committed yet
+
+### 2026-08-19 — Phase 4.4 — DRF JWT authentication + `/auth/me/`: COMPLETE
+
+- **Authentication class:** `JWTAccessAuthentication` reuses `decode_access_token`. It requires `Authorization: Bearer <access_token>`, loads `User` from `sub`, and checks that the `sid` `AuthSession` exists and `is_active()` (not missing, revoked, or expired). PostgreSQL is the source of truth. No Redis denylist.
+- **Context:** `request.auth` is `AccessAuthenticationContext(session_id, token_id=jti)`. No refresh-token material.
+- **Default permissions:** `IsAuthenticated`. Public exceptions: `GET /api/v1/health/`, `POST /api/v1/auth/register/`, `POST /api/v1/auth/login/`, and the v1 404 catch-all (explicit `AllowAny` + empty authentication classes).
+- **Endpoint:** `GET /api/v1/auth/me/` returns `{ "user": { id, email, name, timezone, created_at } }` with HTTP 200. No password, hash, superuser flag, tokens, or session internals.
+- **Errors:** Missing access credentials → `401 UNAUTHENTICATED` `"Authentication credentials were not provided."` Invalid/malformed token, inactive user, or inactive session → `401 UNAUTHENTICATED` `"Authentication failed."` Login still uses `AUTHENTICATION_FAILED`.
+- **Migration:** **none**. `python manage.py makemigrations --check` — No changes detected.
+- **Verification:** `python manage.py check` PASS; `pytest -v` **88 passed** in 3.62s; `makemigrations --check` PASS; `git diff --check` PASS.
+- **Manual cURL:** Not executed by this step (`runserver` was not started from the agent).
+- **Not done:** Phase 4 is not complete. No refresh/logout/logout-all, Redis/Kafka, or Android work.
+- **Git commit:** not committed yet
+
+### 2026-08-19 — Phase 4.5 — Refresh-token rotation: COMPLETE
+
+- **Endpoint:** `POST /api/v1/auth/refresh/` (`200`). Public (`AllowAny`, empty authentication classes). Request `{ "refresh_token": "<session_id>.<secret>" }`. Success envelope is `{ "tokens": { access_token, refresh_token, token_type, expires_in } }` only — no `user` object. Session id is unchanged.
+- **Schema change:** `AuthSession.current_refresh_secret_ciphertext` (`TextField`, blank, default `""`). Existing rotation fields unchanged (`refresh_token_hmac`, `previous_token_hmac`, `previous_rotated_at`, `expires_at`, `absolute_expires_at`, `last_used_at`, `revoked_at`).
+- **Encrypted current refresh secret:** HMAC remains the canonical verifier. The current secret is also Fernet-encrypted with dedicated `AUTH_REFRESH_TOKEN_ENCRYPTION_KEY` so a 30-second retry can return the already-issued current token. HMAC cannot reconstruct the secret. Previous secrets are HMAC-only. Plaintext secrets, composed refresh tokens, and access JWTs are never persisted. Ciphertext is used only for grace recovery, never for authentication.
+- **Rotation:** Current-token match under `transaction.atomic()` + `select_for_update()`: previous HMAC ← current HMAC, `previous_rotated_at = now`, new secret R2, store HMAC(R2) + Fernet(R2), update `last_used_at`, extend idle expiry capped by `absolute_expires_at`, issue a new access JWT (new `jti`).
+- **30-second grace:** Previous-token match within 30 seconds of `previous_rotated_at` does not rotate or revoke. Decrypt current ciphertext, return `{sid}.{current secret}` and a new access JWT. Absolute expiry is not extended. Rotation fields are not written.
+- **Reuse detection:** Previous token after the grace window, or a secret matching neither HMAC, revokes that session (`revoked_reason=reuse`) then returns generic `401 TOKEN_INVALID`. Revoke is committed before the error is raised so the write is not rolled back. Unknown `session_id` is `TOKEN_INVALID` without a revoke. Idle/absolute expiry is `TOKEN_EXPIRED`. Already-revoked is `SESSION_REVOKED`.
+- **Concurrency:** PostgreSQL row locking only. Redis was not added. Concurrent current-token refreshes serialize; the waiter follows the grace path and returns the same successor refresh token with a distinct access `jti`.
+- **Migration:** `authentication.0002_authsession_current_refresh_secret_ciphertext` created and applied. `python manage.py showmigrations authentication` — `[X] 0001_initial`, `[X] 0002_authsession_current_refresh_secret_ciphertext`.
+- **Tests:** Refresh coverage includes successful rotation, grace retry, post-grace reuse revoke, invalid/malformed/unknown/revoked/expired tokens, idle cap, unchanged session id, changing `jti`/secret/ciphertext, no plaintext at rest, encrypt/decrypt and wrong-key failure, and concurrent refresh. `pytest -v` **109 passed**.
+- **Verification:** `python manage.py check` PASS; `python manage.py makemigrations --check` PASS (no further changes).
+- **Manual cURL:** Commands documented for later use; `runserver` was not started by this step.
+- **Not done:** Phase 4 is not complete. No logout/logout-all, Redis, Kafka, or Android work.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 4.6 — Logout / logout-all: COMPLETE
+
+- **Logout current session:** `POST /api/v1/auth/logout/` requires `Authorization: Bearer <access>` and `{ "refresh_token": "<session_id>.<secret>" }`. Parses the refresh token, loads the `AuthSession` with `select_for_update()`, requires the row to belong to `request.user`, verifies HMAC (current or previous), sets `revoked_at` / `revoked_reason=logout`, and returns **204** with an empty body. Does not create or rotate tokens. Does not delete the row.
+- **Logout-all:** `POST /api/v1/auth/logout-all/` requires a valid access JWT and no body. In one transaction, locks then updates all of `request.user`'s rows with `revoked_at IS NULL` to `revoked_reason=logout_all`. Other users' sessions are untouched. Already-revoked rows keep their previous reason.
+- **Idempotency:** Repeating logout for an already-revoked **own** session with a still-valid access JWT from another session returns 204. Logout-all leaves already-revoked rows unchanged and still returns 204. If the access JWT's own session is already revoked, `JWTAccessAuthentication` returns `401 UNAUTHENTICATED` before the view (existing class, unchanged).
+- **Immediate refresh revocation:** Refresh against a logged-out session returns `401 SESSION_REVOKED`. No Redis.
+- **Access-token behavior before Redis denylist:** `decode_access_token` still accepts the JWT until `exp`. Protected routes (`/auth/me/`) reject it because PostgreSQL shows the session revoked (`401 UNAUTHENTICATED`). Immediate cryptographic kill of access JWTs is deferred to the Redis denylist phase.
+- **Errors:** Malformed refresh, unknown session, HMAC mismatch, and another user's session all return the same `401 TOKEN_INVALID`. Missing access credentials → `401 UNAUTHENTICATED`. Missing `refresh_token` → `400 VALIDATION_ERROR`. No session existence leak.
+- **Migration:** **none**. `python manage.py makemigrations --check` — No changes detected.
+- **Tests:** `tests/test_auth_logout.py` covers own logout, refresh failure, idempotency, cross-user rejection, malformed/unknown tokens, logout-all, other-user isolation, `/me/` after logout, and no token/hash/secret leakage. Existing tests kept.
+- **Manual cURL:** Placeholders only (no real tokens). `runserver` was not started by this step.
+
+```bash
+curl -i -X POST http://127.0.0.1:8000/api/v1/auth/logout/ \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -d '{"refresh_token": "<REFRESH_TOKEN>"}'
+
+curl -i -X POST http://127.0.0.1:8000/api/v1/auth/refresh/ \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "<REFRESH_TOKEN>"}'
+
+curl -i -X POST http://127.0.0.1:8000/api/v1/auth/logout-all/ \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+```
+- **Not done:** Phase 4 is not complete. No Redis, Kafka, or Android work.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 4.7 — Redis authentication integration: COMPLETE
+
+- **Client:** Synchronous `redis-py` via `REDIS_URL` in `apps.core.redis`. Short socket timeouts. Lazy connect so health/`runserver` do not require Redis. `incr_with_ttl` is a reusable counter primitive; no endpoint throttles were wired.
+- **Denylist key:** `promise:auth:denylist:sid:{session_id}`. Value is `1` (not a JWT, refresh token, or password).
+- **TTL:** `JWT_ACCESS_TTL_SECONDS + JWT_LEEWAY_SECONDS` (900 + 30 = 930s), covering any still-valid access JWT for that `sid` including leeway. Keys are not indefinite.
+- **Auth flow:** After JWT cryptographic validation, `JWTAccessAuthentication` checks the denylist, then PostgreSQL user + `AuthSession.is_active()`. PostgreSQL validation was not removed.
+- **Logout:** After Postgres revoke, each affected `sid` is written to Redis (logout, logout-all, and refresh reuse). Redis write failures are logged without secrets and do not fail the request.
+- **Fallback:** Redis down → skip denylist read/write (fail-open on Redis). PostgreSQL session checks still run, so logout still makes `/auth/me/` return 401. Refresh is unchanged (Postgres only).
+- **Refresh lock:** **Not implemented.** `SELECT FOR UPDATE` already serializes rotation.
+- **Tests:** fakeredis (no Docker Redis required). Coverage includes allow, deny-while-Postgres-active, logout/logout-all keys + TTL, expiry, Redis-down fallback, and Postgres still authoritative if the denylist key is missing. `pytest -v` **138 passed**.
+- **Migration:** **none**.
+- **Manual cURL:** Placeholders only. Restart the already-running server so it loads the Redis client. Docker Redis is optional: logout still revokes in PostgreSQL if Redis is down.
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/api/v1/auth/login/ \
+  -H "Content-Type: application/json" \
+  -d '{"email":"<email>","password":"<password>"}'
+
+curl -i http://127.0.0.1:8000/api/v1/auth/me/ \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+
+curl -i -X POST http://127.0.0.1:8000/api/v1/auth/logout/ \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>" \
+  -d '{"refresh_token": "<REFRESH_TOKEN>"}'
+
+curl -i http://127.0.0.1:8000/api/v1/auth/me/ \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+```
+- **Not done (deferred):** Login/register/refresh rate limits, Kafka user events, and Android. Phase 4 APIs 4.1–4.7 were verified in 4.8.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 4.8 — Final authentication verification: COMPLETE
+
+- **Automated tests:** `pytest -v` **138 passed** in 7.93s. No tests were weakened or rewritten.
+- **Configuration:** `python manage.py check` PASS (0 issues). `python manage.py makemigrations --check` PASS (no changes). `authentication` migrations `[X] 0001_initial`, `[X] 0002_authsession_current_refresh_secret_ciphertext`. `git diff --check` PASS.
+- **Secrets:** `.env` is gitignored (`.gitignore:4:.env`); not tracked. JWT signing key, refresh pepper, and refresh encryption key are loaded from the environment. `.env.example` has placeholders only (`changeme`). Production secrets are not in source.
+- **Source of truth:** PostgreSQL `AuthSession` remains authoritative. Redis denylist is a TTL'd `sid` hint (`promise:auth:denylist:sid:{session_id}`).
+- **Redis fallback (automated):** `test_redis_unavailable_on_read_falls_back_to_postgres_allow` and `test_redis_unavailable_on_logout_still_revokes_in_postgres` PASS. Redis down skips the denylist; PostgreSQL still allows active sessions and rejects revoked ones. `test_revoked_postgres_session_fails_even_without_denylist_key` PASS.
+- **Lifecycle (automated):** register 201; login 200 new session; `/me/` 200/401; refresh rotation with unchanged session id and new `jti`; 30s grace; post-grace reuse revoke; logout 204; logout-all 204 without touching other users; denylist write on logout.
+- **Security review:** No blocking issues. Passwords/hashes/HMACs/ciphertext are not in API bodies. Logs use session/user ids only. Login failures are generic (`AUTHENTICATION_FAILED`). JWTs carry `sub`/`sid`/`jti`/`iat`/`exp`/`iss`/`aud`/`typ` — no email/name/password/roles. Default DRF permission is `IsAuthenticated`. Logout sets `revoked_at` and does not delete rows. Refresh uses `select_for_update()`. Access TTL 15 minutes; refresh idle 30 days / absolute 90 days.
+- **Manual test status:** **Automated verification complete; manual verification pending.** Live cURL was not executed in this step. `runserver` was not started by this verification.
+- **Final authentication status:** Phase 4 **COMPLETE** for the implemented Option B APIs (4.1–4.7). Deferred by design and out of 4.8 scope: rate limits, password reset, email verification, social login, Kafka, Android.
 - **Git commit:** not committed yet
 
 ---
 
 ## Current Work
 
-Phase 3 is complete. Phase 4 authentication implementation has **not** started. **No auth APIs exist.**
+Phase 4 Authentication is complete (automated verification; manual cURL pending). Phase 5 Commitment Domain has not started.
 
-Still uncommitted:
+Uncommitted (Phase 4.1–4.8):
 
-- Django/DRF documentation updates
+- `backend/apps/authentication/`
+- `backend/apps/core/redis.py`
+- `backend/tests/test_auth_session.py`
+- `backend/tests/test_access_tokens.py`
+- `backend/tests/test_auth_register_login.py`
+- `backend/tests/test_auth_jwt_me.py`
+- `backend/tests/test_auth_refresh.py`
+- `backend/tests/test_auth_logout.py`
+- `backend/tests/test_auth_redis.py`
+- `backend/tests/test_redis_client.py`
+- `backend/tests/conftest.py`
+- `backend/config/settings/base.py`
+- `backend/config/exceptions.py`
+- `backend/config/urls.py`
+- `backend/config/views.py`
+- `backend/pyproject.toml` (`PyJWT>=2.8`, `argon2-cffi`, `cryptography`, `redis`; dev `fakeredis`)
+- `.env.example` (pepper + Fernet encryption-key placeholder + JWT placeholders)
 - `docs/BUILD_PROGRESS.md`
 - `docs/AUTHENTICATION_DESIGN.md`
-- `docs/DEVELOPMENT.md` checkpoint / Phase 4 wording
-- `README.md` (Django stack)
-- `backend/` Django project
-- `.env.example` Django placeholders
+- `docs/ARCHITECTURE.md`
 
 ---
 
 ## Next Steps
 
-1. Commit pending documentation and Django foundation when ready
-2. Phase 4: implement authentication using [`docs/AUTHENTICATION_DESIGN.md`](AUTHENTICATION_DESIGN.md). Keep existing `users.User`. Do not mark Phase 4 complete until that work is done.
-3. Do not add commitments, goals, challenges, Redis/Kafka clients, Celery, AI, or Android yet
+1. Phase 5 — Commitment domain (`commitments`, `commitment_events`).
+2. Deferred by design: login/register/refresh rate limits (`incr_with_ttl` exists but is unwired), password reset, email verification, social login, Kafka user events, Android.
 
 ---
 
@@ -288,9 +436,9 @@ Never stored here: passwords, API keys, tokens, private keys, `.env` contents.
 | Abstract `apps.core.models.BaseModel` for domain models | UUID pk + created/updated timestamps without duplicating fields; User stays independent | 2026-08-18 / Phase 3 |
 | UUID v4 primary keys (not sequential ints) | Stable public IDs across services; no shared sequence; reduced ID enumeration. Not a security control. | 2026-08-18 / Phase 3 |
 | Timezone-aware UTC storage; user TZ is preference | `USE_TZ=True`, `TIME_ZONE=UTC`; APIs serialize aware timestamps | 2026-08-18 / Phase 3 |
-| **Auth Option B:** JWT access + server-side rotating refresh sessions | Per-device revoke, rotation, reuse detection; no User rewrite later. Documented in `docs/AUTHENTICATION_DESIGN.md`. **Not implemented.** | 2026-08-18 / design |
+| **Auth Option B:** JWT access + server-side rotating refresh sessions | Session table **implemented** (4.1), access JWT issue/verify **implemented** (4.2), register/login **implemented** (4.3), DRF JWT auth + `/me/` **implemented** (4.4), refresh rotation + 30s grace **implemented** (4.5), logout / logout-all **implemented** (4.6), Redis `sid` denylist **implemented** (4.7). Phase 4.8 **verified**. Rate limits remain unwired (deferred). | 2026-08-18 / design; 2026-08-19–20 / Phase 4.1–4.8 |
 | Access JWT 15 min; refresh 30d sliding / 90d cap; HS256 with dedicated key | Short stolen-access window; mobile-friendly re-auth; key rotation via `kid` | 2026-08-18 / design |
-| Opaque refresh `{sid}.{secret}` stored as HMAC; never plaintext | DB dump is not a session store; reuse detectable via `sid` | 2026-08-18 / design |
+| Opaque refresh `{sid}.{secret}` stored as HMAC; current secret also Fernet ciphertext for 30s grace | HMAC cannot reconstruct the secret; ciphertext is grace recovery only; previous secrets HMAC-only; plaintext never stored | 2026-08-18 / design; 2026-08-19 / Phase 4.5 |
 | Future `UserIdentity`; no `google_id`/`apple_id` on User | Multiple providers without duplicating users | 2026-08-18 / design |
 | Soft email verification (non-blocking for MVP) | Onboarding friction vs later sharing/email guarantees | 2026-08-18 / design |
 | Local AI via Ollama later | Zero API cost during experimentation | 2026-08-18 / Phase 1 |
@@ -328,6 +476,14 @@ Never stored here: passwords, API keys, tokens, private keys, `.env` contents.
 | 2026-08-18 | `python manage.py makemigrations --check` after `BaseModel` | **Pass** — No changes detected; no `core` table/migration |
 | 2026-08-18 | Auth design step — backend code | **Unchanged** — docs only (`AUTHENTICATION_DESIGN.md`, `BUILD_PROGRESS.md`). No models, migrations, APIs, `pyproject.toml`, or tests modified. Last pytest result remains **15 passed**. |
 | 2026-08-19 | Phase 3 final review + docs cleanup | **Pass** — `manage.py check` no issues; `makemigrations --check` no changes; `pytest -v` **15 passed** in 1.23s. No backend code changed. |
+| 2026-08-19 | Phase 4.1 AuthSession migrate + tests | **Pass** — `authentication.0001_initial` applied; table `authentication_authsession`; `check` clean; `makemigrations --check` no changes; `pytest -v` **27 passed** in 3.59s |
+| 2026-08-19 | Phase 4.2 access JWT infrastructure | **Pass** — no new migration; `check` clean; `makemigrations --check` no changes; `pytest -v` **41 passed** in 6.08s |
+| 2026-08-19 | Phase 4.3 register/login APIs | **Pass** — no new migration; `check` clean; `makemigrations --check` no changes; `pytest -v` **65 passed** in 2.81s |
+| 2026-08-19 | Phase 4.4 DRF JWT auth + `/auth/me/` | **Pass** — no new migration; `check` clean; `makemigrations --check` no changes; `pytest -v` **88 passed** in 3.62s |
+| 2026-08-19 | Phase 4.5 refresh-token rotation | **Pass** — `authentication.0002_authsession_current_refresh_secret_ciphertext` applied; `check` clean; `makemigrations --check` no changes; `pytest -v` **109 passed** in 4.93s |
+| 2026-08-20 | Phase 4.6 logout / logout-all | **Pass** — no new migration; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **127 passed** in 6.89s |
+| 2026-08-20 | Phase 4.7 Redis auth denylist | **Pass** — no new migration; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **138 passed** in 8.19s |
+| 2026-08-20 | Phase 4.8 final authentication verification | **Pass** — `manage.py check` 0 issues; `makemigrations --check` no changes; `authentication` 0001+0002 applied; `.env` gitignored; `git diff --check` clean; `pytest -v` **138 passed** in 7.93s. Manual cURL **pending**. |
 
 ---
 
@@ -338,6 +494,8 @@ Never stored here: passwords, API keys, tokens, private keys, `.env` contents.
 - **Empty placeholder directories.** `android/` and `infrastructure/{postgres,redis,kafka}` exist but have no app code. Compose lives at the repo root. `backend/` has the Django foundation.
 - **Health test does not require a database query.** The health endpoint still returns `{"status": "ok"}` without hitting application tables. PostgreSQL is used for applied Django migrations.
 - **Custom `AUTH_USER_MODEL` applied after a local DB reset.** The empty local `promise` database was dropped and recreated (not the Docker volume). `users_user` is the user table; `auth_user` is gone.
+- **Manual authentication cURL is pending.** Phase 4.8 automated verification passed; live HTTP against `runserver` was not executed.
+- **Deferred auth work (non-blocking).** Login/register/refresh rate limits are not wired. Password reset, email verification, social login, Kafka user events, and Android were out of Phase 4.8 scope. `docs/DEVELOPMENT.md` still lists Phase 4 as the next checkpoint.
 
 No open infrastructure defects from the Phase 2 verification.
 
@@ -350,18 +508,32 @@ No open infrastructure defects from the Phase 2 verification.
 | `6b9cb00` | 2026-08-18 | Initialize repo, `.gitignore`, `README.md` |
 | `5284662` | 2026-08-18 | Add plan, architecture, and development docs |
 | `c4fac57` | 2026-08-18 | Add local Docker infrastructure |
+| `d8e351e` | 2026-08-19 | Bootstrap Django backend (Phase 3 complete) |
 
-`main` tracks `origin/main` at `c4fac57`.
+`main` tracks `origin/main` at `d8e351e`.
 
-Not in Git yet:
+Not in Git yet (Phase 4.1–4.8):
 
-- Django/DRF documentation updates
+- `backend/apps/authentication/`
+- `backend/apps/core/redis.py`
+- `backend/tests/test_auth_session.py`
+- `backend/tests/test_access_tokens.py`
+- `backend/tests/test_auth_register_login.py`
+- `backend/tests/test_auth_jwt_me.py`
+- `backend/tests/test_auth_refresh.py`
+- `backend/tests/test_auth_logout.py`
+- `backend/tests/test_auth_redis.py`
+- `backend/tests/test_redis_client.py`
+- `backend/tests/conftest.py`
+- `backend/config/settings/base.py`
+- `backend/config/exceptions.py`
+- `backend/config/urls.py`
+- `backend/config/views.py`
+- `backend/pyproject.toml` (`PyJWT>=2.8`, `argon2-cffi`, `cryptography`, `redis`)
+- `.env.example` JWT + Fernet placeholders
 - `docs/BUILD_PROGRESS.md`
 - `docs/AUTHENTICATION_DESIGN.md`
-- `docs/DEVELOPMENT.md` Phase 4 / checkpoint updates
-- `README.md` (Django stack)
-- Django backend foundation (`backend/`)
-- `.env.example` Django placeholders
+- `docs/ARCHITECTURE.md`
 
 ---
 
@@ -382,3 +554,12 @@ Not in Git yet:
 - **2026-08-18:** Shared abstract `BaseModel` (UUID pk, `created_at`, `updated_at`) added in `apps.core`. No new table/migration. pytest 15 passed. Phase 3 remains in progress.
 - **2026-08-18:** Authentication architecture **design complete** (`docs/AUTHENTICATION_DESIGN.md`). Option B decided. **No authentication implementation.**
 - **2026-08-19:** Phase 3 **COMPLETE** after final review. `manage.py check` PASS; `showmigrations` all required applied; `makemigrations --check` PASS; `pytest -v` 15 passed. Auth implementation remains Phase 4 (not complete). README FastAPI references removed. `DEVELOPMENT.md` checkpoint and Phase 4 wording updated.
+- **2026-08-19:** Phase 3 committed (`d8e351e`).
+- **2026-08-19:** Phase 4.1 **COMPLETE** — `AuthSession` + HMAC refresh-secret storage + migration. pytest 27 passed. Phase 4 APIs **not** started.
+- **2026-08-19:** Phase 4.2 **COMPLETE** — HS256 access JWT issue/verify (PyJWT). pytest 41 passed. No new migration. No auth HTTP APIs.
+- **2026-08-19:** Phase 4.3 **COMPLETE** — registration/login APIs, Argon2id password hashing, generic login failures, and token/session issuance. pytest 65 passed. No new migration. Phase 4 remains in progress.
+- **2026-08-19:** Phase 4.4 **COMPLETE** — DRF JWT access authentication, `GET /api/v1/auth/me/`, default `IsAuthenticated` with public health/register/login. pytest 88 passed. No new migration. Phase 4 remains in progress.
+- **2026-08-19:** Phase 4.5 **COMPLETE** — `POST /api/v1/auth/refresh/` with Fernet current-secret ciphertext, 30-second grace, reuse revoke, and `SELECT FOR UPDATE` concurrency. Migration `authentication.0002` applied. pytest 109 passed. Phase 4 remains in progress.
+- **2026-08-20:** Phase 4.6 **COMPLETE** — logout / logout-all revoke `AuthSession` rows (no delete, no Redis denylist). Refresh fails immediately; access JWTs remain cryptographically valid until `exp` but `/auth/me/` rejects revoked sessions via PostgreSQL. pytest 127 passed. No new migration. Phase 4 remains in progress.
+- **2026-08-20:** Phase 4.7 **COMPLETE** — Redis `sid` denylist after logout, JWT denylist check before PostgreSQL, fail-open on Redis with PostgreSQL fallback. Refresh Redis lock deferred. pytest 138 passed. No new migration. Phase 4 remains in progress.
+- **2026-08-20:** Phase 4.8 **COMPLETE** — Final authentication verification. `manage.py check` PASS; `makemigrations --check` PASS; pytest **138 passed**. No blocking security issues. Phase 4 Authentication **COMPLETE**. Manual cURL pending. Next: Phase 5.
