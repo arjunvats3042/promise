@@ -59,6 +59,7 @@ class AuthSession(BaseModel):
     user_agent = models.CharField(max_length=512, blank=True, default="")
 
     class Meta:
+        db_table = "auth_sessions"
         indexes = [
             models.Index(fields=["user", "revoked_at"]),
             models.Index(fields=["expires_at"]),

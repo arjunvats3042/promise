@@ -19,6 +19,8 @@ INSTALLED_APPS = [
     "apps.core.apps.CoreConfig",
     "apps.users.apps.UsersConfig",
     "apps.authentication.apps.AuthenticationConfig",
+    "apps.outbox.apps.OutboxConfig",
+    "apps.commitments.apps.CommitmentsConfig",
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "django.contrib.staticfiles",
