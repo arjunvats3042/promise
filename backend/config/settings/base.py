@@ -18,6 +18,7 @@ ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.
 INSTALLED_APPS = [
     "apps.core.apps.CoreConfig",
     "apps.users.apps.UsersConfig",
+    "apps.authentication.apps.AuthenticationConfig",
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "django.contrib.staticfiles",
@@ -25,6 +26,29 @@ INSTALLED_APPS = [
 ]
 
 AUTH_USER_MODEL = "users.User"
+
+PASSWORD_HASHERS = [
+    "django.contrib.auth.hashers.Argon2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2PasswordHasher",
+    "django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher",
+]
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+        "OPTIONS": {"user_attributes": ["email", "name"]},
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 8},
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+    },
+]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -43,6 +67,21 @@ DATABASES = {
 
 REDIS_URL = env("REDIS_URL")
 KAFKA_BOOTSTRAP_SERVERS = env("KAFKA_BOOTSTRAP_SERVERS")
+AUTH_REFRESH_TOKEN_PEPPER = env("AUTH_REFRESH_TOKEN_PEPPER", default="")
+AUTH_REFRESH_TOKEN_ENCRYPTION_KEY = env(
+    "AUTH_REFRESH_TOKEN_ENCRYPTION_KEY",
+    default="",
+)
+
+JWT_ALGORITHM = "HS256"
+JWT_ACCESS_TTL_SECONDS = 900
+JWT_LEEWAY_SECONDS = 30
+JWT_ISSUER = env("JWT_ISSUER", default="promise-api")
+JWT_AUDIENCE = env("JWT_AUDIENCE", default="promise-client")
+JWT_SIGNING_KEY = env("JWT_SIGNING_KEY", default="")
+JWT_SIGNING_KEY_PREVIOUS = env("JWT_SIGNING_KEY_PREVIOUS", default="")
+JWT_KEY_ID = env("JWT_KEY_ID", default="local")
+JWT_KEY_ID_PREVIOUS = env("JWT_KEY_ID_PREVIOUS", default="")
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
@@ -54,9 +93,11 @@ STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.authentication.authentication.JWTAccessAuthentication",
+    ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
+        "rest_framework.permissions.IsAuthenticated",
     ],
     "EXCEPTION_HANDLER": "config.exceptions.api_exception_handler",
 }

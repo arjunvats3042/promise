@@ -4,6 +4,7 @@ from config.views import api_not_found, health
 
 v1_urlpatterns = [
     path("health/", health),
+    path("auth/", include("apps.authentication.urls")),
     path("<path:resource>", api_not_found),  # keep last
 ]
 

@@ -2,6 +2,7 @@ import logging
 
 from rest_framework import status
 from rest_framework.exceptions import (
+    APIException,
     AuthenticationFailed,
     MethodNotAllowed,
     NotAuthenticated,
@@ -15,6 +16,16 @@ from rest_framework.response import Response
 from rest_framework.views import exception_handler as drf_exception_handler
 
 logger = logging.getLogger("promise")
+
+
+class ApplicationAPIError(APIException):
+    """Base for public, stable application API errors."""
+
+    error_code = "INVALID_REQUEST"
+    public_message = "Request is invalid."
+
+    def __init__(self):
+        super().__init__(detail=self.public_message, code=self.error_code)
 
 
 def _error_payload(code, message, details=None):
@@ -33,6 +44,12 @@ def _stringify_details(data):
 
 
 def api_exception_handler(exc, context):
+    if isinstance(exc, ApplicationAPIError):
+        return Response(
+            _error_payload(exc.error_code, exc.public_message),
+            status=exc.status_code,
+        )
+
     if isinstance(exc, ValidationError):
         response = drf_exception_handler(exc, context)
         details = _stringify_details(response.data if response is not None else exc.detail)

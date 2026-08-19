@@ -7,12 +7,17 @@ dependencies = [
     "djangorestframework",
     "django-environ",
     "psycopg[binary]",
+    "PyJWT>=2.8",
+    "argon2-cffi",
+    "cryptography",
+    "redis",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
     "pytest-django",
+    "fakeredis",
 ]
 
 [tool.pytest.ini_options]
