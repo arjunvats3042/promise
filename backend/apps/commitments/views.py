@@ -3,6 +3,8 @@ from rest_framework.decorators import api_view
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from apps.commitments.models import Commitment
+from apps.commitments.rate_limits import enforce_commitment_write_rate_limit
 from apps.commitments.serializers import (
     CommitmentCreateSerializer,
     CommitmentListQuerySerializer,
@@ -36,9 +38,14 @@ def _commitment_response(commitment, http_status=status.HTTP_200_OK):
 @api_view(["GET", "POST"])
 def commitment_collection(request):
     if request.method == "POST":
+        enforce_commitment_write_rate_limit(request.user)
         serializer = CommitmentCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        commitment = create_commitment(creator=request.user, **serializer.validated_data)
+        commitment = create_commitment(
+            creator=request.user,
+            source=Commitment.Source.MANUAL,
+            **serializer.validated_data,
+        )
         return _commitment_response(commitment, status.HTTP_201_CREATED)
 
     query = CommitmentListQuerySerializer(data=request.query_params.dict())
@@ -58,6 +65,7 @@ def commitment_detail(request, commitment_id):
         )
         return _commitment_response(commitment)
 
+    enforce_commitment_write_rate_limit(request.user)
     serializer = CommitmentUpdateSerializer(data=request.data, partial=True)
     serializer.is_valid(raise_exception=True)
     commitment = update_commitment(
@@ -70,12 +78,14 @@ def commitment_detail(request, commitment_id):
 
 @api_view(["POST"])
 def commitment_complete(request, commitment_id):
+    enforce_commitment_write_rate_limit(request.user)
     commitment = complete_commitment(actor=request.user, commitment_id=commitment_id)
     return _commitment_response(commitment)
 
 
 @api_view(["POST"])
 def commitment_snooze(request, commitment_id):
+    enforce_commitment_write_rate_limit(request.user)
     serializer = SnoozeSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     commitment = snooze_commitment(
@@ -88,17 +98,20 @@ def commitment_snooze(request, commitment_id):
 
 @api_view(["POST"])
 def commitment_unsnooze(request, commitment_id):
+    enforce_commitment_write_rate_limit(request.user)
     commitment = unsnooze_commitment(actor=request.user, commitment_id=commitment_id)
     return _commitment_response(commitment)
 
 
 @api_view(["POST"])
 def commitment_wait(request, commitment_id):
+    enforce_commitment_write_rate_limit(request.user)
     commitment = set_waiting(actor=request.user, commitment_id=commitment_id)
     return _commitment_response(commitment)
 
 
 @api_view(["POST"])
 def commitment_cancel(request, commitment_id):
+    enforce_commitment_write_rate_limit(request.user)
     commitment = cancel_commitment(actor=request.user, commitment_id=commitment_id)
     return _commitment_response(commitment)

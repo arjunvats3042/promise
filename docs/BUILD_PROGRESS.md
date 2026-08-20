@@ -10,6 +10,9 @@ It does **not** replace:
 - `docs/AUTHENTICATION_DESIGN.md` — authentication (implemented in Phase 4)
 - `docs/COMMITMENT_DESIGN.md` — commitment domain (implemented through Phase 5.10)
 - `docs/OUTBOX_DESIGN.md` — transactional outbox and domain events (persistence 5.7; publisher 5.8; generic consumer 5.9; Phase 5.10 verified)
+- `docs/GOAL_DESIGN.md` — goal domain (implemented through Phase 6.6; design in 6.1; models 6.2; services 6.3; APIs 6.4; Kafka verification 6.5; final review 6.6)
+- `docs/REDIS_DESIGN.md` — Redis product layer (Phase 7 COMPLETE: 7.1 design, 7.2 primitive, 7.3 auth throttles, 7.4 mutation throttles, 7.5 verification). Auth `sid` denylist remains Phase 4.7. Domain caches and new locks are deferred.
+- `docs/ANDROID_DESIGN.md` — Android foundation (9.1–9.6: design, bootstrap, auth, shell/Home, Commitments UI, Goals UI)
 
 Update this file after every meaningful, verified development result. Never store secrets.
 
@@ -17,11 +20,11 @@ Update this file after every meaningful, verified development result. Never stor
 
 ## Current Status
 
-- **Current phase:** Phase 6 — Goal Domain (not started)
-- **Current step:** Phase 5.10 — Final Commitment/Event Architecture Verification **COMPLETE**
-- **Overall status:** Phase 5 — Commitment Domain + Event Backbone = **COMPLETE**. Personal commitment HTTP APIs, transactional outbox, Kafka publisher, and generic consumer exist. Notifications, AI, Android, and shared invitations are **not** implemented.
-- **Last completed milestone:** Phase 5.10 final verification (2026-08-20)
-- **Immediate next step:** Phase 6 — Goal Domain. Do not start notifications, AI, or Android unless requested.
+- **Current phase:** Phase 9 — Android Foundation **IN PROGRESS**
+- **Current step:** Phase 9.6 — Android Goals Product UI **COMPLETE**. Phase 9 **not** complete (no Shared Goals, FCM, Room, register UI).
+- **Overall status:** Phase 5 — Commitment Domain + Event Backbone = **COMPLETE**. Phase 6 — Goal Domain = **COMPLETE**. Phase 7 — Redis Product Layer = **COMPLETE**. Phase 8 Kafka already landed with the outbox. Phase 9.1–9.6 Android = **COMPLETE** (design, bootstrap, auth/networking, shell+Home, Commitments UI, Goals UI). No Shared Goals, FCM, Room, notifications, or AI.
+- **Last completed milestone:** Phase 9.6 — Android Goals Product UI (2026-08-20)
+- **Immediate next step:** Remaining Phase 9 polish / Shared Goals / register / FCM / Room only when requested. Do not start notifications or AI unless requested.
 
 Phase checklist:
 
@@ -30,6 +33,9 @@ Phase checklist:
 - Phase 3 Django Backend Foundation: **COMPLETE**
 - Phase 4 Authentication: **COMPLETE**
 - Phase 5 Commitment Domain + Event Backbone: **COMPLETE**
+- Phase 6 Goal Domain: **COMPLETE** (6.1–6.6; product Goal consumers, notifications, AI, Android, shared goals deferred)
+- Phase 7 Redis Product Layer: **COMPLETE** (7.1–7.5; caches / locks / AI throttles / trusted-proxy IP deferred)
+- Phase 9 Android Foundation: **IN PROGRESS** (9.1–9.6 complete; Shared Goals / FCM / Room not started; Phase 9 **not** complete)
 
 ---
 
@@ -553,11 +559,272 @@ curl -i http://127.0.0.1:8000/api/v1/commitments/$SOMEONE_ELSES_ID/ \
 - **Not implemented (deferred, not Phase 5 blockers):** notifications, AI, Android, shared invitation APIs, HTTP `/unwait/`, product Kafka consumers, automatic snooze expiry persistence, 14-day published-outbox deletion, DLT.
 - **Git commit:** not committed yet
 
+### 2026-08-20 — Phase 6.1 — Goal domain design: COMPLETE (implementation not started)
+
+- **What was implemented:** Design only. `docs/GOAL_DESIGN.md` defines Goal vs Commitment vs Check-in vs Challenge vs Task; stored statuses `ACTIVE|PAUSED|COMPLETED|CANCELLED`; recurrence on the Goal row (`DAILY` / `WEEKLY_DAYS` / `N_PER_PERIOD`); `GoalCheckIn` unique `(goal, period_date)`; derived progress/streaks; `Goal.timezone` snapshot; personal authorization; outbox plan on `promise.goal.v1`; REST contract. No Django models, migrations, or APIs.
+- **Files changed:** `docs/GOAL_DESIGN.md`, `docs/BUILD_PROGRESS.md`
+- **Not done:** Goal/CheckIn tables, services, HTTP, Kafka goal routing, notifications, AI, Android, commitment↔goal links, challenges.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 6.2 — Goal domain models and migrations: COMPLETE
+
+- **What was implemented:** Django app `apps.goals`. Models `Goal`, `GoalCheckIn`, `GoalEvent` inherit `BaseModel`. Explicit tables `goals`, `goal_check_ins`, `goal_events`. Recurrence columns on Goal (`DAILY` / `WEEKLY_DAYS` / `N_PER_PERIOD`, PostgreSQL `weekdays` array). Check-in identity `UNIQUE (goal, period_date)` as `uniq_goal_check_in_period`. No services, serializers, views, URLs, progress/streak logic, or Kafka goal routing.
+- **Owner / delete:** `Goal.created_by` PROTECT; `GoalCheckIn.goal` CASCADE; `GoalCheckIn.created_by` PROTECT; `GoalEvent.goal` CASCADE; `GoalEvent.actor` SET NULL.
+- **Recurrence:** `weekdays` is `ArrayField` of ISO 1–7 (not JSON, not cron, not a `goal_schedules` table). Check constraints encode DAILY / WEEKLY_DAYS / N_PER_PERIOD shapes. `goals.0002` tightens N_PER_PERIOD so SQL NULL does not bypass missing `period_unit` / `times_per_period`. Recurrence locking after first check-in is **not** in `save()`.
+- **Check-in value:** one nullable integer. Binary/SKIPPED: `value` null. Count: integer (`>= 0`). `tracking_kind` + `target_value` live on Goal. No duration/reduction/MISSED.
+- **Timezone:** IANA string snapshotted from `User.timezone` at create if omitted. Invalid IANA rejected. Later user timezone changes do not rewrite the Goal.
+- **Migration:** `goals.0001_initial` and `goals.0002_remove_goal_goal_recurrence_n_per_period_and_more` applied (`[X]`). Existing application tables unchanged. Database not reset.
+- **Files changed:** `backend/apps/goals/`, `backend/config/settings/base.py` (`GoalsConfig`, `django.contrib.postgres`), `backend/tests/test_goal_models.py`, `docs/BUILD_PROGRESS.md`
+- **Verification:** `manage.py check` PASS; `makemigrations --check` PASS; `git diff --check` PASS; `pytest -v` **264 passed** in 17.02s (236 existing + 28 goal model tests).
+- **Database:** tables `goals`, `goal_check_ins`, `goal_events` present. Constraints include `uniq_goal_check_in_period`, recurrence/tracking checks, `goal_end_date_gte_start_date`, `goal_weekdays_iso`. Indexes `goals_creator_status`, `goals_event_created`; unique constraint covers `(goal_id, period_date)`.
+- **Not done:** services, APIs, progress/streak calculation, outbox writes, notifications, AI, Android. Phase 6 remains in progress.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 6.3 — Goal domain services: COMPLETE
+
+- **What was implemented:** `apps.goals.services` domain layer matching commitments: `create_goal`, `update_goal`, `pause_goal`, `resume_goal`, `complete_goal`, `cancel_goal`, `record_check_in`, `update_check_in`, `get_visible_goal`, `can_view`, plus derived `is_period_expected`, `goal_progress`, `goal_streak`. Business rules live in services, not `Goal.save()`. No serializers, views, or URLs.
+- **Create:** `created_by` from the caller; title required; `timezone` snapshotted from `User.timezone` if omitted; `start_date` defaults to today in that timezone; recurrence and tracking normalized before insert; status `ACTIVE`; same transaction writes `GoalEvent(CREATED)` + `OutboxEvent` (`aggregate_type=goal`, `goal.created`).
+- **Recurrence:** DAILY (no weekdays/period fields); WEEKLY_DAYS (unique sorted ISO 1–7, at least one); N_PER_PERIOD (`period_unit=WEEK`, `times_per_period` 1–7, no weekdays). Unsupported kinds/units rejected. After the first check-in, recurrence/tracking/`start_date` raise `GOAL_SCHEDULE_LOCKED`; timezone raise `GOAL_TIMEZONE_LOCKED`. Title/description/`end_date` remain patchable (`end_date` cannot precede an existing `period_date`).
+- **Lifecycle:** ACTIVE↔PAUSED; complete/cancel from ACTIVE or PAUSED (terminal). Repeat pause/resume/complete/cancel are no-ops (no second event/outbox). Mutations and check-ins out of terminal states raise `GOAL_INVALID_TRANSITION`.
+- **Check-ins:** upsert on `(goal, period_date)` under `transaction.atomic()` + `select_for_update` on the Goal. Identity is the local date in `Goal.timezone`; `checked_at` is UTC. Identical retry is a no-op. Changed status/value/note updates in place (`CHECKIN_UPDATED`). BINARY forbids `value`; COUNT COMPLETED requires integer `>= 0`; success is `value >= target_value`. Check-in only while `ACTIVE`. Non-owners get `GOAL_NOT_FOUND`.
+- **Progress / streaks (derived, not stored):** Binary success = COMPLETED; count success = COMPLETED and `value >= target_value`. Paused local dates (from PAUSED/RESUMED events in Goal TZ) are not expected and do not break streaks. Daily/weekday streaks walk expected local dates; N×/week walks ISO weeks (Monday). Late `period_date` writes can repair history. `consistency_percent` is successful/expected in `[max(start_date, today-27), yesterday]`.
+- **Events/outbox:** one `GoalEvent` + one `OutboxEvent` per mutation; no-ops write neither; rollback if outbox insert fails. Kafka names: `goal.created` / `updated` / `paused` / `resumed` / `completed` / `cancelled` / `goal.checkin.created` / `goal.checkin.updated`. Payloads omit titles, notes, and secrets. Publisher is unchanged (still commitment-only).
+- **Files changed:** `backend/apps/goals/exceptions.py`, `backend/apps/goals/services.py`, `backend/tests/test_goal_services.py`, `docs/BUILD_PROGRESS.md`
+- **Verification:** `manage.py check` PASS; `makemigrations --check` PASS (no new migration); `git diff --check` PASS; `pytest -v` **289 passed** in 16.69s (264 existing + 25 goal service tests).
+- **Not done:** REST APIs, Kafka `goal` routing, notifications, AI, Android. Phase 6 remains in progress.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Goal Kafka topic routing + ISO Monday week
+
+- **What was implemented:** Outbox publisher selects Kafka topic from `aggregate_type`. `commitment` → `promise.commitment.v1`; `goal` → `promise.goal.v1`. Kafka key remains `aggregate_id`. Unknown `aggregate_type` fails without producing (same retry/park path as other publish errors). Commitment publish behavior unchanged. No Goal consumers, APIs, or `docker-compose.yml` changes.
+- **Week semantics:** `docs/GOAL_DESIGN.md` now **DECIDED** ISO-8601 Monday-start weeks (`1` = Monday, `7` = Sunday) as the single project-wide definition for Goal weekly periods. Existing `apps.goals.services` already used ISO weeks; no service code change.
+- **Topic creation:** Compose unchanged. Local Apache Kafka auto-creates topics on first produce by default. `promise-kafka` was **not running** during this slice, so `promise.goal.v1` was not live-verified here. First successful `publish_outbox` of a goal event will create it locally.
+- **Files changed:** `backend/apps/outbox/publisher.py`, `backend/tests/test_outbox_publisher.py`, `docs/GOAL_DESIGN.md`, `docs/OUTBOX_DESIGN.md`, `docs/BUILD_PROGRESS.md`
+- **Verification:** `manage.py check` PASS; `makemigrations --check` PASS (no new migration); `git diff --check` PASS; `pytest -v` **294 passed** in 17.95s.
+- **Not done:** Phase 6.4 Goal REST APIs, Goal consumers, notifications, AI, Android. Phase 6 remains in progress.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 6.4 — Goal REST APIs: COMPLETE
+
+- **What was implemented:** JWT Goal REST APIs under `/api/v1/goals/`, matching commitment view/serializer/pagination style. Views call existing goal services. `created_by` always comes from `request.user`. Unknown/unowned goals return 404 `GOAL_NOT_FOUND` (no existence leak). Health, auth, and commitment routes unchanged.
+- **Routes (trailing slash, JWT required):**
+
+| Method | Path | Success |
+|---|---|---|
+| `POST` | `/api/v1/goals/` | **201** Goal |
+| `GET` | `/api/v1/goals/` | **200** paginated `{count, next, previous, results}` |
+| `GET` | `/api/v1/goals/{id}/` | **200** Goal |
+| `PATCH` | `/api/v1/goals/{id}/` | **200** Goal |
+| `POST` | `/api/v1/goals/{id}/pause/` | **200** Goal |
+| `POST` | `/api/v1/goals/{id}/resume/` | **200** Goal |
+| `POST` | `/api/v1/goals/{id}/complete/` | **200** Goal |
+| `POST` | `/api/v1/goals/{id}/cancel/` | **200** Goal |
+| `POST` | `/api/v1/goals/{id}/check-ins/` | **201** insert / **200** if a check-in for that period already existed |
+| `GET` | `/api/v1/goals/{id}/check-ins/` | **200** paginated |
+
+- **Create (`POST /api/v1/goals/`):** `title` required; `recurrence_kind` required; optional `description`, `timezone`, `start_date`, `end_date`, `weekdays`, `period_unit`, `times_per_period`, `tracking_kind`, `target_value`, `target_unit`. Body `created_by` / `status` / `source` are ignored. Service snapshots timezone from the user when omitted, normalizes weekdays, writes `GoalEvent(CREATED)` + `OutboxEvent(goal.created)`, sets `source=MANUAL`.
+- **List (`GET /api/v1/goals/`):** owner only. Query: `status`, `recurrence_kind`, `tracking_kind`. Default excludes `COMPLETED` and `CANCELLED` unless `status` is set. Order: `-created_at`. Pagination: page size 20, max 100 (`page`, `page_size`). Prefetches `check_ins` and `events` (no N+1 for derived fields).
+- **Goal response fields:** `id`, `title`, `description`, `status`, `timezone`, `start_date`, `end_date`, `recurrence_kind`, `weekdays`, `period_unit`, `times_per_period`, `tracking_kind`, `target_value`, `target_unit`, `source`, `paused_at`, `completed_at`, `cancelled_at`, `created_at`, `updated_at`, plus derived `is_ended`, `progress`, `current_streak`. Not stored. Computed with `Goal.timezone`. `progress` is `{current_period, week_progress, consistency_percent}`. List and detail use the same Goal serializer (streak is on list too). Hidden: `created_by`, events, raw check-ins, outbox, secrets.
+- **PATCH:** safe fields only (`title`, `description`, `timezone`, `start_date`, `end_date`, recurrence/tracking). `status` / `created_by` / timestamps / progress / streak / check-ins are not writable. Recurrence/`start_date`/tracking lock after first check-in → 409 `GOAL_SCHEDULE_LOCKED`. Timezone lock after first check-in → 409 `GOAL_TIMEZONE_LOCKED`. Empty PATCH `{}` is 200 with no event/outbox. Successful change writes `GoalEvent(UPDATED)` + `OutboxEvent(goal.updated)`.
+- **Lifecycle:** empty body. Idempotent no-ops are 200 with no second event. Illegal transitions → 409 `GOAL_INVALID_TRANSITION`.
+- **Check-in write:** `{period_date?, status, value?, note?}`. `period_date` optional → today in `Goal.timezone`. View uses `record_check_in()` for both insert and upsert. HTTP **201** if no row existed for that period before the request; **200** if a row already existed (identical retry or in-place update). Identical retry: 200, no new event/outbox. Changed status/value/note: 200, `CHECKIN_UPDATED` + `goal.checkin.updated`. Invalid value/period → 400 `GOAL_INVALID_CHECKIN`. Check-in while not `ACTIVE` → 409 `GOAL_INVALID_TRANSITION`. GET does not mutate.
+- **Check-in list:** owner only. Query: `start_date`, `end_date`, `status` (inclusive `period_date` range). Order: `-period_date`, `-created_at`. Same pagination as goals. Fields: `id`, `period_date`, `status`, `value`, `note`, `checked_at`, `created_at`, `updated_at`.
+- **Authorization:** only `goal.created_by` may view, patch, pause, resume, complete, cancel, or check in. Unrelated users get 404 `GOAL_NOT_FOUND`. Unauthenticated → 401 `UNAUTHENTICATED`. Serializer/service validation → 400 `VALIDATION_ERROR`.
+- **Files changed:** `backend/apps/goals/serializers.py`, `views.py`, `urls.py` (new); `backend/apps/goals/services.py` (`list_visible_goals`, `list_goal_check_ins`, prefetch on `get_visible_goal`); `backend/config/urls.py`; `backend/tests/test_goal_api.py`; `docs/BUILD_PROGRESS.md`
+- **Migration:** none. `makemigrations --check` — No changes detected.
+- **Verification:** `manage.py check` PASS; `makemigrations --check` PASS; `git diff --check` PASS; `pytest -v` **304 passed** in 19.06s (294 existing + 10 API).
+- **Manual cURL:** **pending**. Automated only. Do not claim live HTTP passed. Commands are below; `runserver` was not started.
+- **Not done:** Goal consumers, notifications, AI, Android, shared goals, challenges, authentication/Redis changes. Phase 6 remains in progress.
+- **Git commit:** not committed yet
+
+Manual cURL (requires a running server and `ACCESS_TOKEN` from login). Expected statuses in comments. **Not executed this step.**
+
+```bash
+# 1. login (public) — 200
+curl -sS -X POST http://127.0.0.1:8000/api/v1/auth/login/ \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"your-password"}'
+# export ACCESS_TOKEN=...
+
+# 2. create — 201
+curl -i -X POST http://127.0.0.1:8000/api/v1/goals/ \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -d '{
+    "title": "Study DSA daily",
+    "recurrence_kind": "DAILY",
+    "tracking_kind": "BINARY"
+  }'
+# export GOAL_ID=...
+
+# 3. get — 200
+curl -i http://127.0.0.1:8000/api/v1/goals/$GOAL_ID/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# 4. check-in (today in Goal timezone if period_date omitted) — 201
+curl -i -X POST http://127.0.0.1:8000/api/v1/goals/$GOAL_ID/check-ins/ \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -d '{"status":"COMPLETED"}'
+
+# 5. get again — 200; inspect progress + current_streak
+curl -i http://127.0.0.1:8000/api/v1/goals/$GOAL_ID/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# 6. pause — 200
+curl -i -X POST http://127.0.0.1:8000/api/v1/goals/$GOAL_ID/pause/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# 7. resume — 200
+curl -i -X POST http://127.0.0.1:8000/api/v1/goals/$GOAL_ID/resume/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+
+# 8. complete — 200
+curl -i -X POST http://127.0.0.1:8000/api/v1/goals/$GOAL_ID/complete/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+### 2026-08-20 — Phase 6.5 — Goal/Event Integration Verification: COMPLETE
+
+- **What was verified:** Goal mutation → `GoalEvent` + `OutboxEvent` (same transaction) → `publish_outbox` → Kafka `promise.goal.v1` → generic `handle_record` / `run_consumer` → `processed_events`. No-op mutations write neither row. Payloads omit titles, notes, and secrets. Timezone snapshot, ISO Monday weeks, period identity, pause, streak, and late-check-in repair unchanged (existing service tests). No Goal API redesign.
+- **Correctness fix (blocking for consume/dedup):** generic `SUPPORTED_EVENT_TYPES` now includes Goal Kafka types. Without that, `goal.created` was skipped and never wrote `processed_events`. No new consumer command. No publisher/topic architecture change. Compose unchanged.
+- **Events:** Successful create/update/pause/resume/complete/cancel/check-in create/check-in update write exactly one `GoalEvent` and one `OutboxEvent`. Mapping: `CREATED`→`goal.created`, `UPDATED`→`goal.updated`, `PAUSED`→`goal.paused`, `RESUMED`→`goal.resumed`, `COMPLETED`→`goal.completed`, `CANCELLED`→`goal.cancelled`, `CHECKIN_RECORDED`→`goal.checkin.created`, `CHECKIN_UPDATED`→`goal.checkin.updated`. Envelope: `event_id` = `OutboxEvent.id`, `event_version=1`, `aggregate_type=goal`, `aggregate_id=Goal.id`. Compact payload (ids, status, type-specific fields). No titles, descriptions, notes, passwords, JWTs, refresh tokens, signing keys, encryption keys, or HMACs.
+- **Failure:** Kafka unavailable leaves Goal rows unchanged; outbox stays unpublished, `attempts` increments, backoff `next_attempt_at` is set. Outbox insert failure rolls back Goal + `GoalEvent`. Processor/DB failure does not commit the Kafka offset (`test_run_consumer_retries_failed_record_before_later_success`).
+- **Timezone / recurrence:** `Goal.timezone` snapshot; ISO-8601 Monday weeks; `period_date` is the Goal-local date; paused local dates are not expected; late `period_date` can repair a streak. No design change.
+- **Docs:** `GOAL_DESIGN.md` §16 aligned with the running API (same list/detail serializer including `progress`/`current_streak`; check-in **201** insert / **200** if the period existed; `GOAL_INVALID_CHECKIN`; list filters `start_date`/`end_date`/`status`; list query includes `recurrence_kind`). `OUTBOX_DESIGN.md` notes generic `handle_record` accepts Goal types; still no `consume_goal_events` command.
+- **Live Kafka integration (agent-run, not manual):** `promise-kafka` started and healthy. Topic `promise.goal.v1` present after publish (1 partition, RF=1, TopicId `v7YOW-dURsmNk6nmzre3bQ`). `create_goal` → unpublished `outbox_events` `id=ab9ddb4c-af23-4bd8-9c9e-5adfbb574c40` (`aggregate_id=af9b7d0d-7bf9-4313-ba05-28c56c869511`). `python manage.py publish_outbox` → `published=1 failed=0`; `published_at` set; `event_id` unchanged. Bounded consume: topic `promise.goal.v1`, key = aggregate_id, envelope `goal.created`. First delivery `processed`; `processed_events` `id=2cd8e81a-d721-4e89-b12b-db4a9715149e` group `promise-goal-events-verify-6-5`. Replay of the same envelope → `processed=0 duplicates=1`; same `processed_events` `id` and `processed_at`. Database not reset. No interactive consumer. Compose file not modified.
+- **Files changed:** `backend/apps/outbox/consumer.py` (`SUPPORTED_EVENT_TYPES` + docstring); `backend/tests/test_goal_outbox.py` (new); `backend/tests/test_outbox_consumer.py`; `docs/GOAL_DESIGN.md`; `docs/OUTBOX_DESIGN.md`; `docs/BUILD_PROGRESS.md`
+- **Migration:** none. `makemigrations --check` — No changes detected.
+- **Verification:** `manage.py check` PASS; `makemigrations --check` PASS; `git diff --check` PASS; `pytest -v` **313 passed** in 24.51s (304 existing + 6 Goal outbox + 3 consumer).
+- **Not done:** `consume_goal_events` command, product Goal workers, notifications, AI, Android, shared goals, challenges. Phase 6 remains in progress.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 6.6 — Final Goal Domain Verification: COMPLETE
+
+- **What was verified:** Final review of Goal domain, check-ins, REST APIs, GoalEvent+OutboxEvent dual-write, Kafka `promise.goal.v1`, migrations, payload/log security, and documentation consistency. No new product features. No API redesign. No auth/Redis/Kafka architecture changes. No `consume_goal_events` command added.
+- **Domain:** Stored statuses `ACTIVE|PAUSED|COMPLETED|CANCELLED`. Terminal states reject further lifecycle/check-in mutations (`GOAL_INVALID_TRANSITION`). Recurrence normalized (DAILY / WEEKLY_DAYS unique sorted ISO 1–7 / N_PER_PERIOD WEEK 1–7). After first check-in: schedule/`start_date`/tracking → `GOAL_SCHEDULE_LOCKED`; timezone → `GOAL_TIMEZONE_LOCKED`. `Goal.timezone` snapshotted; `period_date` and streak/progress use that zone; ISO Monday weeks. Pause intervals are not expected. Late check-ins can repair streaks. Progress and `current_streak` are derived (not stored on `Goal`).
+- **Check-ins:** Unique `(goal, period_date)`. Identical retry is a no-op. Changed status/value/note updates in place (`CHECKIN_UPDATED`). BINARY forbids `value`; COUNT COMPLETED requires integer `>= 0`. Missing periods are inferred, not materialized. Writes are atomic with `GoalEvent` + `OutboxEvent`.
+- **API:** JWT required. Owner from `request.user` (body `created_by` ignored). Other user / missing → 404 `GOAL_NOT_FOUND`. Validation 400; illegal transition 409; schedule/timezone lock 409; invalid check-in 400 `GOAL_INVALID_CHECKIN`. Pagination 20/max 100. List filters `status`, `recurrence_kind`, `tracking_kind`. Check-in list `start_date`, `end_date`, `status`. Same Goal serializer on list and detail (`progress`, `current_streak`). Check-in POST 201 insert / 200 if the period existed.
+- **Events:** Successful mutations write exactly one `GoalEvent` and one `OutboxEvent` in the same transaction. No-ops write neither. Mapping: `goal.created` / `updated` / `paused` / `resumed` / `completed` / `cancelled` / `goal.checkin.created` / `goal.checkin.updated`. `event_version=1`. Compact payload (ids, status, type-specific fields). No titles, notes, passwords, JWTs, refresh tokens, signing keys, encryption keys, or HMACs.
+- **Kafka:** Topic `promise.goal.v1`; key = `aggregate_id` = Goal UUID; `event_id` = `OutboxEvent.id`. Generic `handle_record` accepts Goal types. Dedup on `(consumer_group, event_id)`.
+- **Database:** Application tables: `users`, `auth_sessions`, `commitments`, `commitment_participants`, `commitment_events`, `goals`, `goal_check_ins`, `goal_events`, `outbox_events`, `processed_events`. No `goal_schedules` / generic `check_ins`. `goals.0001` + `goals.0002` applied `[X]`. No unexpected migrations. Commitment/auth tables unchanged.
+- **Security:** Ownership is `goal.created_by_id == request.user.id`. UUIDs are not authorization. Outbox/Kafka payloads and `promise` logs do not contain secrets.
+- **Live Kafka (agent-run, not manual):** `promise-kafka` healthy. `create_goal` → unpublished `outbox_events` `id=0c29867f-92b4-4199-a25d-f4336c108ea8` (`aggregate_id=c2473a74-ff40-46be-9c6d-3c38bf4b481c`). `publish_outbox` `published=1 failed=0`; `published_at` set; `event_id` unchanged. Bounded consume: topic `promise.goal.v1`, key = aggregate_id, `goal.created`. First delivery `processed`; `processed_events` `id=eff26616-af7f-4b30-9f8f-13571a6f4bb3` group `promise-goal-events-verify-6-6`. Replay → `processed=0 duplicates=1`; same row `id`/`processed_at`. Database not reset. No interactive consumer.
+- **Docs:** `GOAL_DESIGN.md` status = Phase 6 complete. `DEVELOPMENT.md` checkpoint lists Phase 6 complete; next numbered phase is 7. `OUTBOX_DESIGN.md` status notes Goal publish/consume verification. No design-decision rewrite. `ARCHITECTURE.md` still sketches `goal_schedules` (superseded by `GOAL_DESIGN.md`; left as historical intended architecture).
+- **Files changed:** `docs/BUILD_PROGRESS.md`, `docs/GOAL_DESIGN.md`, `docs/OUTBOX_DESIGN.md`, `docs/DEVELOPMENT.md`
+- **Migration:** none. `makemigrations --check` — No changes detected.
+- **Verification:** `manage.py check` PASS; `showmigrations` all required `[X]`; `makemigrations --check` PASS; `git diff --check` PASS; `pytest -v` **313 passed** in 22.88s.
+- **Not implemented (deferred, not Phase 6 blockers):** notifications, AI, Android, shared goals, challenges, commitment↔goal links, dedicated product Goal consumers (`consume_goal_events`), advanced reminders / missed-check-in scheduler.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 7.1 — Redis product layer design: COMPLETE (implementation not started)
+
+- **What was implemented:** Design only. `docs/REDIS_DESIGN.md` defines PostgreSQL as source of truth; Redis as derived/temporary/coordination; existing auth denylist (do not rebuild); MVP product work as rate limits (Lua INCR+EXPIRE), not domain caches; no new distributed locks (Postgres row locks remain); fail-open rate limits if Redis is down; never store credentials/JWTs/keys in Redis.
+- **MVP Redis use cases:** auth login/register/refresh throttles + Goal/Commitment write and Goal check-in throttles. Goal list, Commitment list, progress/streak, and home summary caches are **DEFERRED**. Notification/AI/forgot throttles and notification locks are **DEFERRED**.
+- **Files changed:** `docs/REDIS_DESIGN.md`, `docs/BUILD_PROGRESS.md`
+- **Not done:** Lua counter helper, HTTP 429 wiring, domain caches, lock helper, denylist changes, Kafka/Android/migrations. Phase 7 remains in progress and is **not** complete.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 7.2 — Secure Redis rate-limit primitive: COMPLETE
+
+- **What was implemented:** Reusable `increment_rate_limit(key, window_seconds)` in `apps.core.redis`. One Lua `EVAL`: `INCR`; `EXPIRE` only when count == 1; return `{count, ttl}`. Keys must start with `promise:ratelimit:` (reject empty suffix, whitespace, `@`, non-strings, overlong keys). Positive integer TTL required (`bool` rejected). Does **not** decide allow/deny or emit 429. `incr_with_ttl` unchanged and is **not** used for security throttles. Auth denylist unchanged.
+- **Fail-open:** `RedisError` or a malformed script result → `{"count": 0, "ttl": 0}` and a `promise` WARNING without the Redis key or exception text.
+- **Tests:** `tests/test_rate_limit_redis.py` — first increment count/TTL, second increment without TTL reset, natural TTL decrease, concurrent increments, invalid key/TTL, fail-open, no permanent key, single EVAL contract, live Docker Redis (skip if down). Dev extra `fakeredis[lua]` (`lupa`) so fakeredis can run EVAL.
+- **Live Redis:** `promise-redis` healthy. Test key incremented to 1 with TTL, then 2 without resetting the window; concurrent 20 increments produced 1–20; keys deleted afterward. No leftover `promise:ratelimit:test:phase72*` keys.
+- **Files changed:** `backend/apps/core/redis.py`, `backend/tests/test_rate_limit_redis.py`, `backend/pyproject.toml`, `docs/BUILD_PROGRESS.md`
+- **Verification:** `manage.py check` PASS; `makemigrations --check` PASS; `git diff --check` PASS; `pytest -v` **334 passed** in 23.97s (313 existing + 21 rate-limit).
+- **Not done:** HTTP wiring (login/register/refresh/commitment/goal/check-in), 429 responses, domain caches, locks, denylist/Kafka/Android/Compose changes. Phase 7 remains in progress and is **not** complete.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 7.3 — Authentication rate limits: COMPLETE
+
+- **What was implemented:** `apps.authentication.rate_limits` enforces Redis buckets on `POST /api/v1/auth/login/`, `/register/`, and `/refresh/` after serializer validation and before Argon2 / token rotation. Reuses `increment_rate_limit`. Does not decide counts in the helper; service decides allow/deny. `RateLimitedError` → HTTP 429 `RATE_LIMITED` with `Retry-After` from bucket TTL. IP from `REMOTE_ADDR` only (`X-Forwarded-For` deferred). Email keys are SHA-256 of `canonicalize_email`. Refresh session/user keys only for sessions that exist in PostgreSQL; malformed/unknown tokens share `promise:ratelimit:refresh:ip:{ip}` (limit 30 / 900s) so attackers cannot create unbounded session keys. Fail-open if Redis is down. Denylist, hashing, Kafka, Compose, Goal/Commitment APIs unchanged.
+- **Buckets:** login IP 20/900s, login email 10/900s, register IP 5/3600s, register email 10/3600s, refresh session 30/900s, refresh user 120/900s, refresh unknown/malformed IP fallback 30/900s.
+- **Files changed:** `backend/apps/authentication/rate_limits.py`, `backend/apps/authentication/views.py`, `backend/config/exceptions.py`, `backend/tests/test_auth_rate_limits.py`, `docs/BUILD_PROGRESS.md`
+- **Verification:** `manage.py check` PASS; `makemigrations --check` PASS; `git diff --check` PASS; `pytest -v` **356 passed** in 23.99s (334 existing + 22 auth throttle).
+- **Live Redis:** `promise-redis` healthy. Login email bucket filled to limit then HTTP 429 with TTL; IP + email keys present; refresh session limit 429; test keys deleted (`SCAN` empty for those prefixes).
+- **Not done:** Goal/Commitment/check-in throttles, domain caches, locks, trusted-proxy IP, notifications, AI, Android. Phase 7 remains in progress and is **not** complete.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 7.4 — Goal and Commitment mutation rate limits: COMPLETE
+
+- **What was implemented:** Authenticated Commitment and Goal **write** APIs increment Redis buckets after JWT auth and before domain services. GETs are exempt. Check-in POST uses a separate bucket from goal writes. Reuses `increment_rate_limit` and `RateLimitedError` (HTTP 429 `RATE_LIMITED` + `Retry-After` from TTL). Fail-open if Redis is down. Auth throttles, denylist, Kafka, Compose, models, and PostgreSQL source-of-truth behavior unchanged. Mutation keys use the **caller** `user_id`, not the resource owner.
+- **Buckets:** commitment writes 60/60s (`promise:ratelimit:commitment:user:{user_id}`), goal writes 60/60s (`promise:ratelimit:goal:user:{user_id}`), goal check-ins 30/60s (`promise:ratelimit:goal_checkin:user:{user_id}`).
+- **Files changed:** `backend/apps/commitments/rate_limits.py`, `backend/apps/commitments/views.py`, `backend/apps/goals/rate_limits.py`, `backend/apps/goals/views.py`, `backend/tests/test_commitment_rate_limits.py`, `backend/tests/test_goal_rate_limits.py`, `docs/REDIS_DESIGN.md`, `docs/BUILD_PROGRESS.md`
+- **Verification:** `manage.py check` PASS; `makemigrations --check` PASS; `git diff --check` PASS; `pytest -v` **378 passed** in 25.69s (356 existing + 22 mutation throttle).
+- **Live Redis:** `promise-redis` healthy. Commitment write bucket filled then HTTP 429; goal write and check-in buckets filled then HTTP 429; `Retry-After` present; test keys deleted in `finally`.
+- **Not done:** Domain caches, locks, trusted-proxy IP, notifications, AI, Android. Phase 7 remains in progress and is **not** complete.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 7.5 — Final Redis product layer verification: COMPLETE
+
+- **What was verified:** Redis is used only as a denylist hint and TTL’d rate-limit counters. PostgreSQL remains source of truth. Canonical keys in `docs/REDIS_DESIGN.md`. Stale auth key examples in `AUTHENTICATION_DESIGN.md` aligned to the implemented convention. No domain caches, new locks, new buckets, Kafka, Android, or migrations.
+- **Failure/fallback:** denylist read down → Postgres session still authoritative; auth/commitment/goal/check-in throttles fail open; no Redis 500; domain writes still occur.
+- **Live Redis:** login IP TTL 900s; commitment/goal/check-in TTLs 60s; fail-open with Redis unavailable; keys deleted (`SCAN` empty for those prefixes).
+- **Files changed:** `docs/REDIS_DESIGN.md`, `docs/AUTHENTICATION_DESIGN.md`, `docs/ARCHITECTURE.md`, `docs/PROJECT_PLAN.md`, `docs/DEVELOPMENT.md`, `docs/BUILD_PROGRESS.md`
+- **Verification:** `manage.py check` PASS; `makemigrations --check` PASS; `git diff --check` PASS; `pytest -v` **378 passed** in 25.46s.
+- **Deferred:** domain caching, notification locks, AI throttles, trusted-proxy IP, production fail-closed login if Redis is down, cache/stampede optimization.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 9.1 — Android foundation design: COMPLETE (implementation not started)
+
+- **What was implemented:** Design only. `docs/ANDROID_DESIGN.md` defines visual direction (quiet paper), Kotlin/Compose/Hilt/Retrofit stack, single `:app` module, memory-only access JWT + Keystore refresh, API client 401/refresh mutex, sealed UI state, four-tab navigation, design tokens, Home/Commitment/Goal UX aligned to existing APIs, online-first (no Room), FCM seams without implementation.
+- **Files changed:** `docs/ANDROID_DESIGN.md`, `docs/BUILD_PROGRESS.md`
+- **Commands/tools used:** none (no Gradle, no Android source, no backend changes)
+- **Verification:** Documentation review against AUTHENTICATION / COMMITMENT / GOAL / REDIS designs. Last pytest result remains **378 passed**. No Android module compiled.
+- **Not done:** Android project, Compose screens, API client, Keystore storage. Phase 9 remains in progress and is **not** complete.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 9.2 — Android Gradle + Compose bootstrap: COMPLETE
+
+- **What was implemented:** Single-module Kotlin/Compose app under `android/` (`applicationId` `app.promise.android`, minSdk 26, compile/target SDK 37). Hilt `PromiseApp` + `MainActivity`. Light-only paper/ink theme tokens. Auth + Main navigation graphs with bootstrap/placeholder destinations (no product screens). `LoadState` / `ActionState` / `ErrorKind`. OkHttp client with 10/20/30s timeouts; Retrofit on the classpath but no API calls. Auth storage seam only (no tokens). Debug-only cleartext to `10.0.2.2` / `localhost` / `127.0.0.1` via `network_security_config`; release keeps `usesCleartextTraffic=false`.
+- **Files changed:** `android/` (Gradle wrapper, `:app` module, sources, unit tests), `docs/BUILD_PROGRESS.md`, `docs/ANDROID_DESIGN.md`, `docs/DEVELOPMENT.md`, `README.md`
+- **Commands/tools used:** Temurin JDK 17.0.20; Android SDK `/Users/arjunvats/Library/Android/sdk` (platform `android-37.0`, build-tools 36.0.0); `./gradlew test assembleDebug` from `android/`
+- **Verification:** `./gradlew test` **11 passed**, 0 failed. `./gradlew assembleDebug` **BUILD SUCCESSFUL** (6m 19s for the combined run). Debug APK `android/app/build/outputs/apk/debug/app-debug.apk`. `adb devices`: none attached — emulator/device launch **not performed**. Backend source unmodified. Last pytest result remains **378 passed**.
+- **Not done:** Login/Register/Home/Commitments/Goals/Profile UI, Retrofit services, refresh-token handling, FCM, Room. Phase 9 remains in progress and is **not** complete.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 9.3 — Android authentication + networking: COMPLETE
+
+- **What was implemented:** Retrofit/OkHttp/kotlinx.serialization client under `data/network`. Login, refresh, logout, `/auth/me/`. Access JWT in process memory only. Refresh token AES-GCM with Android Keystore wrapping key; ciphertext in `noBackupFilesDir`. Process-wide refresh mutex (waiters share one in-flight refresh). Authenticated 401 → refresh once → retry original once. Public auth paths skip Bearer and refresh-retry. Login screen + session restore. Logout clears local state even if HTTP fails. 429 `Retry-After` parsed, not auto-retried.
+- **Files changed:** `android/app/src/main/java/app/promise/android/` (network, local token store, auth UI, Hilt modules, navigation), unit tests, `android/gradle/libs.versions.toml`, `android/app/build.gradle.kts`, `docs/BUILD_PROGRESS.md`, `docs/ANDROID_DESIGN.md`, `docs/DEVELOPMENT.md`
+- **Commands/tools used:** Temurin JDK 17.0.20; `./gradlew test assembleDebug` from `android/`
+- **Verification:** `./gradlew test` **32 passed**, 0 failed. `assembleDebug` **BUILD SUCCESSFUL**. `adb devices`: none attached — emulator/device launch **not performed**. Backend unmodified. Last pytest result remains **378 passed**.
+- **Not done:** Register UI, Home/Commitments/Goals product screens, logout-all UI, FCM, Room. Phase 9 remains in progress and is **not** complete.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 9.4 — Android app shell + Home UI: COMPLETE
+
+- **What was implemented:** Four-tab Main shell (Home / Commitments / Goals / Profile). Real Home screen with local preview feed (1 overdue, 1 due-today, 1 upcoming, 3 practices). Hybrid layout: Header → Today → Practices (no Attention section). Light + Dark themes (default Light, in-memory `ThemeController`). Profile: appearance toggle + sign out. Commitments/Goals design-system placeholders. `PromiseHaptics` (light on theme; confirm on complete/check-in/sign-out; none on avatar→Profile or tabs). Calm ~190ms tab transitions. Auth/session from 9.3 unchanged. No Home networking, Room, DataStore, or FCM.
+- **Files changed:** `android/app/src/main/java/app/promise/android/` (home, theme, haptics, navigation shell, profile, placeholders), unit tests, `android/gradle/libs.versions.toml`, `android/app/build.gradle.kts`, `android/app/src/main/AndroidManifest.xml` (VIBRATE), `docs/BUILD_PROGRESS.md`, `docs/ANDROID_DESIGN.md`, `docs/DEVELOPMENT.md`
+- **Commands/tools used:** Temurin JDK 17.0.20; `./gradlew test assembleDebug` from `android/`; `python manage.py check` + `makemigrations --check` from `backend/`
+- **Verification:** `./gradlew test` **50 passed**, 0 failed. `assembleDebug` **BUILD SUCCESSFUL**. Debug APK `android/app/build/outputs/apk/debug/app-debug.apk`. `adb devices`: none attached — emulator/device visual verification **not performed**. Backend unmodified (`check` clean; `makemigrations --check` no changes). Last pytest result remains **378 passed**.
+- **Not done:** Commitments/Goals product UI, Home API wiring, theme persistence, register UI, FCM, Room. Phase 9 remains in progress and is **not** complete.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 9.5 — Android Commitments product UI: COMPLETE
+
+- **What was implemented:** Commitments list with Open / Overdue / Today / Upcoming / Done filters against live backend APIs. Create bottom sheet (title, description, due + precision; no `source`/`created_by`). Detail with Complete, Snooze (presets + custom), Wait, Unsnooze, Cancel — no Edit/PATCH, no Unwait. Uses Phase 9.3 authed Retrofit stack. Light/Dark tokens, calm motion, PromiseHaptics on meaningful actions. Goals placeholder unchanged. Home preview unchanged.
+- **Files changed:** `android/.../domain/Commitment*.kt`, `data/commitments/*`, `ui/commitments/*`, `di/CommitmentModule.kt`, `MainShell.kt`, `core/LoadState.kt` / `ErrorMapping.kt` (NotFound/Conflict), unit tests, `docs/BUILD_PROGRESS.md`, `docs/ANDROID_DESIGN.md`, `docs/DEVELOPMENT.md`
+- **Commands/tools used:** Temurin JDK 17.0.20; `./gradlew test assembleDebug`; backend `manage.py check` + `makemigrations --check`
+- **Verification:** `./gradlew test` **71 passed**, 0 failed. `assembleDebug` **BUILD SUCCESSFUL**. APK `android/app/build/outputs/apk/debug/app-debug.apk`. `adb devices`: none — emulator/device visual verification **not performed**. Backend unmodified (`check` clean; `makemigrations --check` no changes). Last pytest result remains **378 passed**.
+- **Not done:** Goals product UI, Shared Goals, Edit/PATCH commitment UI, Unwait, FCM, Room, Home live commitments feed. Phase 9 remains in progress and is **not** complete.
+- **Git commit:** not committed yet
+
+### 2026-08-20 — Phase 9.6 — Android Goals product UI: COMPLETE
+
+- **What was implemented:** Goals list with Active / Paused / Completed (Completed merges COMPLETED+CANCELLED). Create bottom sheet with progressive recurrence + tracking fields (no `source`/`created_by`/`status`). Detail with backend `progress`/`current_streak`, recent check-in history, low-friction BINARY/COUNT check-in, Pause / Resume / Complete / Cancel confirms. No Edit/PATCH UI, no Shared Goals. Reuses Phase 9.3 authed Retrofit and Phase 9.5 UI patterns. Light/Dark tokens, calm motion, PromiseHaptics on meaningful actions.
+- **Files changed:** `android/.../domain/Goal*.kt`, `data/goals/*`, `ui/goals/*`, `di/GoalModule.kt`, `MainShell.kt`, `core/LoadState.kt` / `ErrorMapping.kt` (Goal lock/check-in codes), unit tests, `docs/BUILD_PROGRESS.md`, `docs/ANDROID_DESIGN.md`, `docs/DEVELOPMENT.md`
+- **Commands/tools used:** Temurin JDK 17.0.20; `./gradlew test assembleDebug`; backend `manage.py check` + `makemigrations --check`
+- **Verification:** `./gradlew test` **90 passed**, 0 failed. `assembleDebug` **BUILD SUCCESSFUL**. APK `android/app/build/outputs/apk/debug/app-debug.apk` (~19 MB). `adb devices`: none — emulator/device visual verification **not performed**. Backend unmodified (`check` clean; `makemigrations --check` no changes). Last pytest result remains **378 passed**.
+- **Not done:** Shared Goals / participants / invites, Challenges, Edit/PATCH goal schedule UI, FCM, Room, Home live goals feed. Phase 9 remains in progress and is **not** complete.
+- **Git commit:** not committed yet
+
 ---
 
 ## Current Work
 
-Phase 5 — Commitment Domain + Event Backbone is **COMPLETE**. Product follow-ups (invites, notifications, AI, Android) remain deferred. Next major phase is Goals.
+Phase 9 — Android Foundation is **IN PROGRESS**. Phases 9.1–9.6 are complete. Shared Goals / FCM / Room are not implemented. Backend Phases 4–7 remain unchanged. Notifications and AI are not started.
 
 Uncommitted:
 
@@ -580,14 +847,34 @@ Uncommitted:
 - `docs/OUTBOX_DESIGN.md`
 - `docs/DEVELOPMENT.md`
 - `docs/BUILD_PROGRESS.md`
+- `docs/GOAL_DESIGN.md`
+- `docs/REDIS_DESIGN.md`
+- `docs/AUTHENTICATION_DESIGN.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PROJECT_PLAN.md`
+- `docs/ANDROID_DESIGN.md`
+- `backend/apps/core/redis.py`
+- `backend/tests/test_rate_limit_redis.py`
+- `backend/apps/authentication/rate_limits.py`
+- `backend/apps/authentication/views.py`
+- `backend/config/exceptions.py`
+- `backend/tests/test_auth_rate_limits.py`
+- `backend/apps/goals/`
+- `backend/tests/test_goal_models.py`
+- `backend/tests/test_goal_services.py`
+- `backend/tests/test_goal_api.py`
+- `backend/tests/test_goal_outbox.py`
+- `backend/tests/test_goal_rate_limits.py`
+- `backend/tests/test_commitment_rate_limits.py`
+- `android/` (Gradle project; `local.properties` gitignored)
 
 ---
 
 ## Next Steps
 
-1. Phase 6 — Goal Domain.
-2. Deferred product work (not required to start Goals): participant invite APIs, HTTP `/unwait/`, notifications, AI, analytics, Android.
-3. Do not start notifications, AI, or Android unless requested.
+1. Remaining Phase 9 Android: Shared Goals / register / FCM / Room when requested (`docs/ANDROID_DESIGN.md`).
+2. Do not implement domain caches, notification locks, or AI throttles unless requested.
+3. Deferred product work: trusted-proxy client IP, production fail-closed login if Redis is down, participant invite APIs, HTTP `/unwait/`, notifications, AI, analytics, commitment↔goal links, challenges, `consume_goal_events`, 14-day published-outbox deletion, DLT.
 
 ---
 
@@ -601,8 +888,9 @@ Verified on this machine (2026-08-18), no secrets:
 - Docker Compose v5.4.0
 - Default `python3` on PATH: **3.14.6**
 - `backend/.venv`: **Python 3.12.14**, Django **6.1** (used for Phase 3)
-- Java: not on PATH in this inspection. `docs/DEVELOPMENT.md` lists Java 17 as a Phase 0 item; confirm before Android work
-- Android Studio / SDK: listed complete in `DEVELOPMENT.md`; no Android app exists yet
+- Java: **Temurin 17.0.20** at `/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home` (not on default PATH). Used for Phase 9.2. Android Studio bundled JBR is 25.0.2 and was not used.
+- Android SDK: `/Users/arjunvats/Library/Android/sdk` — platform `android-37.0`, build-tools `36.0.0`. `local.properties` (`sdk.dir`) is gitignored.
+- Android Studio: installed. No emulator/AVD on this machine at 9.2 verification.
 - DataGrip / Postman: listed in Phase 0; not re-verified here
 
 Never stored here: passwords, API keys, tokens, private keys, `.env` contents.
@@ -621,16 +909,16 @@ Never stored here: passwords, API keys, tokens, private keys, `.env` contents.
 ### Redis
 
 - **Version:** Redis 8 (`redis:8`)
-- **Purpose:** Cache, locks, rate limiting, temporary state, notification coordination
-- **Current status:** Running (`promise-redis` healthy) as of 2026-08-20 Phase 5.8 verification.
-- **Last verification:** 2026-08-18 — port 6379, AOF enabled, `PING` → `PONG`, volume `promise_redis_data`
+- **Purpose:** Cache, locks, rate limiting, temporary state, notification coordination. Auth `sid` denylist is live (Phase 4.7). Atomic rate-limit primitive is live (Phase 7.2). Auth login/register/refresh HTTP throttles are live (Phase 7.3). Goal/Commitment/check-in write throttles are live (Phase 7.4). Domain caches / locks are **deferred**. Phase 7 product layer **COMPLETE**.
+- **Current status:** Running (`promise-redis` healthy) as of 2026-08-20 Phase 7.5 verification.
+- **Last verification:** 2026-08-20 — live login IP TTL 900s; commitment/goal/check-in TTLs 60s; fail-open; test keys deleted. Volume `promise_redis_data`
 
 ### Kafka
 
 - **Version:** Apache Kafka 4.3.1 (`apache/kafka:4.3.1`, KRaft, no ZooKeeper)
 - **Purpose:** Asynchronous / domain events
-- **Current status:** Running (`promise-kafka` healthy) as of 2026-08-20 Phase 5.10. Topic `promise.commitment.v1` exists (1 partition, RF=1).
-- **Last verification:** 2026-08-20 — host bootstrap `localhost:9092`; Phase 5.10 live create → publish → consume → replay dedup against `promise.commitment.v1` succeeded. Volume `promise_kafka_data`
+- **Current status:** Running (`promise-kafka` healthy) as of 2026-08-20 Phase 6.5. Topics `promise.commitment.v1` and `promise.goal.v1` exist (1 partition, RF=1).
+- **Last verification:** 2026-08-20 — host bootstrap `localhost:9092`; Phase 6.5 live Goal create → `publish_outbox` → consume `promise.goal.v1` → replay dedup succeeded. Volume `promise_kafka_data`
 
 ### Docker Compose
 
@@ -652,7 +940,7 @@ Never stored here: passwords, API keys, tokens, private keys, `.env` contents.
 | iOS | Not decided. A separate client or a later cross-platform choice | future |
 | PostgreSQL as source of truth | Transactions and relational consistency | 2026-08-18 / Phase 1 |
 | Django ORM as DB access layer | Primary access layer; Django migrations | 2026-08-18 / pre-Phase 3 |
-| Redis for cache / locks / temp state | Fast temporary coordination; never the primary DB | 2026-08-18 / Phase 1 |
+| Redis for cache / locks / temp state | Fast temporary coordination; never the primary DB. Phase 7 **COMPLETE** for denylist + rate limits. Caches / locks / AI throttles deferred. | 2026-08-18 / Phase 1; 2026-08-20 / Phase 7.1–7.5 |
 | Kafka for async domain events | Fan-out, replay, decoupling. Not for synchronous CRUD | 2026-08-18 / Phase 1 |
 | Kafka in KRaft mode (no ZooKeeper) | Current Kafka; simpler local broker | 2026-08-18 / Phase 2 |
 | Dual Kafka listeners (INTERNAL + EXTERNAL) | Host uses `localhost:9092`; other containers use `promise-kafka:19092` | 2026-08-18 / Phase 2 |
@@ -668,7 +956,7 @@ Never stored here: passwords, API keys, tokens, private keys, `.env` contents.
 | Abstract `apps.core.models.BaseModel` for domain models | UUID pk + created/updated timestamps without duplicating fields; User stays independent | 2026-08-18 / Phase 3 |
 | UUID v4 primary keys (not sequential ints) | Stable public IDs across services; no shared sequence; reduced ID enumeration. Not a security control. | 2026-08-18 / Phase 3 |
 | Timezone-aware UTC storage; user TZ is preference | `USE_TZ=True`, `TIME_ZONE=UTC`; APIs serialize aware timestamps | 2026-08-18 / Phase 3 |
-| **Auth Option B:** JWT access + server-side rotating refresh sessions | Session table **implemented** (4.1), access JWT issue/verify **implemented** (4.2), register/login **implemented** (4.3), DRF JWT auth + `/me/` **implemented** (4.4), refresh rotation + 30s grace **implemented** (4.5), logout / logout-all **implemented** (4.6), Redis `sid` denylist **implemented** (4.7). Phase 4.8 **verified**. Rate limits remain unwired (deferred). | 2026-08-18 / design; 2026-08-19–20 / Phase 4.1–4.8 |
+| **Auth Option B:** JWT access + server-side rotating refresh sessions | Session table **implemented** (4.1), access JWT issue/verify **implemented** (4.2), register/login **implemented** (4.3), DRF JWT auth + `/me/` **implemented** (4.4), refresh rotation + 30s grace **implemented** (4.5), logout / logout-all **implemented** (4.6), Redis `sid` denylist **implemented** (4.7). Phase 4.8 **verified**. Login/register/refresh rate limits **implemented** (7.3). Goal/Commitment mutation rate limits **implemented** (7.4). | 2026-08-18 / design; 2026-08-19–20 / Phase 4.1–4.8; 2026-08-20 / Phase 7.3–7.4 |
 | Access JWT 15 min; refresh 30d sliding / 90d cap; HS256 with dedicated key | Short stolen-access window; mobile-friendly re-auth; key rotation via `kid` | 2026-08-18 / design |
 | Opaque refresh `{sid}.{secret}` stored as HMAC; current secret also Fernet ciphertext for 30s grace | HMAC cannot reconstruct the secret; ciphertext is grace recovery only; previous secrets HMAC-only; plaintext never stored | 2026-08-18 / design; 2026-08-19 / Phase 4.5 |
 | Future `UserIdentity`; no `google_id`/`apple_id` on User | Multiple providers without duplicating users | 2026-08-18 / design |
@@ -728,6 +1016,24 @@ Never stored here: passwords, API keys, tokens, private keys, `.env` contents.
 | 2026-08-20 | Phase 5.8 outbox Kafka publisher | **Pass** — `manage.py publish_outbox`; topic `promise.commitment.v1`; `SKIP LOCKED` batches of 50; backoff + park after 8; `confluent-kafka`; live produce/consume against `promise-kafka`; unavailable-broker failure path; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **214 passed** in 14.67s. No consumers. Compose unchanged. |
 | 2026-08-20 | Phase 5.9 generic Kafka consumer + idempotency | **Pass** — `manage.py consume_commitment_events`; group `promise-commitment-events`; `processed_events` + unique `(consumer_group, event_id)`; at-least-once offset-after-DB; live produce → consume → duplicate redelivery; `outbox.0002_processed_event` applied; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -q` **235 passed** in 13.69s. No product consumers. |
 | 2026-08-20 | Phase 5.10 final commitment/event architecture verification | **Pass** — full HTTP→DB→outbox→Kafka→`processed_events` path; consumer seek-on-retry; application tables verified; no unexpected migrations; live create/publish/consume/replay dedup; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **236 passed** in 15.63s. Phase 5 **COMPLETE**. Notifications/AI/Android/shared invitations not implemented. |
+| 2026-08-20 | Phase 6.1 goal domain design | **Docs only** — `GOAL_DESIGN.md` written. No backend code, models, migrations, or APIs. Phase 6 **not** complete. |
+| 2026-08-20 | Phase 6.2 goal models and migrations | **Pass** — `goals.0001` + `goals.0002` applied; tables `goals`, `goal_check_ins`, `goal_events`; `uniq_goal_check_in_period`; recurrence check constraints; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **264 passed** in 17.02s. No services/APIs. Phase 6 **not** complete. |
+| 2026-08-20 | Phase 6.3 goal domain services | **Pass** — no new migration; services own create/lifecycle/check-in upsert, recurrence lock, derived progress/streaks, GoalEvent+OutboxEvent dual-write; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **289 passed** in 16.69s. No APIs. Phase 6 **not** complete. |
+| 2026-08-20 | Goal Kafka topic routing + ISO Monday | **Pass** — publisher maps `commitment`→`promise.commitment.v1`, `goal`→`promise.goal.v1`; key=`aggregate_id`; unknown type fails without produce; no new migration; Compose unchanged; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **294 passed** in 17.95s. No Goal APIs/consumers. Phase 6 **not** complete. |
+| 2026-08-20 | Phase 6.4 goal REST APIs | **Pass** — no new migration; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **304 passed** in 19.06s. Manual cURL **pending**. Phase 6 **not** complete. |
+| 2026-08-20 | Phase 6.5 goal/event integration verification | **Pass** — live `promise-kafka`; topic `promise.goal.v1`; create→unpublished outbox→`publish_outbox`→consume→replay `duplicates=1 processed=0`; generic `handle_record` accepts Goal types; no new migration; Compose unchanged; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **313 passed** in 24.51s. No `consume_goal_events` command. Phase 6 **not** complete. |
+| 2026-08-20 | Phase 6.6 final Goal domain verification | **Pass** — domain/API/outbox/security review; tables `goals`/`goal_check_ins`/`goal_events` present; `goals.0001`+`0002` applied; no unexpected migrations; live `promise.goal.v1` create→publish→consume→replay dedup; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **313 passed** in 22.88s. Phase 6 **COMPLETE**. Notifications/AI/Android/shared goals not implemented. |
+| 2026-08-20 | Phase 7.1 Redis product layer design | **Docs only** — `REDIS_DESIGN.md` written. No backend code, caches, rate-limit wiring, locks, or migrations. Auth denylist unchanged. Phase 7 **not** complete. Last pytest result remains **313 passed**. |
+| 2026-08-20 | Phase 7.2 secure Redis rate-limit primitive | **Pass** — Lua `EVAL` INCR+EXPIRE-on-create; `increment_rate_limit` fail-open; `incr_with_ttl` unchanged; no HTTP 429 wiring; no new migration; Compose unchanged; denylist unchanged; live `promise-redis` count 1→2 without TTL reset, keys deleted; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **334 passed** in 23.97s. Phase 7 **not** complete. |
+| 2026-08-20 | Phase 7.3 authentication rate limits | **Pass** — login/register/refresh Redis buckets; 429 `RATE_LIMITED` + `Retry-After`; fail-open; REMOTE_ADDR only; hashed emails; refresh unknown tokens use bounded IP fallback; no Goal/Commitment throttles; no new migration; denylist unchanged; live Redis limit+TTL then key delete; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **356 passed** in 23.99s. Phase 7 **not** complete. |
+| 2026-08-20 | Phase 7.4 Goal/Commitment mutation rate limits | **Pass** — commitment writes 60/60s, goal writes 60/60s, check-ins 30/60s; GET exempt; caller `user_id` buckets; 429 `RATE_LIMITED` + `Retry-After`; fail-open; no new migration; denylist/auth throttles unchanged; live Redis fill then 429 then key delete; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **378 passed** in 25.69s. Phase 7 **not** complete. |
+| 2026-08-20 | Phase 7.5 final Redis product layer verification | **Pass** — Redis = denylist hint + TTL counters only; Postgres source of truth; canonical keys in `REDIS_DESIGN.md`; AUTHENTICATION_DESIGN keys aligned; fail-open A–E; live Redis TTLs then key delete; no new code/buckets/migrations; `check` clean; `makemigrations --check` no changes; `git diff --check` clean; `pytest -v` **378 passed** in 25.46s. Phase 7 **COMPLETE**. |
+| 2026-08-20 | Phase 9.1 Android foundation design | **Docs only** — `ANDROID_DESIGN.md` written. No Android source, Gradle, backend, Docker, Redis, or Kafka changes. Phase 9 **not** complete. Last pytest result remains **378 passed**. |
+| 2026-08-20 | Phase 9.2 Android Gradle + Compose bootstrap | **Pass** — single `:app` module; AGP 9.1.1 / Gradle 9.3.1 / Kotlin 2.3.21 / Compose BOM 2026.06.00 / Hilt 2.59.2; minSdk 26; compileSdk 37; `./gradlew test` **11 passed**; `assembleDebug` SUCCESS; no device attached; backend unmodified. Phase 9 **not** complete. |
+| 2026-08-20 | Phase 9.3 Android authentication + networking | **Pass** — Retrofit/OkHttp client; Keystore AES-GCM refresh; memory access JWT; login + session restore; 401 refresh-once; 429 Retry-After parsed; `./gradlew test` **32 passed**; `assembleDebug` SUCCESS; no device attached; backend unmodified. Phase 9 **not** complete. |
+| 2026-08-20 | Phase 9.4 Android app shell + Home UI | **Pass** — four-tab shell; Home preview feed; Light/Dark (default Light, in-memory); Profile theme + sign out; haptics on meaningful actions; `./gradlew test` **50 passed**; `assembleDebug` SUCCESS; no device attached; backend `check` + `makemigrations --check` clean. Phase 9 **not** complete. |
+| 2026-08-20 | Phase 9.5 Android Commitments product UI | **Pass** — list filters; create sheet; detail Complete/Snooze/Wait/Unsnooze/Cancel; real backend APIs; no Edit/Unwait; `./gradlew test` **71 passed**; `assembleDebug` SUCCESS; no device attached; backend `check` + `makemigrations --check` clean. Phase 9 **not** complete. |
+| 2026-08-20 | Phase 9.6 Android Goals product UI | **Pass** — Active/Paused/Completed list; create sheet; detail progress/streak/history; BINARY/COUNT check-in; Pause/Resume/Complete/Cancel; backend-derived progress only; no Edit/Shared Goals; `./gradlew test` **90 passed**; `assembleDebug` SUCCESS; no device attached; backend `check` + `makemigrations --check` clean. Phase 9 **not** complete. |
 
 ---
 
@@ -735,13 +1041,17 @@ Never stored here: passwords, API keys, tokens, private keys, `.env` contents.
 
 - **Compose `restart: "no"`.** Containers do not restart themselves after Docker Desktop or an explicit stop. PostgreSQL was up for the 2026-08-18 migrate and 2026-08-19 final review.
 - **Python version mismatch on PATH.** Project target is 3.12; default `python3` is 3.14.6. Backend work uses `backend/.venv` (3.12.14).
-- **Empty placeholder directories.** `android/` and `infrastructure/{postgres,redis,kafka}` exist but have no app code. Compose lives at the repo root. `backend/` has the Django foundation.
+- **Empty placeholder directories.** `infrastructure/{postgres,redis,kafka}` exist but have no app code. Compose lives at the repo root. `android/` has the Phase 9.2–9.6 Gradle/Compose app (auth + shell + Home + Commitments + Goals). `backend/` has the Django foundation.
 - **Health test does not require a database query.** The health endpoint still returns `{"status": "ok"}` without hitting application tables. PostgreSQL is used for applied Django migrations.
 - **Custom `AUTH_USER_MODEL` applied after a local DB reset.** The empty local `promise` database was dropped and recreated (not the Docker volume). `users_user` is the user table; `auth_user` is gone.
 - **Manual authentication cURL is pending.** Phase 4.8 automated verification passed; live HTTP against `runserver` was not executed.
 - **Manual commitment cURL is pending.** Phase 5.4 automated verification passed; live HTTP against `runserver` was not executed.
-- **Deferred auth work (non-blocking).** Login/register/refresh rate limits are not wired. Password reset, email verification, social login, Kafka user events, and Android were out of Phase 4.8 scope.
+- **Manual goal cURL is pending.** Phase 6.4 automated verification passed; live HTTP against `runserver` was not executed.
+- **Deferred auth work (non-blocking).** Login/register/refresh rate limits are wired (Phase 7.3). Password reset, email verification, social login, Kafka user events, and trusted-proxy client IP remain deferred. Android 9.3 implements login + Keystore refresh; register UI is not built.
+- **Phase 7 Redis product layer is complete.** Denylist + auth/mutation throttles are live. Domain caches, notification locks, AI throttles, trusted-proxy IP, and production fail-closed-login-if-Redis-down remain deferred.
+- **Phase 9 Android is in progress.** 9.1–9.6 complete (through Goals product UI). Shared Goals, register UI, FCM, and Room are not implemented. Debug HTTP to `10.0.2.2` is allowed only in the debug `network_security_config`; release forbids cleartext.
 - **Deferred commitment product work (non-blocking for Phase 6).** Shared invitation APIs, HTTP `/unwait/`, automatic snooze expiry persistence, client-writable `source` vs design “server-set MANUAL”, `DATE` end-of-local-day conversion, 14-day published-outbox deletion, DLT. Design docs still describe some of those as DECIDED for later slices.
+- **Goal consumer command is not implemented (deferred, not a Phase 6 blocker).** Generic `handle_record` accepts Goal `event_type`s. Topic `promise.goal.v1` was live-verified in Phase 6.5 and 6.6. There is still no `consume_goal_events` management command or product Goal worker.
 
 No open infrastructure defects from the Phase 2 verification.
 
@@ -760,12 +1070,31 @@ No open infrastructure defects from the Phase 2 verification.
 
 `main` tracks `origin/main` at `0655fe9`.
 
-Not in Git yet (Phase 5.1–5.10 + table naming):
+Not in Git yet (Phase 5.1–5.10 + Phase 6.1–6.6 + Goal Kafka routing + table naming + Phase 7.1–7.5 Redis + Phase 9.1–9.6 Android):
 
 - `docs/COMMITMENT_DESIGN.md`
 - `docs/OUTBOX_DESIGN.md`
 - `docs/DEVELOPMENT.md`
 - `docs/BUILD_PROGRESS.md`
+- `docs/GOAL_DESIGN.md`
+- `docs/REDIS_DESIGN.md`
+- `docs/AUTHENTICATION_DESIGN.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PROJECT_PLAN.md`
+- `docs/ANDROID_DESIGN.md`
+- `backend/apps/core/redis.py`
+- `backend/tests/test_rate_limit_redis.py`
+- `backend/apps/authentication/rate_limits.py`
+- `backend/apps/authentication/views.py`
+- `backend/config/exceptions.py`
+- `backend/tests/test_auth_rate_limits.py`
+- `backend/apps/goals/`
+- `backend/tests/test_goal_models.py`
+- `backend/tests/test_goal_services.py`
+- `backend/tests/test_goal_api.py`
+- `backend/tests/test_goal_outbox.py`
+- `backend/tests/test_goal_rate_limits.py`
+- `backend/tests/test_commitment_rate_limits.py`
 - `backend/apps/outbox/`
 - `backend/tests/test_outbox.py`
 - `backend/tests/test_outbox_publisher.py`
@@ -781,6 +1110,7 @@ Not in Git yet (Phase 5.1–5.10 + table naming):
 - `backend/tests/test_commitment_models.py`
 - `backend/tests/test_commitment_services.py`
 - `backend/tests/test_commitment_api.py`
+- `android/` (except gitignored `local.properties` / `build/`)
 
 ---
 
@@ -821,3 +1151,21 @@ Not in Git yet (Phase 5.1–5.10 + table naming):
 - **2026-08-20:** Phase 5.8 **COMPLETE** — `manage.py publish_outbox` publishes due `outbox_events` to `promise.commitment.v1` (`confluent-kafka`, `SKIP LOCKED`, backoff, park after 8). pytest **214 passed**. Automated verification and local Kafka integration verification completed. No consumers. Phase 5 remains in progress.
 - **2026-08-20:** Phase 5.9 **COMPLETE** — generic `consume_commitment_events` + `processed_events` idempotency. pytest **235 passed**. Automated verification and local Kafka integration verification completed. No notifications/AI/analytics. Phase 5 remains in progress.
 - **2026-08-20:** Phase 5.10 **COMPLETE** — final architecture verification. Consumer seek-on-retry for at-least-once. `manage.py check` PASS; no unexpected migrations; pytest **236 passed**; live Kafka create → publish → consume → replay dedup. Phase 5 — Commitment Domain + Event Backbone = **COMPLETE**. Notifications, AI, Android, and shared invitations are not implemented. Next: Phase 6 — Goal Domain.
+- **2026-08-20:** Phase 6.1 goal **design complete** (`docs/GOAL_DESIGN.md`). **No implementation.** Phase 6 remains in progress.
+- **2026-08-20:** Phase 6.2 **COMPLETE** — `Goal` / `GoalCheckIn` / `GoalEvent` models + `goals.0001` / `goals.0002`. Tables `goals`, `goal_check_ins`, `goal_events`. pytest **264 passed**. No services or APIs. Phase 6 remains in progress.
+- **2026-08-20:** Phase 6.3 **COMPLETE** — Goal domain services (create/update/lifecycle, check-in upsert, derived progress/streaks, GoalEvent + OutboxEvent). pytest **289 passed**. No REST APIs. Phase 6 remains in progress.
+- **2026-08-20:** Goal Kafka topic routing — publisher maps `commitment` → `promise.commitment.v1` and `goal` → `promise.goal.v1` (key = `aggregate_id`). ISO-8601 Monday-start weeks **DECIDED** in `GOAL_DESIGN.md`. pytest **294 passed**. Phase 6.4 APIs **not** started. Phase 6 remains in progress.
+- **2026-08-20:** Phase 6.4 **COMPLETE** — Goal REST APIs under `/api/v1/goals/` (CRUD + pause/resume/complete/cancel + check-ins). JWT required. Unrelated users get 404. pytest **304 passed**. No new migration. Manual cURL pending. Phase 6 remains in progress.
+- **2026-08-20:** Phase 6.5 **COMPLETE** — Goal/event integration verification. Live `promise.goal.v1` create → publish → consume → replay dedup. Generic consumer accepts Goal event types. pytest **313 passed**. No `consume_goal_events` command. Phase 6 remains in progress.
+- **2026-08-20:** Phase 6.6 **COMPLETE** — Final Goal domain verification. `manage.py check` PASS; no unexpected migrations; pytest **313 passed**; live Kafka create → publish → consume → replay dedup. Phase 6 — Goal Domain = **COMPLETE**. Notifications, AI, Android, shared goals, challenges, commitment↔goal links, and dedicated Goal consumers are not implemented. Next: Phase 7 — Redis Integration (product cache / rate-limit / locks; auth Redis already exists).
+- **2026-08-20:** Phase 7.1 Redis product **design complete** (`docs/REDIS_DESIGN.md`). **No implementation.** MVP Redis work is rate limits, not domain caches or new locks. Auth denylist unchanged. Phase 7 remains in progress and is **not** complete.
+- **2026-08-20:** Phase 7.2 **COMPLETE** — atomic Redis rate-limit primitive (`increment_rate_limit`, Lua INCR+EXPIRE). Fail-open on Redis errors. `incr_with_ttl` unchanged. No HTTP 429 wiring. pytest **334 passed**. Live Redis count 1→2 without TTL reset. Phase 7 remains in progress and is **not** complete.
+- **2026-08-20:** Phase 7.3 **COMPLETE** — login/register/refresh Redis rate limits. 429 `RATE_LIMITED` with `Retry-After`. Fail-open if Redis is down. pytest **356 passed**. Goal/Commitment throttles, caches, and locks are not wired. Phase 7 remains in progress and is **not** complete.
+- **2026-08-20:** Phase 7.4 **COMPLETE** — Goal/Commitment mutation rate limits (commitment writes 60/min/user, goal writes 60/min/user, check-ins 30/min/user). GET exempt. 429 `RATE_LIMITED` with `Retry-After`. Fail-open if Redis is down. pytest **378 passed**. Domain caches and locks are not wired. Phase 7 remains in progress and is **not** complete.
+- **2026-08-20:** Phase 7.5 **COMPLETE** — Final Redis product layer verification. pytest **378 passed**. Live Redis TTLs + fail-open + key cleanup. Canonical keys documented. Phase 7 — Redis Product Layer = **COMPLETE**. Deferred: domain caches, notification locks, AI throttles, trusted-proxy IP. Next unimplemented DEVELOPMENT phase: Android Foundation.
+- **2026-08-20:** Phase 9.1 Android foundation **design complete** (`docs/ANDROID_DESIGN.md`). **No Android implementation.** Phase 9 remains in progress and is **not** complete.
+- **2026-08-20:** Phase 9.2 Android Gradle + Compose bootstrap **COMPLETE**. Single `:app` module, Hilt, navigation graphs, paper/ink theme. `./gradlew test` 11 passed; `assembleDebug` SUCCESS. No emulator. Phase 9 remains in progress and is **not** complete.
+- **2026-08-20:** Phase 9.3 Android authentication + networking **COMPLETE**. Login, Keystore refresh, session restore, 401 refresh-once. `./gradlew test` **32 passed**; `assembleDebug` SUCCESS. No emulator. Phase 9 remains in progress and is **not** complete.
+- **2026-08-20:** Phase 9.4 Android app shell + Home UI **COMPLETE**. Four-tab shell, Home preview, Light/Dark, Profile theme + sign out. `./gradlew test` **50 passed**; `assembleDebug` SUCCESS. No emulator. Phase 9 remains in progress and is **not** complete.
+- **2026-08-20:** Phase 9.5 Android Commitments product UI **COMPLETE**. List/create/detail actions against backend APIs. `./gradlew test` **71 passed**; `assembleDebug` SUCCESS. No emulator. Phase 9 remains in progress and is **not** complete.
+- **2026-08-20:** Phase 9.6 Android Goals product UI **COMPLETE**. List/create/detail/check-in/lifecycle against backend APIs. `./gradlew test` **90 passed**; `assembleDebug` SUCCESS. No emulator. Phase 9 remains in progress and is **not** complete.

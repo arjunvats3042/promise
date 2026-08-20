@@ -391,6 +391,8 @@ Failed messages should eventually reach a dead-letter mechanism.
 
 ## 9. Redis Architecture
 
+Implemented product keys (denylist + rate limits) are in `docs/REDIS_DESIGN.md`. That document is canonical. The examples below are future cache / AI / lock sketches.
+
 Example keys:
 
 ```text
@@ -398,7 +400,7 @@ promise:cache:user:{user_id}:today
 promise:cache:user:{user_id}:goals
 promise:cache:user:{user_id}:insights
 
-promise:ratelimit:user:{user_id}:ai
+promise:ratelimit:ai:user:{user_id}
 
 promise:lock:notification:{notification_id}
 

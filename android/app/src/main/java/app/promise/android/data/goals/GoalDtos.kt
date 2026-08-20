@@ -1,0 +1,130 @@
+package app.promise.android.data.goals
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class GoalPeriodCountsDto(
+    val required: Int = 0,
+    val completed: Int = 0,
+    val value: Int? = null,
+    @SerialName("target_value")
+    val targetValue: Int? = null,
+)
+
+@Serializable
+data class GoalProgressDto(
+    @SerialName("current_period")
+    val currentPeriod: GoalPeriodCountsDto = GoalPeriodCountsDto(),
+    @SerialName("week_progress")
+    val weekProgress: GoalPeriodCountsDto = GoalPeriodCountsDto(),
+    @SerialName("consistency_percent")
+    val consistencyPercent: Int = 0,
+)
+
+@Serializable
+data class GoalDto(
+    val id: String,
+    val title: String,
+    val description: String = "",
+    val status: String,
+    val timezone: String = "",
+    @SerialName("start_date")
+    val startDate: String,
+    @SerialName("end_date")
+    val endDate: String? = null,
+    @SerialName("recurrence_kind")
+    val recurrenceKind: String,
+    val weekdays: List<Int> = emptyList(),
+    @SerialName("period_unit")
+    val periodUnit: String? = null,
+    @SerialName("times_per_period")
+    val timesPerPeriod: Int? = null,
+    @SerialName("tracking_kind")
+    val trackingKind: String = "BINARY",
+    @SerialName("target_value")
+    val targetValue: Int? = null,
+    @SerialName("target_unit")
+    val targetUnit: String = "",
+    val source: String = "MANUAL",
+    @SerialName("paused_at")
+    val pausedAt: String? = null,
+    @SerialName("completed_at")
+    val completedAt: String? = null,
+    @SerialName("cancelled_at")
+    val cancelledAt: String? = null,
+    @SerialName("created_at")
+    val createdAt: String,
+    @SerialName("updated_at")
+    val updatedAt: String,
+    @SerialName("is_ended")
+    val isEnded: Boolean = false,
+    val progress: GoalProgressDto = GoalProgressDto(),
+    @SerialName("current_streak")
+    val currentStreak: Int = 0,
+)
+
+@Serializable
+data class GoalPageDto(
+    val count: Int = 0,
+    val next: String? = null,
+    val previous: String? = null,
+    val results: List<GoalDto> = emptyList(),
+)
+
+@Serializable
+data class CreateGoalRequest(
+    val title: String,
+    val description: String = "",
+    val timezone: String? = null,
+    @SerialName("start_date")
+    val startDate: String? = null,
+    @SerialName("end_date")
+    val endDate: String? = null,
+    @SerialName("recurrence_kind")
+    val recurrenceKind: String,
+    val weekdays: List<Int>? = null,
+    @SerialName("period_unit")
+    val periodUnit: String? = null,
+    @SerialName("times_per_period")
+    val timesPerPeriod: Int? = null,
+    @SerialName("tracking_kind")
+    val trackingKind: String = "BINARY",
+    @SerialName("target_value")
+    val targetValue: Int? = null,
+    @SerialName("target_unit")
+    val targetUnit: String = "",
+)
+
+@Serializable
+data class GoalCheckInDto(
+    val id: String,
+    @SerialName("period_date")
+    val periodDate: String,
+    val status: String,
+    val value: Int? = null,
+    val note: String = "",
+    @SerialName("checked_at")
+    val checkedAt: String,
+    @SerialName("created_at")
+    val createdAt: String,
+    @SerialName("updated_at")
+    val updatedAt: String,
+)
+
+@Serializable
+data class GoalCheckInPageDto(
+    val count: Int = 0,
+    val next: String? = null,
+    val previous: String? = null,
+    val results: List<GoalCheckInDto> = emptyList(),
+)
+
+@Serializable
+data class CheckInRequest(
+    val status: String,
+    @SerialName("period_date")
+    val periodDate: String? = null,
+    val value: Int? = null,
+    val note: String = "",
+)

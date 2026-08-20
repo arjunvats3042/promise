@@ -801,24 +801,28 @@ Refresh tokens are **not** JWTs.
 | Email verification tokens | **No** (when built) | PostgreSQL |
 | Replay detection of refresh | **No** | Postgres hmac + previous hmac + current ciphertext for grace |
 
-Keys (follow existing `promise:` prefix):
+Keys (canonical in `docs/REDIS_DESIGN.md`):
 
 ```text
-promise:ratelimit:ip:{ip}:auth:login
-promise:ratelimit:email:{email_hash}:auth:login
-promise:ratelimit:ip:{ip}:auth:register
-promise:ratelimit:ip:{ip}:auth:forgot
+promise:ratelimit:login:ip:{ip}
+promise:ratelimit:login:email:{email_hash}
+promise:ratelimit:register:ip:{ip}
+promise:ratelimit:register:email:{email_hash}
+promise:ratelimit:refresh:session:{session_id}
+promise:ratelimit:refresh:user:{user_id}
+promise:ratelimit:refresh:ip:{ip}          malformed/unknown refresh fallback
+promise:ratelimit:forgot:ip:{ip}           DEFERRED with password reset
 promise:lock:auth:refresh:{session_id}     DEFERRED (Postgres row lock is enough)
 promise:auth:denylist:sid:{session_id}    TTL = access TTL + JWT leeway (900 + 30 = 930s)
 ```
 
-Hash emails in rate-limit keys so Redis is not a plaintext email directory.
+`{email_hash}` is SHA-256 of `canonicalize_email`. Never plaintext email, refresh tokens, JWTs, or secrets in keys.
 
 If Redis is down: skip rate limits and denylist (**fail open** on the Redis shortcut); **never** skip PostgreSQL session checks on refresh **or** on `JWTAccessAuthentication`. Logout still revokes in PostgreSQL if the denylist write fails. Protected routes therefore still reject a logged-out session when Redis is unavailable. The 15-minute residual window applies only if PostgreSQL validation were skipped; it is not skipped.
 
 Missing Redis must not block `runserver` or health checks.
 
-Rate-limit counters (`incr_with_ttl`) exist as a primitive only. Login/register/refresh throttles are **not** wired in Phase 4.7.
+Login/register/refresh throttles are **IMPLEMENTED** (Phase 7.3) via `increment_rate_limit` (Lua INCR+EXPIRE). Do not use `incr_with_ttl` for security throttles. Forgot-password throttle remains **DEFERRED**.
 
 Redis refresh locking is **DEFERRED**: `transaction.atomic()` + `select_for_update()` already serializes rotation.
 
@@ -949,7 +953,7 @@ Every API call looks up a session in Redis or PostgreSQL.
 | Kafka | `user.created` / `user.email_verified` / `user.password_changed`; not login/logout | **DECIDED** |
 | CSRF | N/A for Bearer Android client | **DECIDED** |
 | HTTPS | Production required | **DECIDED** |
-| Rate limits, email, reset, social, Android storage code | After this design | **DEFERRED** / **NOT IMPLEMENTED** |
+| Rate limits, email, reset, social, Android storage code | After this design | Login/register/refresh limits **IMPLEMENTED** (7.3). Forgot, email verification, social, Android remain **DEFERRED**. |
 | This whole system in code | Phase 4 in progress (4.1–4.7 complete; rate limits, Android remain) | **IN PROGRESS** |
 
 `users.User` remains: UUID pk, email `USERNAME_FIELD`, Django password field, timezone, `is_active`, `is_staff`, timestamps. Future additive columns: `email_verified_at` only when verification is built.
@@ -968,7 +972,7 @@ Do **not** start this sequence in the design task. When Phase 4 begins, implemen
 6. `POST /refresh/` with rotation, grace, reuse revoke, Android-parallel test cases.
 7. `POST /logout/` and `POST /logout-all/` + Redis denylist helper (skip if Redis down).
 8. `GET /me/`.
-9. Rate limiting on login/register/refresh (**DEFERRED**; `incr_with_ttl` primitive exists).
+9. Rate limiting on login/register/refresh (**IMPLEMENTED**, Phase 7.3; `increment_rate_limit`, not `incr_with_ttl`).
 10. Password forgot/reset once email exists.
 11. `email_verified_at` + verification APIs.
 12. `UserIdentity` + Google/Apple.

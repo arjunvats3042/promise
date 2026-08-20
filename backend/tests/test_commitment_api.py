@@ -162,7 +162,6 @@ def test_create_success_makes_creator_responsible_and_created_event(client, arju
             "description": "Send the production credentials",
             "due_at": due_at,
             "due_precision": "DATETIME",
-            "source": "MANUAL",
             "created_by": str(arjun.id),
             "status": "COMPLETED",
         },
@@ -199,6 +198,22 @@ def test_create_validation_errors(client, arjun):
     assert missing.json()["error"]["code"] == "VALIDATION_ERROR"
     assert inconsistent.status_code == 400
     assert inconsistent.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert Commitment.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_create_rejects_client_supplied_source(client, arjun):
+    _auth(client, _token(client, arjun.email))
+    for source in ("SHARED", "AI_TEXT", "IMPORT", "MANUAL"):
+        response = client.post(
+            COMMITMENTS_URL,
+            {"title": "Client must not set source", "source": source},
+            format="json",
+        )
+        assert response.status_code == 400
+        body = response.json()
+        assert body["error"]["code"] == "VALIDATION_ERROR"
+        assert "source" in body["error"]["details"]
     assert Commitment.objects.count() == 0
 
 

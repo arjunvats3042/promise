@@ -574,12 +574,14 @@ Users must be able to delete their data.
 
 Redis key conventions:
 
+Implemented product keys are in `docs/REDIS_DESIGN.md` (canonical). Examples below are future cache / AI / lock sketches.
+
 ``` text
 promise:cache:user:{user_id}:goals
 promise:cache:user:{user_id}:today
 promise:cache:user:{user_id}:insights
 
-promise:ratelimit:user:{user_id}:ai
+promise:ratelimit:ai:user:{user_id}
 
 promise:lock:notification:{notification_id}
 

@@ -11,6 +11,11 @@ from apps.outbox.models import OutboxEvent
 logger = logging.getLogger("promise")
 
 COMMITMENT_TOPIC = "promise.commitment.v1"
+GOAL_TOPIC = "promise.goal.v1"
+_TOPICS = {
+    "commitment": COMMITMENT_TOPIC,
+    "goal": GOAL_TOPIC,
+}
 BATCH_SIZE = 50
 MAX_ATTEMPTS = 8
 MAX_LAST_ERROR_LENGTH = 2048
@@ -117,13 +122,18 @@ def _publish_batch(publish):
 def _produce_event(event, publish):
     if not isinstance(event.payload, dict):
         raise ValueError("Invalid outbox payload")
-    if event.aggregate_type != "commitment":
-        raise ValueError("Unknown aggregate type")
     publish(
-        COMMITMENT_TOPIC,
+        _topic_for(event.aggregate_type),
         str(event.aggregate_id),
         _envelope(event),
     )
+
+
+def _topic_for(aggregate_type):
+    try:
+        return _TOPICS[aggregate_type]
+    except KeyError:
+        raise ValueError("Unknown aggregate type")
 
 
 def _envelope(event):

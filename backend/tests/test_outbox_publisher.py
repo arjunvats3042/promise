@@ -1,6 +1,6 @@
 import json
 import threading
-from datetime import timedelta
+from datetime import date, timedelta
 from io import StringIO
 from uuid import uuid4
 import pytest
@@ -14,6 +14,7 @@ from apps.outbox.models import OutboxEvent
 from apps.outbox.publisher import (
     BATCH_SIZE,
     COMMITMENT_TOPIC,
+    GOAL_TOPIC,
     MAX_ATTEMPTS,
     backoff_for_attempt,
     publish_due_outbox_events,
@@ -288,6 +289,141 @@ def test_invalid_payload_is_not_published_and_is_retried():
     assert outbox.next_attempt_at is not None
     assert "supersecret-token" not in outbox.last_error
     assert "not-an-object" not in outbox.last_error
+
+
+@pytest.mark.django_db
+def test_goal_events_route_to_goal_topic_with_aggregate_id_key(arjun):
+    from apps.goals.models import Goal
+    from apps.goals.services import create_goal
+
+    goal = create_goal(
+        creator=arjun,
+        title="Study DSA 5 days every week",
+        start_date=date(2026, 8, 10),
+        recurrence_kind=Goal.RecurrenceKind.N_PER_PERIOD,
+        period_unit=Goal.PeriodUnit.WEEK,
+        times_per_period=5,
+    )
+    calls, publish = _recording_publish()
+
+    result = publish_due_outbox_events(publish=publish)
+
+    outbox = OutboxEvent.objects.get()
+    topic, key, value = calls[0]
+    assert result.published == 1
+    assert result.failed == 0
+    assert topic == GOAL_TOPIC == "promise.goal.v1"
+    assert key == str(goal.id) == str(outbox.aggregate_id)
+    assert value["aggregate_type"] == "goal"
+    assert value["aggregate_id"] == str(goal.id)
+    assert value["event_type"] == "goal.created"
+    assert value["event_id"] == str(outbox.id)
+    assert "title" not in json.dumps(value)
+    assert outbox.published_at is not None
+    assert outbox.attempts == 1
+
+
+@pytest.mark.django_db
+def test_goal_checkin_events_use_goal_topic_and_goal_id_key(arjun):
+    from apps.goals.models import Goal, GoalCheckIn
+    from apps.goals.services import create_goal, record_check_in
+
+    goal = create_goal(
+        creator=arjun,
+        title="Read every day",
+        start_date=date(2026, 8, 10),
+        recurrence_kind=Goal.RecurrenceKind.DAILY,
+    )
+    OutboxEvent.objects.filter(aggregate_id=goal.id).update(
+        published_at=timezone.now(),
+        next_attempt_at=None,
+    )
+    record_check_in(
+        actor=arjun,
+        goal_id=goal.id,
+        period_date=date(2026, 8, 10),
+        status=GoalCheckIn.Status.COMPLETED,
+    )
+    calls, publish = _recording_publish()
+
+    result = publish_due_outbox_events(publish=publish)
+
+    topic, key, value = calls[0]
+    assert result.published == 1
+    assert topic == GOAL_TOPIC == "promise.goal.v1"
+    assert key == str(goal.id)
+    assert value["aggregate_type"] == "goal"
+    assert value["aggregate_id"] == str(goal.id)
+    assert value["event_type"] == "goal.checkin.created"
+
+
+@pytest.mark.django_db
+def test_commitment_and_goal_events_route_to_separate_topics(arjun):
+    from apps.goals.models import Goal
+    from apps.goals.services import create_goal
+
+    commitment = create_commitment(creator=arjun, title="Finite promise")
+    goal = create_goal(
+        creator=arjun,
+        title="Recurring practice",
+        start_date=date(2026, 8, 10),
+        recurrence_kind=Goal.RecurrenceKind.DAILY,
+    )
+    calls, publish = _recording_publish()
+
+    result = publish_due_outbox_events(publish=publish)
+
+    by_type = {value["aggregate_type"]: (topic, key) for topic, key, value in calls}
+    assert result.published == 2
+    assert result.failed == 0
+    assert by_type["commitment"] == (COMMITMENT_TOPIC, str(commitment.id))
+    assert by_type["goal"] == (GOAL_TOPIC, str(goal.id))
+
+
+@pytest.mark.django_db
+def test_unknown_aggregate_type_is_not_published_and_is_retried():
+    outbox = _due_outbox(
+        aggregate_type="user",
+        event_type="user.created",
+        payload={"password": "supersecret-token"},
+    )
+    calls, publish = _recording_publish()
+
+    result = publish_due_outbox_events(publish=publish)
+
+    outbox.refresh_from_db()
+    assert result.published == 0
+    assert result.failed == 1
+    assert calls == []
+    assert outbox.published_at is None
+    assert outbox.attempts == 1
+    assert outbox.next_attempt_at is not None
+    assert outbox.last_error != ""
+    assert "supersecret-token" not in outbox.last_error
+    assert "user" not in outbox.last_error
+
+
+@pytest.mark.django_db
+def test_unknown_aggregate_type_retry_then_park_matches_existing_backoff(monkeypatch):
+    now = timezone.now()
+    monkeypatch.setattr("apps.outbox.publisher.timezone.now", lambda: now)
+    outbox = _due_outbox(
+        aggregate_type="challenge",
+        event_type="challenge.created",
+        attempts=7,
+        next_attempt_at=now,
+        occurred_at=now,
+    )
+    calls, publish = _recording_publish()
+
+    result = publish_due_outbox_events(publish=publish)
+
+    outbox.refresh_from_db()
+    assert result.failed == 1
+    assert calls == []
+    assert outbox.published_at is None
+    assert outbox.attempts == 8
+    assert outbox.next_attempt_at is None
 
 
 @pytest.mark.django_db

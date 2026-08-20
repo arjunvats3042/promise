@@ -1061,28 +1061,37 @@ Completed:
 [x] Phase 4 — Authentication
 [x] Phase 5 — Commitment Domain + event backbone
     (models, services, REST APIs, outbox, publisher, generic consumer)
+[x] Phase 6 — Goal Domain
+    (models, services, REST APIs, GoalEvent+OutboxEvent, promise.goal.v1)
+[x] Phase 7 — Redis product layer
+    (denylist 4.7; Lua counters; auth + Goal/Commitment/check-in throttles)
+[x] Phase 9.1–9.6 — Android design, bootstrap, auth + networking, shell + Home, Commitments UI, Goals UI
 ```
 
 Not in this checkpoint (deferred):
 
 ```text
 [ ] Participant invite APIs / unwait HTTP
-[ ] Notifications, AI, analytics, Android
-[ ] Goals, Challenges
+[ ] Dedicated Goal consumer command / product Goal workers
+[ ] Notifications, AI, analytics
+[ ] Remaining Phase 9 Android (Shared Goals / register / FCM / Room)
+[ ] Shared goals, Challenges, commitment↔goal links
+[ ] Product Redis cache / AI rate limits / notification locks / trusted-proxy IP
 ```
 
 Next:
 
 ```text
-[ ] Phase 6 — Goal Domain
+[ ] Remaining Phase 9 — Android Shared Goals / register / FCM / Room
+    (9.1–9.6 complete; DEVELOPMENT Phase 8 Kafka already landed with the Phase 5 outbox)
 ```
 
 ---
 
 # 28. Immediate Next Task
 
-Phase 5 Commitment Domain + event backbone is complete.
+Phase 7 Redis product layer is complete (denylist + rate limits). Domain caches, notification locks, and AI throttles remain deferred.
 
-Next major phase: **Phase 6 — Goal Domain**.
+Phase 9 — Android Foundation is **IN PROGRESS**. Phase 9.6 Goals UI is complete. Remaining: Shared Goals / register / FCM / Room when requested.
 
-Do not start Android, notifications, or AI unless requested. Participant invites remain deferred product work, not a blocker for Goals.
+Do not start notifications or AI unless requested.

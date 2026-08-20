@@ -13,7 +13,7 @@ for env_file in (REPO_ROOT / ".env", BASE_DIR / ".env"):
 
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env.bool("DJANGO_DEBUG", default=False)
-ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "192.168.1.29"])
 
 INSTALLED_APPS = [
     "apps.core.apps.CoreConfig",
@@ -21,6 +21,8 @@ INSTALLED_APPS = [
     "apps.authentication.apps.AuthenticationConfig",
     "apps.outbox.apps.OutboxConfig",
     "apps.commitments.apps.CommitmentsConfig",
+    "apps.goals.apps.GoalsConfig",
+    "django.contrib.postgres",
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "django.contrib.staticfiles",
@@ -100,6 +102,9 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
     ],
     "EXCEPTION_HANDLER": "config.exceptions.api_exception_handler",
 }

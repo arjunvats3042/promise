@@ -17,7 +17,7 @@ from apps.outbox.consumer import (
 )
 from apps.outbox.envelope import EnvelopeError, parse_envelope
 from apps.outbox.models import ProcessedEvent
-from apps.outbox.publisher import COMMITMENT_TOPIC
+from apps.outbox.publisher import COMMITMENT_TOPIC, GOAL_TOPIC
 
 
 def _valid_envelope(**overrides):
@@ -30,6 +30,16 @@ def _valid_envelope(**overrides):
         "aggregate_id": str(uuid4()),
         "payload": {"status": "PENDING"},
     }
+    data.update(overrides)
+    return data
+
+
+def _goal_envelope(**overrides):
+    data = _valid_envelope(
+        event_type="goal.created",
+        aggregate_type="goal",
+        payload={"status": "ACTIVE"},
+    )
     data.update(overrides)
     return data
 
@@ -244,6 +254,107 @@ def test_unknown_event_type_is_skipped_without_processing():
     assert commits == ["commit"]
     assert calls == []
     assert ProcessedEvent.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_goal_event_first_delivery_processes_and_records():
+    envelope = _goal_envelope()
+    commits = []
+    calls = []
+
+    outcome = handle_record(
+        consumer_group="promise-goal-events-verify",
+        raw_value=json.dumps(envelope).encode("utf-8"),
+        processor=lambda event: calls.append(event["event_id"]),
+        commit_offset=lambda: commits.append("commit"),
+    )
+
+    assert outcome == "processed"
+    assert commits == ["commit"]
+    assert len(calls) == 1
+    row = ProcessedEvent.objects.get()
+    assert row.consumer_group == "promise-goal-events-verify"
+    assert str(row.event_id) == envelope["event_id"]
+
+
+@pytest.mark.django_db
+def test_goal_event_replay_is_duplicate_without_second_row():
+    envelope = _goal_envelope()
+    commits = []
+    calls = []
+
+    first = handle_record(
+        consumer_group="promise-goal-events-verify",
+        raw_value=json.dumps(envelope).encode("utf-8"),
+        processor=lambda event: calls.append(event["event_id"]),
+        commit_offset=lambda: commits.append("commit"),
+    )
+    second = handle_record(
+        consumer_group="promise-goal-events-verify",
+        raw_value=json.dumps(envelope).encode("utf-8"),
+        processor=lambda event: calls.append(event["event_id"]),
+        commit_offset=lambda: commits.append("commit"),
+    )
+
+    assert first == "processed"
+    assert second == "duplicate"
+    assert len(calls) == 1
+    assert commits == ["commit", "commit"]
+    assert ProcessedEvent.objects.filter(event_id=envelope["event_id"]).count() == 1
+
+
+@pytest.mark.django_db
+def test_run_consumer_goal_topic_counts_processed_then_duplicate():
+    from apps.outbox.consumer import run_consumer
+
+    raw = json.dumps(_goal_envelope()).encode("utf-8")
+
+    class FakeMessage:
+        def error(self):
+            return None
+
+        def value(self):
+            return raw
+
+    class FakeConsumer:
+        def __init__(self):
+            self.remaining = [FakeMessage(), FakeMessage()]
+            self.committed = 0
+            self.closed = False
+
+        def subscribe(self, topics):
+            self.topics = topics
+
+        def poll(self, timeout):
+            if self.remaining:
+                return self.remaining.pop(0)
+            return None
+
+        def commit(self, message=None, asynchronous=True):
+            self.committed += 1
+
+        def close(self):
+            self.closed = True
+
+    fake = FakeConsumer()
+    calls = []
+    result = run_consumer(
+        topic=GOAL_TOPIC,
+        group_id="promise-goal-events-verify",
+        processor=lambda event: calls.append(event["event_id"]),
+        max_messages=2,
+        consumer=fake,
+    )
+
+    assert fake.topics == [GOAL_TOPIC]
+    assert result["processed"] == 1
+    assert result["duplicates"] == 1
+    assert result["skipped"] == 0
+    assert result["retried"] == 0
+    assert len(calls) == 1
+    assert fake.committed == 2
+    assert fake.closed is True
+    assert ProcessedEvent.objects.count() == 1
 
 
 @pytest.mark.django_db

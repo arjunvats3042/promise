@@ -39,13 +39,12 @@ class CommitmentCreateSerializer(serializers.Serializer):
         required=False,
         default=Commitment.DuePrecision.NONE,
     )
-    source = serializers.ChoiceField(
-        choices=Commitment.Source.choices,
-        required=False,
-        default=Commitment.Source.MANUAL,
-    )
 
     def validate(self, attrs):
+        if "source" in self.initial_data:
+            raise serializers.ValidationError(
+                {"source": "Server-managed. Do not send this field."}
+            )
         _validate_due_fields(attrs.get("due_at"), attrs.get("due_precision"))
         return attrs
 

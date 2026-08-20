@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="promise_background">#141614</color>
+    <color name="promise_primary">#DCE3DD</color>
+</resources>

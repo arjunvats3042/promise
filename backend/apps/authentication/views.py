@@ -8,6 +8,11 @@ from rest_framework.decorators import (
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from apps.authentication.rate_limits import (
+    enforce_login_rate_limits,
+    enforce_refresh_rate_limits,
+    enforce_register_rate_limits,
+)
 from apps.authentication.serializers import (
     LoginSerializer,
     RefreshSerializer,
@@ -45,6 +50,7 @@ def _authentication_response(result):
 def register(request):
     serializer = RegisterSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    enforce_register_rate_limits(request, serializer.validated_data["email"])
     result = register_user(**serializer.validated_data)
     return Response(_authentication_response(result), status=status.HTTP_201_CREATED)
 
@@ -55,6 +61,7 @@ def register(request):
 def login(request):
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    enforce_login_rate_limits(request, serializer.validated_data["email"])
     result = login_user(**serializer.validated_data)
     return Response(_authentication_response(result), status=status.HTTP_200_OK)
 
@@ -65,6 +72,7 @@ def login(request):
 def refresh(request):
     serializer = RefreshSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    enforce_refresh_rate_limits(request, serializer.validated_data["refresh_token"])
     result = refresh_tokens(**serializer.validated_data)
     return Response({"tokens": _token_payload(result)}, status=status.HTTP_200_OK)
 

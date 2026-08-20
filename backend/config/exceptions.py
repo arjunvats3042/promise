@@ -28,6 +28,16 @@ class ApplicationAPIError(APIException):
         super().__init__(detail=self.public_message, code=self.error_code)
 
 
+class RateLimitedError(ApplicationAPIError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    error_code = "RATE_LIMITED"
+    public_message = "Too many requests. Please try again later."
+
+    def __init__(self, retry_after=None):
+        self.retry_after = retry_after
+        super().__init__()
+
+
 def _error_payload(code, message, details=None):
     error = {"code": code, "message": message}
     if details is not None:
@@ -45,10 +55,14 @@ def _stringify_details(data):
 
 def api_exception_handler(exc, context):
     if isinstance(exc, ApplicationAPIError):
-        return Response(
+        response = Response(
             _error_payload(exc.error_code, exc.public_message),
             status=exc.status_code,
         )
+        retry_after = getattr(exc, "retry_after", None)
+        if retry_after is not None:
+            response["Retry-After"] = str(int(retry_after))
+        return response
 
     if isinstance(exc, ValidationError):
         response = drf_exception_handler(exc, context)

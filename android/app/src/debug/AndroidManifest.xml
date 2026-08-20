@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      Debug-only: Android 17 / targetSdk 37 requires ACCESS_LOCAL_NETWORK for
+      LAN / emulator-host HTTP (10.0.2.2, 192.168.x.x). Release does not merge
+      this permission and keeps usesCleartextTraffic=false.
+      Cleartext hosts: network_security_config.xml
+      Physical device API URL: promise.apiBaseUrl in android/local.properties
+    -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

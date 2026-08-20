@@ -1,4 +1,4 @@
-"""Kafka consumer foundation for commitment integration events.
+"""Kafka consumer foundation for commitment and goal integration events.
 
 At-least-once delivery. PostgreSQL `processed_events` is the idempotency
 source of truth, keyed by `(consumer_group, event_id)`.
@@ -41,6 +41,14 @@ SUPPORTED_EVENT_TYPES = (
     "commitment.unsnoozed",
     "commitment.waiting",
     "commitment.cancelled",
+    "goal.created",
+    "goal.updated",
+    "goal.paused",
+    "goal.resumed",
+    "goal.completed",
+    "goal.cancelled",
+    "goal.checkin.created",
+    "goal.checkin.updated",
 )
 
 

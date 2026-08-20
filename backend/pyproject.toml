@@ -18,7 +18,7 @@ dependencies = [
 dev = [
     "pytest",
     "pytest-django",
-    "fakeredis",
+    "fakeredis[lua]",
 ]
 
 [tool.pytest.ini_options]

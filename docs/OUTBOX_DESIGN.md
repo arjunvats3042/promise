@@ -1,6 +1,6 @@
 # Promise — Transactional Outbox and Domain Event Design
 
-**Status:** Design complete. Persistence (5.7), publisher (5.8), and generic consumer + `processed_events` (5.9) are implemented. Product consumers (notifications, AI, analytics) are not.
+**Status:** Design complete. Persistence (5.7), publisher (5.8), generic consumer + `processed_events` (5.9), Goal topic routing, and Phase 6 live Goal publish/consume verification are implemented. Product consumers (notifications, AI, analytics) and a dedicated Goal consumer command are not.
 
 | Label | Meaning |
 |---|---|
@@ -273,7 +273,9 @@ loop:
 
   for each row:
     attempts += 1
-    produce envelope to topic promise.commitment.v1
+    produce envelope to topic selected by aggregate_type
+      commitment → promise.commitment.v1
+      goal → promise.goal.v1
       key = aggregate_id
     on success: published_at = now(); last_error = ""
     on failure: last_error = truncated; next_attempt_at = now() + backoff(attempts)
@@ -344,17 +346,21 @@ Ignore unknown `event_type` / higher `event_version` (log + skip or park per con
 
 ```text
 promise.commitment.v1
+promise.goal.v1
 ```
 
-Matches `ARCHITECTURE.md` §7. Later: `promise.user.v1`, `promise.goal.v1`, etc.
+Matches `ARCHITECTURE.md` §7. Later: `promise.user.v1`, etc.
 
 | Approach | Verdict |
 |---|---|
 | One topic per event type (`commitment.completed`, …) | Rejected for MVP. More partitions/config; consumers that want the whole lifecycle must join streams. |
 | One topic for the whole product | Rejected. Unrelated domains share lag and ACLs. |
 | `promise.commitment.v1` | **Chosen.** All commitment integration events, discriminated by `event_type`. |
+| `promise.goal.v1` | **Chosen.** All goal integration events (including check-ins), discriminated by `event_type`. Key = `Goal.id`. |
 
-**Partition key:** `aggregate_id` (commitment UUID).
+**Partition key:** `aggregate_id` (commitment or goal UUID).
+
+The publisher maps `aggregate_type` → topic. Unknown types fail without producing. There is no `consume_goal_events` command yet. The generic `handle_record` path accepts Goal `event_type`s so the existing consumer can process `promise.goal.v1` when pointed at that topic. Product Goal workers remain deferred.
 
 ARCHITECTURE’s `partition_key = user_id` applies to user-scoped lifecycle events. For commitments, per-aggregate order matters more: `created` before `completed` for the same promise. Different commitments of one user **may** interleave across partitions; that is accepted.
 
@@ -452,7 +458,7 @@ Do not implement them now.
 | Kafka names `commitment.*`; map from existing `CommitmentEvent` types | **DECIDED** |
 | Envelope with `event_id`, `event_type`, `event_version`, `occurred_at`, `aggregate_type`, `aggregate_id`, `payload` | **DECIDED** |
 | Compact payload; no titles/secrets/tokens | **DECIDED** |
-| Topic `promise.commitment.v1`; key = `aggregate_id` | **DECIDED** |
+| Topic `promise.commitment.v1` / `promise.goal.v1`; key = `aggregate_id` | **DECIDED** |
 | At-least-once; consumer dedup on `event_id` | **DECIDED** |
 | Exponential backoff; park after 8 attempts | **DECIDED** |
 | Publisher `SKIP LOCKED` batches of 50 | **DECIDED** |
@@ -483,7 +489,7 @@ Do not implement them now.
 |---|---|
 | Dual events: audit vs outbox | **DECIDED** |
 | Transaction = mutation + `CommitmentEvent` + `OutboxEvent` | **DECIDED** |
-| `promise.commitment.v1` + key `aggregate_id` | **DECIDED** |
+| `promise.commitment.v1` / `promise.goal.v1` + key `aggregate_id` | **DECIDED** |
 | At-least-once + `event_id` dedup | **DECIDED** |
 | Park poison in place | **DECIDED** |
 | No titles on Kafka in MVP | **DECIDED** |

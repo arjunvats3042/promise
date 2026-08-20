@@ -1,0 +1,152 @@
+package app.promise.android.ui.theme
+
+import android.app.Activity
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+
+enum class PromiseThemeMode {
+    Light,
+    Dark,
+}
+
+data class PromiseExtendedColors(
+    val accent: Color,
+    val ink: Color,
+    val success: Color,
+    val warning: Color,
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val surfaceMuted: Color,
+    val surfaceRaised: Color,
+    val outlineStrong: Color,
+    val primaryControl: Color,
+    val onPrimaryControl: Color,
+)
+
+val LocalPromiseColors = staticCompositionLocalOf {
+    PromiseExtendedColors(
+        accent = PromiseColor.Accent,
+        ink = PromiseColor.Primary,
+        success = PromiseColor.Success,
+        warning = PromiseColor.Warning,
+        textPrimary = PromiseColor.TextPrimary,
+        textSecondary = PromiseColor.TextSecondary,
+        surfaceMuted = PromiseColor.SurfaceMuted,
+        surfaceRaised = PromiseColor.SurfaceRaised,
+        outlineStrong = PromiseColor.OutlineStrong,
+        primaryControl = PromiseColor.PrimaryControl,
+        onPrimaryControl = PromiseColor.OnPrimaryControl,
+    )
+}
+
+object PromiseThemeColors {
+    val current: PromiseExtendedColors
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalPromiseColors.current
+}
+
+@Composable
+fun PromiseTheme(
+    mode: PromiseThemeMode = PromiseThemeMode.Light,
+    sessionAccent: SessionAccent = AccentPalette.options.first(),
+    content: @Composable () -> Unit,
+) {
+    val accent = sessionAccent.forMode(mode)
+    val onAccent = sessionAccent.onAccent(mode)
+    val colorScheme: ColorScheme = when (mode) {
+        PromiseThemeMode.Light -> lightColorScheme(
+            primary = accent,
+            onPrimary = onAccent,
+            secondary = PromiseColor.Secondary,
+            onSecondary = PromiseColor.OnPrimary,
+            background = PromiseColor.Background,
+            onBackground = PromiseColor.TextPrimary,
+            surface = PromiseColor.Surface,
+            onSurface = PromiseColor.TextPrimary,
+            surfaceVariant = PromiseColor.SurfaceMuted,
+            onSurfaceVariant = PromiseColor.TextSecondary,
+            error = PromiseColor.Error,
+            onError = PromiseColor.OnPrimary,
+            outline = PromiseColor.Outline,
+            outlineVariant = PromiseColor.OutlineStrong,
+            scrim = PromiseColor.Scrim,
+        )
+        PromiseThemeMode.Dark -> darkColorScheme(
+            primary = accent,
+            onPrimary = onAccent,
+            secondary = PromiseDarkColor.Secondary,
+            onSecondary = PromiseDarkColor.OnPrimary,
+            background = PromiseDarkColor.Background,
+            onBackground = PromiseDarkColor.TextPrimary,
+            surface = PromiseDarkColor.Surface,
+            onSurface = PromiseDarkColor.TextPrimary,
+            surfaceVariant = PromiseDarkColor.SurfaceMuted,
+            onSurfaceVariant = PromiseDarkColor.TextSecondary,
+            error = PromiseDarkColor.Error,
+            onError = PromiseDarkColor.OnAccent,
+            outline = PromiseDarkColor.Outline,
+            outlineVariant = PromiseDarkColor.OutlineStrong,
+            scrim = PromiseDarkColor.Scrim,
+        )
+    }
+    val extended = when (mode) {
+        PromiseThemeMode.Light -> PromiseExtendedColors(
+            accent = accent,
+            ink = PromiseColor.Primary,
+            success = accent,
+            warning = PromiseColor.Warning,
+            textPrimary = PromiseColor.TextPrimary,
+            textSecondary = PromiseColor.TextSecondary,
+            surfaceMuted = PromiseColor.SurfaceMuted,
+            surfaceRaised = PromiseColor.SurfaceRaised,
+            outlineStrong = PromiseColor.OutlineStrong,
+            primaryControl = PromiseColor.PrimaryControl,
+            onPrimaryControl = PromiseColor.OnPrimaryControl,
+        )
+        PromiseThemeMode.Dark -> PromiseExtendedColors(
+            accent = accent,
+            ink = PromiseDarkColor.Ink,
+            success = accent,
+            warning = PromiseDarkColor.Warning,
+            textPrimary = PromiseDarkColor.TextPrimary,
+            textSecondary = PromiseDarkColor.TextSecondary,
+            surfaceMuted = PromiseDarkColor.SurfaceMuted,
+            surfaceRaised = PromiseDarkColor.SurfaceRaised,
+            outlineStrong = PromiseDarkColor.OutlineStrong,
+            primaryControl = PromiseDarkColor.PrimaryControl,
+            onPrimaryControl = PromiseDarkColor.OnPrimaryControl,
+        )
+    }
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.background.toArgb()
+            window.navigationBarColor = colorScheme.background.toArgb()
+            val controller = WindowCompat.getInsetsController(window, view)
+            val lightIcons = mode == PromiseThemeMode.Light
+            controller.isAppearanceLightStatusBars = lightIcons
+            controller.isAppearanceLightNavigationBars = lightIcons
+        }
+    }
+    CompositionLocalProvider(LocalPromiseColors provides extended) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = PromiseTypography,
+            shapes = PromiseShapes,
+            content = content,
+        )
+    }
+}
