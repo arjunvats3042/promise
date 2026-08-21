@@ -1,5 +1,7 @@
 package app.promise.android.ui.commitments
 
+import app.promise.android.data.home.HomeFreshness
+
 import app.promise.android.core.ActionState
 import app.promise.android.core.LoadState
 import app.promise.android.data.network.AuthSession
@@ -49,7 +51,7 @@ class CommitmentsListViewModelTest {
         val session = AuthSession().also {
             it.setUser(User("1", "a@b.com", "Ada", "UTC", "2026-01-01T00:00:00Z"))
         }
-        val vm = CommitmentsListViewModel(repo, session, FakePromiseHaptics())
+        val vm = CommitmentsListViewModel(repo, session, HomeFreshness(), FakePromiseHaptics())
         advanceUntilIdle()
         val ready = vm.state.value as LoadState.Ready
         assertEquals(CommitmentListFilter.OPEN, ready.value.filter)
@@ -62,7 +64,7 @@ class CommitmentsListViewModelTest {
             pages = mapOf(CommitmentListFilter.OPEN to listOf(sample("1"))),
         )
         val haptics = FakePromiseHaptics()
-        val vm = CommitmentsListViewModel(repo, AuthSession(), haptics)
+        val vm = CommitmentsListViewModel(repo, AuthSession(), HomeFreshness(), haptics)
         advanceUntilIdle()
         vm.create("New", "", null, DuePrecision.NONE) {}
         advanceUntilIdle()
@@ -81,7 +83,7 @@ class CommitmentsListViewModelTest {
             ),
         )
         val haptics = FakePromiseHaptics()
-        val vm = CommitmentsListViewModel(repo, AuthSession(), haptics)
+        val vm = CommitmentsListViewModel(repo, AuthSession(), HomeFreshness(), haptics)
         advanceUntilIdle()
         vm.selectFilter(CommitmentListFilter.OVERDUE)
         advanceUntilIdle()
@@ -101,6 +103,7 @@ class FakeCommitmentRepository(
         filter: CommitmentListFilter,
         page: Int,
         timeZoneId: String,
+        pageSize: Int,
     ): CommitmentPage {
         return CommitmentPage(items = pages[filter].orEmpty(), nextPage = null)
     }

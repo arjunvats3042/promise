@@ -1,16 +1,7 @@
 package app.promise.android.data.goals
 
-import app.promise.android.data.commitments.pageNumberFromNext
-import app.promise.android.domain.Goal
-import app.promise.android.domain.GoalCheckIn
-import app.promise.android.domain.GoalCheckInStatus
-import app.promise.android.domain.GoalPeriodCounts
-import app.promise.android.domain.GoalPeriodUnit
-import app.promise.android.domain.GoalProgress
-import app.promise.android.domain.GoalRecurrenceKind
-import app.promise.android.domain.GoalStatus
-import app.promise.android.domain.GoalTrackingKind
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
@@ -56,79 +47,28 @@ interface GoalApi {
 
     @POST("goals/{id}/check-ins/")
     suspend fun checkIn(@Path("id") id: String, @Body body: CheckInRequest): GoalCheckInDto
+
+    @GET("goals/{id}/participants/")
+    suspend fun listParticipants(@Path("id") id: String): List<GoalParticipantDto>
+
+    @POST("goals/{id}/participants/")
+    suspend fun inviteParticipant(
+        @Path("id") id: String,
+        @Body body: InviteParticipantRequest,
+    ): GoalParticipantDto
+
+    @POST("goals/{id}/participants/accept/")
+    suspend fun acceptInvitation(@Path("id") id: String): GoalDto
+
+    @POST("goals/{id}/participants/decline/")
+    suspend fun declineInvitation(@Path("id") id: String): GoalParticipantDto
+
+    @DELETE("goals/{id}/participants/{userId}/")
+    suspend fun removeParticipant(
+        @Path("id") id: String,
+        @Path("userId") userId: String,
+    ): GoalParticipantDto
+
+    @POST("goals/{id}/leave/")
+    suspend fun leave(@Path("id") id: String): GoalParticipantDto
 }
-
-fun GoalDto.toDomain(): Goal {
-    return Goal(
-        id = id,
-        title = title,
-        description = description,
-        status = status.toGoalStatus(),
-        timezone = timezone,
-        startDate = startDate,
-        endDate = endDate,
-        recurrenceKind = recurrenceKind.toRecurrenceKind(),
-        weekdays = weekdays,
-        periodUnit = periodUnit?.toPeriodUnit(),
-        timesPerPeriod = timesPerPeriod,
-        trackingKind = trackingKind.toTrackingKind(),
-        targetValue = targetValue,
-        targetUnit = targetUnit,
-        source = source,
-        pausedAt = pausedAt,
-        completedAt = completedAt,
-        cancelledAt = cancelledAt,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
-        isEnded = isEnded,
-        progress = progress.toDomain(),
-        currentStreak = currentStreak,
-    )
-}
-
-fun GoalProgressDto.toDomain(): GoalProgress {
-    return GoalProgress(
-        currentPeriod = currentPeriod.toDomain(),
-        weekProgress = weekProgress.toDomain(),
-        consistencyPercent = consistencyPercent,
-    )
-}
-
-fun GoalPeriodCountsDto.toDomain(): GoalPeriodCounts {
-    return GoalPeriodCounts(
-        required = required,
-        completed = completed,
-        value = value,
-        targetValue = targetValue,
-    )
-}
-
-fun GoalCheckInDto.toDomain(): GoalCheckIn {
-    return GoalCheckIn(
-        id = id,
-        periodDate = periodDate,
-        status = status.toCheckInStatus(),
-        value = value,
-        note = note,
-        checkedAt = checkedAt,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
-    )
-}
-
-fun String.toGoalStatus(): GoalStatus =
-    runCatching { GoalStatus.valueOf(this) }.getOrDefault(GoalStatus.ACTIVE)
-
-fun String.toRecurrenceKind(): GoalRecurrenceKind =
-    runCatching { GoalRecurrenceKind.valueOf(this) }.getOrDefault(GoalRecurrenceKind.DAILY)
-
-fun String.toPeriodUnit(): GoalPeriodUnit =
-    runCatching { GoalPeriodUnit.valueOf(this) }.getOrDefault(GoalPeriodUnit.WEEK)
-
-fun String.toTrackingKind(): GoalTrackingKind =
-    runCatching { GoalTrackingKind.valueOf(this) }.getOrDefault(GoalTrackingKind.BINARY)
-
-fun String.toCheckInStatus(): GoalCheckInStatus =
-    runCatching { GoalCheckInStatus.valueOf(this) }.getOrDefault(GoalCheckInStatus.COMPLETED)
-
-fun goalPageNumberFromNext(next: String?): Int? = pageNumberFromNext(next)

@@ -14,7 +14,9 @@ import app.promise.android.data.remote.ApiConfig
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.CreateGoalInput
 import app.promise.android.domain.GoalCheckInStatus
+import app.promise.android.domain.GoalDetail
 import app.promise.android.domain.GoalListFilter
+import app.promise.android.domain.GoalListItem
 import app.promise.android.domain.GoalRecurrenceKind
 import app.promise.android.domain.GoalTrackingKind
 import java.util.concurrent.TimeUnit
@@ -86,8 +88,22 @@ class GoalRepositoryTest {
         server.enqueue(MockResponse().setBody(pageJson(goalJson("g1"))))
         val page = repo.list(GoalListFilter.ACTIVE)
         assertTrue(server.takeRequest().path!!.contains("status=ACTIVE"))
-        assertEquals("g1", page.items.single().id)
-        assertEquals(6, page.items.single().progress.weekProgress.completed)
+        val membership = page.items.single() as GoalListItem.Membership
+        assertEquals("g1", membership.goal.id)
+        assertEquals(6, membership.goal.progress.weekProgress.completed)
+        assertEquals(5, membership.goal.currentStreak)
+        assertEquals(80, membership.goal.progress.consistencyPercent)
+    }
+
+    @Test
+    fun listActive_pinsInvitesBeforeMemberships() = runTest {
+        server.enqueue(
+            MockResponse().setBody(pageJson(goalJson("g1"), inviteJson("i1"))),
+        )
+        val page = repo.list(GoalListFilter.ACTIVE)
+        assertEquals(2, page.items.size)
+        assertTrue(page.items[0] is GoalListItem.Invite)
+        assertTrue(page.items[1] is GoalListItem.Membership)
     }
 
     @Test
@@ -98,6 +114,26 @@ class GoalRepositoryTest {
         assertEquals(2, page.items.size)
         assertTrue(server.takeRequest().path!!.contains("status=COMPLETED"))
         assertTrue(server.takeRequest().path!!.contains("status=CANCELLED"))
+    }
+
+    @Test
+    fun listCompleted_skipsInviteShapedItems() = runTest {
+        server.enqueue(MockResponse().setBody(pageJson(goalJson("c1", status = "COMPLETED"), inviteJson("i1"))))
+        server.enqueue(MockResponse().setBody(pageJson()))
+        val page = repo.list(GoalListFilter.COMPLETED)
+        assertEquals(1, page.items.size)
+        assertTrue(page.items[0] is GoalListItem.Membership)
+    }
+
+    @Test
+    fun list_parsesNextPage() = runTest {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"count":40,"next":"http://localhost/api/v1/goals/?page=2","previous":null,"results":[${goalJson("g1")}]}""",
+            ),
+        )
+        val page = repo.list(GoalListFilter.ACTIVE)
+        assertEquals(2, page.nextPage)
     }
 
     @Test
@@ -115,10 +151,21 @@ class GoalRepositoryTest {
     @Test
     fun checkIn_mapsBody() = runTest {
         server.enqueue(MockResponse().setResponseCode(201).setBody(checkInJson()))
-        repo.checkIn("g1", CheckInInput(status = GoalCheckInStatus.COMPLETED, value = null))
+        repo.checkIn(
+            "g1",
+            CheckInInput(
+                status = GoalCheckInStatus.COMPLETED,
+                periodDate = "2026-08-20",
+                value = 3,
+                note = "ok",
+            ),
+        )
         val request = server.takeRequest()
         assertTrue(request.path!!.endsWith("/goals/g1/check-ins/"))
-        assertTrue(request.body.readUtf8().contains("\"status\":\"COMPLETED\""))
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("\"status\":\"COMPLETED\""))
+        assertTrue(body.contains("\"period_date\":\"2026-08-20\""))
+        assertTrue(body.contains("\"value\":3"))
     }
 
     @Test
@@ -127,6 +174,114 @@ class GoalRepositoryTest {
         val goal = repo.pause("g1")
         assertTrue(server.takeRequest().path!!.endsWith("/pause/"))
         assertEquals("PAUSED", goal.status.name)
+    }
+
+    @Test
+    fun resume_hitsResumePath() = runTest {
+        server.enqueue(MockResponse().setBody(goalJson("g1", status = "ACTIVE")))
+        val goal = repo.resume("g1")
+        assertTrue(server.takeRequest().path!!.endsWith("/resume/"))
+        assertEquals("ACTIVE", goal.status.name)
+    }
+
+    @Test
+    fun complete_hitsCompletePath() = runTest {
+        server.enqueue(MockResponse().setBody(goalJson("g1", status = "COMPLETED")))
+        val goal = repo.complete("g1")
+        assertTrue(server.takeRequest().path!!.endsWith("/complete/"))
+        assertEquals("COMPLETED", goal.status.name)
+    }
+
+    @Test
+    fun cancel_hitsCancelPath() = runTest {
+        server.enqueue(MockResponse().setBody(goalJson("g1", status = "CANCELLED")))
+        val goal = repo.cancel("g1")
+        assertTrue(server.takeRequest().path!!.endsWith("/cancel/"))
+        assertEquals("CANCELLED", goal.status.name)
+    }
+
+    @Test
+    fun getDetail_full_returnsGoalDetail() = runTest {
+        server.enqueue(MockResponse().setBody(goalJson("g1")))
+        val detail = repo.getDetail("g1")
+        assertTrue(detail is GoalDetail.Full)
+        assertEquals("g1", (detail as GoalDetail.Full).goal.id)
+    }
+
+    @Test
+    fun getDetail_invite_returnsInviteDetail() = runTest {
+        server.enqueue(MockResponse().setBody(inviteJson("i1")))
+        val detail = repo.getDetail("i1")
+        assertTrue(detail is GoalDetail.Invite)
+        assertEquals("i1", (detail as GoalDetail.Invite).preview.id)
+    }
+
+    @Test
+    fun inviteParticipant_hitsParticipantsPath() = runTest {
+        server.enqueue(MockResponse().setResponseCode(201).setBody(participantJson("p1")))
+        val participant = repo.inviteParticipant("g1", "u2")
+        val request = server.takeRequest()
+        assertTrue(request.path!!.endsWith("/goals/g1/participants/"))
+        assertTrue(request.body.readUtf8().contains("\"user_id\":\"u2\""))
+        assertEquals("p1", participant.id)
+    }
+
+    @Test
+    fun listParticipants_hitsParticipantsPath() = runTest {
+        server.enqueue(MockResponse().setBody("[${participantJson("p1")}]"))
+        val list = repo.listParticipants("g1")
+        assertTrue(server.takeRequest().path!!.endsWith("/goals/g1/participants/"))
+        assertEquals(1, list.size)
+        assertEquals("p1", list[0].id)
+    }
+
+    @Test
+    fun acceptInvitation_hitsAcceptPath() = runTest {
+        server.enqueue(MockResponse().setBody(goalJson("g1")))
+        val detail = repo.acceptInvitation("g1")
+        assertTrue(server.takeRequest().path!!.endsWith("/accept/"))
+        assertTrue(detail is GoalDetail.Full)
+    }
+
+    @Test
+    fun declineInvitation_hitsDeclinePath() = runTest {
+        server.enqueue(MockResponse().setBody(participantJson("p1")))
+        val participant = repo.declineInvitation("g1")
+        assertTrue(server.takeRequest().path!!.endsWith("/decline/"))
+        assertEquals("p1", participant.id)
+    }
+
+    @Test
+    fun removeParticipant_hitsDeletePath() = runTest {
+        server.enqueue(MockResponse().setBody(participantJson("p1")))
+        val participant = repo.removeParticipant("g1", "u2")
+        val path = server.takeRequest().path!!
+        assertTrue(path.contains("/goals/g1/participants/u2/"))
+        assertEquals("p1", participant.id)
+    }
+
+    @Test
+    fun leave_hitsLeavePath() = runTest {
+        server.enqueue(MockResponse().setBody(participantJson("p1")))
+        val participant = repo.leave("g1")
+        assertTrue(server.takeRequest().path!!.endsWith("/leave/"))
+        assertEquals("p1", participant.id)
+    }
+
+    @Test
+    fun conflict_mapsApiException() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(409)
+                .setBody("""{"error":{"code":"GOAL_INVALID_TRANSITION","message":"x"}}"""),
+        )
+        try {
+            repo.pause("g1")
+            throw AssertionError("expected")
+        } catch (e: ApiException) {
+            assertEquals(409, e.status)
+            assertEquals("GOAL_INVALID_TRANSITION", e.code)
+        }
     }
 
     @Test
@@ -145,13 +300,40 @@ class GoalRepositoryTest {
     }
 
     @Test
+    fun rateLimited_parsesRetryAfter() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(429)
+                .addHeader("Retry-After", "12")
+                .setBody("""{"error":{"code":"RATE_LIMITED","message":"slow"}}"""),
+        )
+        try {
+            repo.cancel("g1")
+            throw AssertionError("expected")
+        } catch (e: ApiException) {
+            assertEquals(429, e.status)
+            assertEquals(12, e.retryAfterSeconds)
+        }
+    }
+
+    @Test
+    fun networkFailure_mapsNetwork() = runTest {
+        server.shutdown()
+        try {
+            repo.list(GoalListFilter.ACTIVE)
+            throw AssertionError("expected")
+        } catch (e: ApiException) {
+            assertEquals("NETWORK", e.code)
+        }
+    }
+
+    @Test
     fun scheduleLocked_maps() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(409)
                 .setBody("""{"error":{"code":"GOAL_SCHEDULE_LOCKED","message":"x"}}"""),
         )
-        // reuse get path for error mapping through repository
         try {
             repo.get("g1")
             throw AssertionError("expected")
@@ -203,6 +385,42 @@ class GoalRepositoryTest {
             "consistency_percent":80
           },
           "current_streak":5
+        }
+        """.trimIndent()
+    }
+
+    private fun inviteJson(id: String): String {
+        return """
+        {
+          "id":"$id",
+          "title":"Shared goal",
+          "description":"",
+          "timezone":"UTC",
+          "start_date":"2026-08-01",
+          "end_date":null,
+          "recurrence_kind":"DAILY",
+          "weekdays":[],
+          "tracking_kind":"BINARY",
+          "target_unit":"",
+          "inviter_user_id":"u1",
+          "inviter_name":"Alice",
+          "invitation_status":"INVITED",
+          "invitation_expires_at":null
+        }
+        """.trimIndent()
+    }
+
+    private fun participantJson(id: String): String {
+        return """
+        {
+          "id":"$id",
+          "user_id":"u1",
+          "user_name":"Alice",
+          "role":"OWNER",
+          "status":"ACTIVE",
+          "invited_at":"2026-08-01T00:00:00Z",
+          "joined_at":"2026-08-01T00:00:00Z",
+          "left_at":null
         }
         """.trimIndent()
     }

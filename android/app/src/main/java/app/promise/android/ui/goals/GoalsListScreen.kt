@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,7 +56,9 @@ import app.promise.android.core.toUserMessage
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.Goal
 import app.promise.android.domain.GoalCheckInStatus
+import app.promise.android.domain.GoalInvitePreview
 import app.promise.android.domain.GoalListFilter
+import app.promise.android.domain.GoalListItem
 import app.promise.android.domain.GoalStatus
 import app.promise.android.domain.GoalTrackingKind
 import app.promise.android.ui.components.TabSwipeContainer
@@ -73,9 +76,11 @@ fun GoalsListScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val createAction by viewModel.createAction.collectAsStateWithLifecycle()
+    val inviteAction by viewModel.inviteAction.collectAsStateWithLifecycle()
     var showCreate by remember { mutableStateOf(false) }
     var checkInGoal by remember { mutableStateOf<Goal?>(null) }
     val colors = PromiseThemeColors.current
+    val inviteBusy = inviteAction is ActionState.InFlight
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -165,23 +170,45 @@ fun GoalsListScreen(
                                         vertical = Spacing.sm,
                                     ),
                                 ) {
-                                    items(s.value.items, key = { it.id }) { item ->
-                                        GoalRow(
-                                            goal = item,
-                                            onClick = { onOpenDetail(item.id) },
-                                            onCheckIn = {
-                                                if (item.trackingKind == GoalTrackingKind.BINARY) {
-                                                    viewModel.quickCheckIn(
-                                                        item.id,
-                                                        CheckInInput(status = GoalCheckInStatus.COMPLETED),
-                                                    )
-                                                } else {
-                                                    checkInGoal = item
-                                                }
-                                            },
-                                        )
+                                    items(
+                                        s.value.items,
+                                        key = { item ->
+                                            when (item) {
+                                                is GoalListItem.Membership -> item.goal.id
+                                                is GoalListItem.Invite -> item.preview.id
+                                            }
+                                        },
+                                    ) { item ->
+                                        when (item) {
+                                            is GoalListItem.Membership -> GoalRow(
+                                                goal = item.goal,
+                                                onClick = { onOpenDetail(item.goal.id) },
+                                                onCheckIn = {
+                                                    if (item.goal.trackingKind == GoalTrackingKind.BINARY) {
+                                                        viewModel.quickCheckIn(
+                                                            item.goal.id,
+                                                            CheckInInput(status = GoalCheckInStatus.COMPLETED),
+                                                        )
+                                                    } else {
+                                                        checkInGoal = item.goal
+                                                    }
+                                                },
+                                            )
+                                            is GoalListItem.Invite -> InvitePreviewRow(
+                                                preview = item.preview,
+                                                busy = inviteBusy,
+                                                onAccept = { viewModel.acceptInvite(item.preview.id) },
+                                                onDecline = { viewModel.declineInvite(item.preview.id) },
+                                                onOpenDetail = { onOpenDetail(item.preview.id) },
+                                            )
+                                        }
                                     }
-                                    item { Spacer(modifier = Modifier.height(88.dp)) }
+                                    item {
+                                        LaunchedEffect(s.value.items.size) {
+                                            viewModel.loadMore()
+                                        }
+                                        Spacer(modifier = Modifier.height(88.dp))
+                                    }
                                 }
                             }
                         }
@@ -336,6 +363,69 @@ fun GoalRow(
 }
 
 @Composable
+private fun InvitePreviewRow(
+    preview: GoalInvitePreview,
+    busy: Boolean,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit,
+    onOpenDetail: () -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpenDetail)
+            .padding(vertical = Spacing.sm)
+            .semantics { contentDescription = "Invitation: ${preview.title}" },
+    ) {
+        Text(
+            text = preview.title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = colors.textPrimary,
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "Invited by ${preview.inviterName}",
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary,
+        )
+        Text(
+            text = GoalPresentation.inviteScheduleLabel(preview),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Row {
+            TextButton(
+                onClick = onAccept,
+                enabled = !busy,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .semantics { contentDescription = "Accept invitation to ${preview.title}" },
+            ) {
+                Text("Accept", color = colors.accent)
+            }
+            TextButton(
+                onClick = onDecline,
+                enabled = !busy,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .semantics { contentDescription = "Decline invitation to ${preview.title}" },
+            ) {
+                Text("Decline", color = colors.textSecondary)
+            }
+        }
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+        )
+    }
+}
+
+@Composable
 fun ProgressTrack(fraction: Float) {
     val colors = PromiseThemeColors.current
     Box(
@@ -388,6 +478,7 @@ private fun EmptyGoals(
 
 private fun goalMetaLine(goal: Goal): String {
     val parts = mutableListOf(GoalPresentation.recurrenceLabel(goal))
+    GoalPresentation.sharedMetaLine(goal)?.let { parts += it }
     if (goal.status == GoalStatus.PAUSED) parts += "Paused"
     if (goal.status == GoalStatus.COMPLETED) parts += "Completed"
     if (goal.status == GoalStatus.CANCELLED) parts += "Cancelled"

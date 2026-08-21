@@ -8,6 +8,7 @@ import app.promise.android.core.ActionState
 import app.promise.android.core.ErrorKind
 import app.promise.android.core.LoadState
 import app.promise.android.core.toErrorKind
+import app.promise.android.data.home.HomeFreshness
 import app.promise.android.data.network.ApiException
 import app.promise.android.data.network.AuthSession
 import app.promise.android.domain.Commitment
@@ -26,6 +27,7 @@ class CommitmentDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: CommitmentRepository,
     private val authSession: AuthSession,
+    private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
 ) : ViewModel() {
     private val commitmentId: String = savedStateHandle.get<String>("commitmentId")
@@ -83,6 +85,7 @@ class CommitmentDetailViewModel @Inject constructor(
                 val updated = block()
                 _state.value = LoadState.Ready(updated)
                 _action.value = ActionState.Idle
+                homeFreshness.markDirty()
                 if (confirmHaptic) haptics.confirm() else haptics.light()
             } catch (e: ApiException) {
                 val kind = e.toErrorKind()

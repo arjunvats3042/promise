@@ -1,9 +1,15 @@
 package app.promise.android.domain
 
 interface GoalRepository {
-    suspend fun list(filter: GoalListFilter, page: Int = 1): GoalPage
+    suspend fun list(
+        filter: GoalListFilter,
+        page: Int = 1,
+        pageSize: Int = DEFAULT_PAGE_SIZE,
+    ): GoalPage
 
     suspend fun get(id: String): Goal
+
+    suspend fun getDetail(id: String): GoalDetail
 
     suspend fun create(input: CreateGoalInput): Goal
 
@@ -23,4 +29,21 @@ interface GoalRepository {
         endDate: String? = null,
         page: Int = 1,
     ): GoalCheckInPage
+
+    suspend fun inviteParticipant(goalId: String, userId: String): GoalParticipant
+
+    suspend fun listParticipants(goalId: String): List<GoalParticipant>
+
+    suspend fun acceptInvitation(goalId: String): GoalDetail
+
+    suspend fun declineInvitation(goalId: String): GoalParticipant
+
+    suspend fun removeParticipant(goalId: String, userId: String): GoalParticipant
+
+    suspend fun leave(goalId: String): GoalParticipant
+
+    companion object {
+        const val DEFAULT_PAGE_SIZE = 20
+        const val HOME_PAGE_SIZE = 100
+    }
 }

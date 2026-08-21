@@ -6,6 +6,7 @@ import app.promise.android.core.ActionState
 import app.promise.android.core.ErrorKind
 import app.promise.android.core.LoadState
 import app.promise.android.core.toErrorKind
+import app.promise.android.data.home.HomeFreshness
 import app.promise.android.data.network.ApiException
 import app.promise.android.data.network.AuthSession
 import app.promise.android.domain.Commitment
@@ -32,6 +33,7 @@ data class CommitmentsListUi(
 class CommitmentsListViewModel @Inject constructor(
     private val repository: CommitmentRepository,
     private val authSession: AuthSession,
+    private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
 ) : ViewModel() {
     private val _state = MutableStateFlow<LoadState<CommitmentsListUi>>(LoadState.Loading)
@@ -101,6 +103,7 @@ class CommitmentsListViewModel @Inject constructor(
                     ),
                 )
                 _createAction.value = ActionState.Idle
+                homeFreshness.markDirty()
                 haptics.confirm()
                 prependOrRefresh(created)
                 onSuccess(created)

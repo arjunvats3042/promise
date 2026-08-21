@@ -1,13 +1,17 @@
 package app.promise.android.data.goals
 
+import app.promise.android.data.network.ApiException
 import app.promise.android.data.network.toApiException
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.CreateGoalInput
 import app.promise.android.domain.Goal
 import app.promise.android.domain.GoalCheckIn
 import app.promise.android.domain.GoalCheckInPage
+import app.promise.android.domain.GoalDetail
 import app.promise.android.domain.GoalListFilter
+import app.promise.android.domain.GoalListItem
 import app.promise.android.domain.GoalPage
+import app.promise.android.domain.GoalParticipant
 import app.promise.android.domain.GoalRepository
 import app.promise.android.domain.GoalStatus
 import javax.inject.Inject
@@ -17,17 +21,38 @@ import javax.inject.Singleton
 class GoalRepositoryImpl @Inject constructor(
     private val api: GoalApi,
 ) : GoalRepository {
-    override suspend fun list(filter: GoalListFilter, page: Int): GoalPage {
+    override suspend fun list(filter: GoalListFilter, page: Int, pageSize: Int): GoalPage {
         return try {
             when (filter) {
-                GoalListFilter.ACTIVE -> pageOf(api.list(status = GoalStatus.ACTIVE.name, page = page))
-                GoalListFilter.PAUSED -> pageOf(api.list(status = GoalStatus.PAUSED.name, page = page))
+                GoalListFilter.ACTIVE -> {
+                    val response = api.list(
+                        status = GoalStatus.ACTIVE.name,
+                        page = page,
+                        pageSize = pageSize,
+                    )
+                    GoalPage(
+                        items = pinInvites(response.results.map { it.toListItem() }),
+                        nextPage = goalPageNumberFromNext(response.next),
+                    )
+                }
+                GoalListFilter.PAUSED -> pageOf(
+                    api.list(status = GoalStatus.PAUSED.name, page = page, pageSize = pageSize),
+                )
                 GoalListFilter.COMPLETED -> {
-                    val completed = api.list(status = GoalStatus.COMPLETED.name, page = page)
-                    val cancelled = api.list(status = GoalStatus.CANCELLED.name, page = page)
+                    val completed = api.list(
+                        status = GoalStatus.COMPLETED.name,
+                        page = page,
+                        pageSize = pageSize,
+                    )
+                    val cancelled = api.list(
+                        status = GoalStatus.CANCELLED.name,
+                        page = page,
+                        pageSize = pageSize,
+                    )
                     val items = (completed.results + cancelled.results)
-                        .map { it.toDomain() }
-                        .sortedByDescending { it.updatedAt }
+                        .filter { !it.isInvitePreview() }
+                        .map { GoalListItem.Membership(it.toDomain()) }
+                        .sortedByDescending { it.goal.updatedAt }
                     val next = if (completed.next != null || cancelled.next != null) page + 1 else null
                     GoalPage(items = items, nextPage = next)
                 }
@@ -39,7 +64,21 @@ class GoalRepositoryImpl @Inject constructor(
 
     override suspend fun get(id: String): Goal {
         return try {
-            api.get(id).toDomain()
+            when (val detail = getDetailInternal(id)) {
+                is GoalDetail.Full -> detail.goal
+                is GoalDetail.Invite -> throw ApiException(
+                    status = 404,
+                    code = "GOAL_NOT_FOUND",
+                )
+            }
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun getDetail(id: String): GoalDetail {
+        return try {
+            getDetailInternal(id)
         } catch (t: Throwable) {
             throw t.toApiException()
         }
@@ -114,6 +153,58 @@ class GoalRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun inviteParticipant(goalId: String, userId: String): GoalParticipant {
+        return try {
+            api.inviteParticipant(goalId, InviteParticipantRequest(userId = userId)).toDomain()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun listParticipants(goalId: String): List<GoalParticipant> {
+        return try {
+            api.listParticipants(goalId).map { it.toDomain() }
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun acceptInvitation(goalId: String): GoalDetail {
+        return try {
+            api.acceptInvitation(goalId).toDetail()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun declineInvitation(goalId: String): GoalParticipant {
+        return try {
+            api.declineInvitation(goalId).toDomain()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun removeParticipant(goalId: String, userId: String): GoalParticipant {
+        return try {
+            api.removeParticipant(goalId, userId).toDomain()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun leave(goalId: String): GoalParticipant {
+        return try {
+            api.leave(goalId).toDomain()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    private suspend fun getDetailInternal(id: String): GoalDetail {
+        return api.get(id).toDetail()
+    }
+
     private suspend fun mutateGoal(block: suspend () -> GoalDto): Goal {
         return try {
             block().toDomain()
@@ -124,7 +215,7 @@ class GoalRepositoryImpl @Inject constructor(
 
     private fun pageOf(response: GoalPageDto): GoalPage {
         return GoalPage(
-            items = response.results.map { it.toDomain() },
+            items = response.results.map { it.toListItem() },
             nextPage = goalPageNumberFromNext(response.next),
         )
     }

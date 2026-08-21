@@ -1,5 +1,7 @@
 package app.promise.android.ui.commitments
 
+import app.promise.android.data.home.HomeFreshness
+
 import androidx.lifecycle.SavedStateHandle
 import app.promise.android.core.LoadState
 import app.promise.android.data.network.ApiException
@@ -42,7 +44,7 @@ class CommitmentDetailViewModelTest {
     fun complete_updatesStateAndConfirms() = runTest {
         val repo = DetailFakeRepo(sample("c1"))
         val haptics = FakePromiseHaptics()
-        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), haptics)
+        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), HomeFreshness(), haptics)
         advanceUntilIdle()
         vm.complete()
         advanceUntilIdle()
@@ -55,7 +57,7 @@ class CommitmentDetailViewModelTest {
     fun snooze_usesLightHaptic() = runTest {
         val repo = DetailFakeRepo(sample("c1"))
         val haptics = FakePromiseHaptics()
-        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), haptics)
+        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), HomeFreshness(), haptics)
         advanceUntilIdle()
         vm.snooze("2026-08-21T09:00:00Z")
         advanceUntilIdle()
@@ -67,7 +69,7 @@ class CommitmentDetailViewModelTest {
     fun conflict_emitsErrorHaptic() = runTest {
         val repo = DetailFakeRepo(sample("c1"), failWait = true)
         val haptics = FakePromiseHaptics()
-        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), haptics)
+        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), HomeFreshness(), haptics)
         advanceUntilIdle()
         vm.waitOn()
         advanceUntilIdle()
@@ -87,6 +89,7 @@ private class DetailFakeRepo(
         filter: CommitmentListFilter,
         page: Int,
         timeZoneId: String,
+        pageSize: Int,
     ): CommitmentPage = CommitmentPage(emptyList(), null)
 
     override suspend fun get(id: String): Commitment = current

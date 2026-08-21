@@ -56,7 +56,7 @@ import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 
-private enum class ConfirmKind { Pause, Resume, Complete, Cancel }
+private enum class ConfirmKind { Pause, Resume, Complete, Cancel, Leave }
 
 @Composable
 fun GoalDetailScreen(
@@ -66,7 +66,12 @@ fun GoalDetailScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val action by viewModel.action.collectAsStateWithLifecycle()
+    val inviteAction by viewModel.inviteAction.collectAsStateWithLifecycle()
+    val inviteSheetAction by viewModel.inviteSheetAction.collectAsStateWithLifecycle()
+    val lookupState by viewModel.lookupState.collectAsStateWithLifecycle()
     var confirm by remember { mutableStateOf<ConfirmKind?>(null) }
+    var showParticipants by remember { mutableStateOf(false) }
+    var showInviteParticipant by remember { mutableStateOf(false) }
     val colors = PromiseThemeColors.current
     val busy = action is ActionState.InFlight
     val actionError = (action as? ActionState.Failed)?.kind
@@ -109,18 +114,36 @@ fun GoalDetailScreen(
             }
         }
         is LoadState.Ready -> {
-            DetailContent(
-                ui = s.value,
-                busy = busy,
-                actionError = actionError,
-                onCheckIn = viewModel::checkIn,
-                onPause = { confirm = ConfirmKind.Pause },
-                onResume = { confirm = ConfirmKind.Resume },
-                onComplete = { confirm = ConfirmKind.Complete },
-                onCancel = { confirm = ConfirmKind.Cancel },
-                onBack = onBack,
-                onClearError = viewModel::clearActionError,
-            )
+            when (val ui = s.value) {
+                is GoalDetailUi.Full -> {
+                    DetailContent(
+                        ui = ui,
+                        busy = busy,
+                        actionError = actionError,
+                        inviteBusy = inviteAction is ActionState.InFlight,
+                        onCheckIn = viewModel::checkIn,
+                        onPause = { confirm = ConfirmKind.Pause },
+                        onResume = { confirm = ConfirmKind.Resume },
+                        onComplete = { confirm = ConfirmKind.Complete },
+                        onCancel = { confirm = ConfirmKind.Cancel },
+                        onLeave = { confirm = ConfirmKind.Leave },
+                        onManageParticipants = { showParticipants = true },
+                        onInviteParticipant = { showInviteParticipant = true },
+                        onBack = onBack,
+                        onClearError = viewModel::clearActionError,
+                    )
+                }
+                is GoalDetailUi.Invite -> {
+                    InviteContent(
+                        ui = ui,
+                        inviteAction = inviteAction,
+                        onAccept = { viewModel.acceptInvite() },
+                        onDecline = { viewModel.declineInvite(onBack) },
+                        onBack = onBack,
+                        onClearError = viewModel::clearInviteActionError,
+                    )
+                }
+            }
         }
         else -> Unit
     }
@@ -139,7 +162,7 @@ fun GoalDetailScreen(
         )
         ConfirmKind.Resume -> ConfirmDialog(
             title = "Resume this practice?",
-            body = "You’ll be able to check in again.",
+            body = "You'll be able to check in again.",
             confirmLabel = "Resume",
             destructive = false,
             onConfirm = {
@@ -161,7 +184,7 @@ fun GoalDetailScreen(
         )
         ConfirmKind.Cancel -> ConfirmDialog(
             title = "Cancel this goal?",
-            body = "This can’t be undone.",
+            body = "This can't be undone.",
             confirmLabel = "Cancel goal",
             destructive = true,
             onConfirm = {
@@ -170,20 +193,68 @@ fun GoalDetailScreen(
             },
             onDismiss = { confirm = null },
         )
+        ConfirmKind.Leave -> ConfirmDialog(
+            title = "Leave this goal?",
+            body = "You'll no longer be a participant.",
+            confirmLabel = "Leave",
+            destructive = true,
+            onConfirm = {
+                confirm = null
+                viewModel.leave(onBack)
+            },
+            onDismiss = { confirm = null },
+        )
         null -> Unit
+    }
+
+    if (showParticipants) {
+        val readyUi = (state as? LoadState.Ready)?.value as? GoalDetailUi.Full
+        if (readyUi != null) {
+            ParticipantsSheet(
+                goal = readyUi.goal,
+                roster = readyUi.roster,
+                inviteSheetAction = inviteSheetAction,
+                onDismiss = { showParticipants = false },
+                onRemove = viewModel::removeParticipant,
+                onLeave = { confirm = ConfirmKind.Leave },
+            )
+        }
+    }
+
+    if (showInviteParticipant) {
+        InviteParticipantSheet(
+            inviteSheetAction = inviteSheetAction,
+            lookupState = lookupState,
+            onDismiss = {
+                showInviteParticipant = false
+                viewModel.clearInviteSheetActionError()
+                viewModel.clearLookup()
+            },
+            onLookup = viewModel::lookupUser,
+            onInvite = viewModel::inviteParticipant,
+            onClearLookup = viewModel::clearLookup,
+            onInviteSucceeded = {
+                showInviteParticipant = false
+                viewModel.clearLookup()
+            },
+        )
     }
 }
 
 @Composable
 private fun DetailContent(
-    ui: GoalDetailUi,
+    ui: GoalDetailUi.Full,
     busy: Boolean,
     actionError: ErrorKind?,
+    inviteBusy: Boolean,
     onCheckIn: (CheckInInput) -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onComplete: () -> Unit,
     onCancel: () -> Unit,
+    onLeave: () -> Unit,
+    onManageParticipants: () -> Unit,
+    onInviteParticipant: () -> Unit,
     onBack: () -> Unit,
     onClearError: () -> Unit,
 ) {
@@ -224,6 +295,14 @@ private fun DetailContent(
             style = MaterialTheme.typography.bodySmall,
             color = colors.textSecondary,
         )
+        GoalPresentation.sharedMetaLine(goal)?.let { sharedMeta ->
+            Spacer(modifier = Modifier.height(Spacing.xxs))
+            Text(
+                text = sharedMeta,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+        }
         if (goal.description.isNotBlank()) {
             Spacer(modifier = Modifier.height(Spacing.section))
             Text(
@@ -233,6 +312,14 @@ private fun DetailContent(
             )
         }
         Spacer(modifier = Modifier.height(Spacing.section))
+        if (goal.isShared) {
+            Text(
+                text = "You",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+            Spacer(modifier = Modifier.height(Spacing.xxs))
+        }
         Text(
             text = GoalPresentation.progressLine(goal),
             style = MaterialTheme.typography.bodyLarge,
@@ -244,6 +331,16 @@ private fun DetailContent(
         GoalPresentation.streakLine(goal)?.let { streak ->
             Spacer(modifier = Modifier.height(Spacing.xxs))
             Text(streak, style = MaterialTheme.typography.bodySmall, color = colors.textSecondary)
+        }
+        GoalPresentation.collectiveLine(goal)?.let { collective ->
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Text(
+                text = "Everyone",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+            Spacer(modifier = Modifier.height(Spacing.xxs))
+            Text(collective.removePrefix("Everyone: ").trimStart(), style = MaterialTheme.typography.bodyLarge, color = colors.textPrimary)
         }
         Spacer(modifier = Modifier.height(Spacing.sm))
         ProgressTrack(fraction = GoalPresentation.progressFraction(goal))
@@ -262,6 +359,39 @@ private fun DetailContent(
                 busy = busy,
                 onSubmit = onCheckIn,
             )
+        }
+        if (goal.isShared) {
+            Spacer(modifier = Modifier.height(Spacing.section))
+            if (goal.canManageParticipants) {
+                Row {
+                    TextButton(
+                        onClick = onManageParticipants,
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .semantics { contentDescription = "View participants" },
+                    ) {
+                        Text("Participants", color = colors.accent)
+                    }
+                    TextButton(
+                        onClick = onInviteParticipant,
+                        enabled = !inviteBusy,
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .semantics { contentDescription = "Invite someone" },
+                    ) {
+                        Text("Invite", color = colors.accent)
+                    }
+                }
+            } else {
+                TextButton(
+                    onClick = onManageParticipants,
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .semantics { contentDescription = "View participants" },
+                ) {
+                    Text("Participants", color = colors.accent)
+                }
+            }
         }
         Spacer(modifier = Modifier.height(Spacing.section))
         if (goal.canPause) {
@@ -316,6 +446,18 @@ private fun DetailContent(
                 Text("Cancel goal", color = MaterialTheme.colorScheme.error)
             }
         }
+        if (goal.canLeave) {
+            TextButton(
+                onClick = onLeave,
+                enabled = !busy,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .semantics { contentDescription = "Leave goal" },
+            ) {
+                Text("Leave goal", color = MaterialTheme.colorScheme.error)
+            }
+        }
         Spacer(modifier = Modifier.height(Spacing.section))
         Text(
             text = "History",
@@ -333,6 +475,110 @@ private fun DetailContent(
             ui.checkIns.forEach { row ->
                 HistoryRow(row)
             }
+        }
+        Spacer(modifier = Modifier.height(Spacing.xxl))
+    }
+}
+
+@Composable
+private fun InviteContent(
+    ui: GoalDetailUi.Invite,
+    inviteAction: ActionState,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit,
+    onBack: () -> Unit,
+    onClearError: () -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+    val preview = ui.preview
+    val busy = inviteAction is ActionState.InFlight
+    val inviteError = (inviteAction as? ActionState.Failed)?.kind
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .statusBarsPadding()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = Spacing.inset),
+    ) {
+        TextButton(onClick = onBack) {
+            Text("Back", color = colors.textSecondary)
+        }
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Text(
+            text = "Invitation",
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Text(
+            text = preview.title,
+            style = MaterialTheme.typography.displayLarge,
+            color = colors.textPrimary,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Text(
+            text = "Invited by ${preview.inviterName}",
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary,
+        )
+        Text(
+            text = GoalPresentation.inviteScheduleLabel(preview),
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary,
+        )
+        Text(
+            text = preview.timezone,
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.textSecondary,
+        )
+        preview.invitationExpiresAt?.let { expires ->
+            Text(
+                text = "Expires $expires",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+        }
+        if (preview.description.isNotBlank()) {
+            Spacer(modifier = Modifier.height(Spacing.section))
+            Text(
+                text = preview.description,
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.textPrimary,
+            )
+        }
+        if (inviteError != null) {
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Text(inviteError.toUserMessage(), color = MaterialTheme.colorScheme.error)
+            TextButton(onClick = onClearError) {
+                Text("Dismiss", color = colors.textSecondary)
+            }
+        }
+        Spacer(modifier = Modifier.height(Spacing.section))
+        Button(
+            onClick = onAccept,
+            enabled = !busy,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = "Accept invitation" },
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
+            shape = RoundedCornerShape(Radius.sm),
+        ) {
+            Text(if (busy) "Working…" else "Accept")
+        }
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        TextButton(
+            onClick = onDecline,
+            enabled = !busy,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .semantics { contentDescription = "Decline invitation" },
+        ) {
+            Text("Decline", color = colors.textSecondary)
         }
         Spacer(modifier = Modifier.height(Spacing.xxl))
     }

@@ -5,6 +5,7 @@ interface CommitmentRepository {
         filter: CommitmentListFilter,
         page: Int = 1,
         timeZoneId: String,
+        pageSize: Int = DEFAULT_PAGE_SIZE,
     ): CommitmentPage
 
     suspend fun get(id: String): Commitment
@@ -20,4 +21,9 @@ interface CommitmentRepository {
     suspend fun wait(id: String): Commitment
 
     suspend fun cancel(id: String): Commitment
+
+    companion object {
+        const val DEFAULT_PAGE_SIZE = 20
+        const val HOME_PAGE_SIZE = 100
+    }
 }

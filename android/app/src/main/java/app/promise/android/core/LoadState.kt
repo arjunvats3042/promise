@@ -27,5 +27,11 @@ sealed interface ErrorKind {
     data object ScheduleLocked : ErrorKind
     data object TimezoneLocked : ErrorKind
     data object InvalidCheckIn : ErrorKind
+    data object AlreadyParticipant : ErrorKind
+    data object InviteExpired : ErrorKind
+    data object InviteRevoked : ErrorKind
+    data object OwnerCannotLeave : ErrorKind
+    data object CannotRemoveOwner : ErrorKind
+    data object InvalidParticipantState : ErrorKind
     data object Unknown : ErrorKind
 }

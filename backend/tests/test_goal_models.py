@@ -8,7 +8,7 @@ from django.db import IntegrityError
 from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 
-from apps.goals.models import Goal, GoalCheckIn, GoalEvent
+from apps.goals.models import Goal, GoalCheckIn, GoalEvent, GoalParticipant
 
 User = get_user_model()
 
@@ -43,7 +43,32 @@ def _create_goal(created_by, **overrides):
         "times_per_period": 5,
     }
     fields.update(overrides)
-    return Goal.objects.create(**fields)
+    goal = Goal.objects.create(**fields)
+    GoalParticipant.objects.create(
+        goal=goal,
+        user=created_by,
+        role=GoalParticipant.Role.OWNER,
+        status=GoalParticipant.Status.ACTIVE,
+        joined_at=timezone.now(),
+    )
+    return goal
+
+
+def _owner_participant(goal):
+    return goal.participants.get(role=GoalParticipant.Role.OWNER)
+
+
+def _create_check_in(goal, *, created_by, period_date, status=GoalCheckIn.Status.COMPLETED, **overrides):
+    fields = {
+        "goal": goal,
+        "participant": _owner_participant(goal),
+        "created_by": created_by,
+        "period_date": period_date,
+        "status": status,
+        "checked_at": timezone.now(),
+    }
+    fields.update(overrides)
+    return GoalCheckIn.objects.create(**fields)
 
 
 @pytest.mark.django_db
@@ -285,37 +310,25 @@ def test_goal_basemodel_timestamps_are_timezone_aware(arjun):
 @pytest.mark.django_db
 def test_check_in_id_is_uuid_v4(arjun):
     goal = _create_goal(arjun)
-    check_in = GoalCheckIn.objects.create(
-        goal=goal,
-        created_by=arjun,
-        period_date=date(2026, 8, 20),
-        status=GoalCheckIn.Status.COMPLETED,
-        checked_at=timezone.now(),
-    )
+    check_in = _create_check_in(goal, created_by=arjun, period_date=date(2026, 8, 20))
 
     assert isinstance(check_in.id, uuid.UUID)
     assert check_in.id.version == 4
     assert GoalCheckIn._meta.db_table == "goal_check_ins"
+    assert check_in.participant == _owner_participant(goal)
 
 
 @pytest.mark.django_db
-def test_check_in_unique_goal_and_period_date(arjun):
+def test_check_in_unique_goal_participant_and_period_date(arjun):
     goal = _create_goal(arjun)
-    GoalCheckIn.objects.create(
-        goal=goal,
-        created_by=arjun,
-        period_date=date(2026, 8, 20),
-        status=GoalCheckIn.Status.COMPLETED,
-        checked_at=timezone.now(),
-    )
+    _create_check_in(goal, created_by=arjun, period_date=date(2026, 8, 20))
 
     with pytest.raises(IntegrityError):
-        GoalCheckIn.objects.create(
-            goal=goal,
+        _create_check_in(
+            goal,
             created_by=arjun,
             period_date=date(2026, 8, 20),
             status=GoalCheckIn.Status.SKIPPED,
-            checked_at=timezone.now(),
         )
 
 
@@ -323,20 +336,8 @@ def test_check_in_unique_goal_and_period_date(arjun):
 def test_check_in_same_date_allowed_on_different_goals(arjun):
     first = _create_goal(arjun)
     second = _create_goal(arjun, title="Other goal")
-    GoalCheckIn.objects.create(
-        goal=first,
-        created_by=arjun,
-        period_date=date(2026, 8, 20),
-        status=GoalCheckIn.Status.COMPLETED,
-        checked_at=timezone.now(),
-    )
-    other = GoalCheckIn.objects.create(
-        goal=second,
-        created_by=arjun,
-        period_date=date(2026, 8, 20),
-        status=GoalCheckIn.Status.COMPLETED,
-        checked_at=timezone.now(),
-    )
+    _create_check_in(first, created_by=arjun, period_date=date(2026, 8, 20))
+    other = _create_check_in(second, created_by=arjun, period_date=date(2026, 8, 20))
 
     assert other.period_date == date(2026, 8, 20)
 
@@ -344,31 +345,26 @@ def test_check_in_same_date_allowed_on_different_goals(arjun):
 @pytest.mark.django_db
 def test_check_in_statuses_and_binary_count_value(arjun):
     goal = _create_goal(arjun)
-    binary = GoalCheckIn.objects.create(
-        goal=goal,
+    binary = _create_check_in(
+        goal,
         created_by=arjun,
         period_date=date(2026, 8, 20),
-        status=GoalCheckIn.Status.COMPLETED,
         value=None,
         note="",
-        checked_at=timezone.now(),
     )
-    skipped = GoalCheckIn.objects.create(
-        goal=goal,
+    skipped = _create_check_in(
+        goal,
         created_by=arjun,
         period_date=date(2026, 8, 21),
         status=GoalCheckIn.Status.SKIPPED,
         value=None,
-        checked_at=timezone.now(),
     )
-    counted = GoalCheckIn.objects.create(
-        goal=goal,
+    counted = _create_check_in(
+        goal,
         created_by=arjun,
         period_date=date(2026, 8, 22),
-        status=GoalCheckIn.Status.COMPLETED,
         value=20,
         note="chapter 3",
-        checked_at=timezone.now(),
     )
 
     assert binary.value is None
@@ -387,13 +383,7 @@ def test_check_in_statuses_and_binary_count_value(arjun):
 @pytest.mark.django_db
 def test_check_in_belongs_to_goal(arjun):
     goal = _create_goal(arjun)
-    check_in = GoalCheckIn.objects.create(
-        goal=goal,
-        created_by=arjun,
-        period_date=date(2026, 8, 20),
-        status=GoalCheckIn.Status.COMPLETED,
-        checked_at=timezone.now(),
-    )
+    check_in = _create_check_in(goal, created_by=arjun, period_date=date(2026, 8, 20))
 
     assert check_in.goal == goal
     assert list(goal.check_ins.all()) == [check_in]
@@ -436,19 +426,18 @@ def test_event_id_is_uuid_v4_with_nullable_actor(arjun, rahul):
         GoalEvent.EventType.CANCELLED,
         GoalEvent.EventType.CHECKIN_RECORDED,
         GoalEvent.EventType.CHECKIN_UPDATED,
+        GoalEvent.EventType.PARTICIPANT_INVITED,
+        GoalEvent.EventType.PARTICIPANT_JOINED,
+        GoalEvent.EventType.PARTICIPANT_DECLINED,
+        GoalEvent.EventType.PARTICIPANT_LEFT,
+        GoalEvent.EventType.PARTICIPANT_REMOVED,
     }
 
 
 @pytest.mark.django_db
 def test_deleting_goal_cascades_check_ins_and_events(arjun):
     goal = _create_goal(arjun)
-    GoalCheckIn.objects.create(
-        goal=goal,
-        created_by=arjun,
-        period_date=date(2026, 8, 20),
-        status=GoalCheckIn.Status.COMPLETED,
-        checked_at=timezone.now(),
-    )
+    _create_check_in(goal, created_by=arjun, period_date=date(2026, 8, 20))
     GoalEvent.objects.create(
         goal=goal,
         actor=arjun,
@@ -460,6 +449,7 @@ def test_deleting_goal_cascades_check_ins_and_events(arjun):
     assert Goal.objects.filter(id=goal_id).exists() is False
     assert GoalCheckIn.objects.filter(goal_id=goal_id).exists() is False
     assert GoalEvent.objects.filter(goal_id=goal_id).exists() is False
+    assert GoalParticipant.objects.filter(goal_id=goal_id).exists() is False
 
 
 @pytest.mark.django_db
@@ -485,3 +475,98 @@ def test_deleting_created_by_user_is_protected(arjun):
         arjun.delete()
 
     assert Goal.objects.filter(id=goal.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_goal_creates_owner_active_participant(arjun):
+    goal = _create_goal(arjun)
+    owner = _owner_participant(goal)
+
+    assert owner.user == arjun
+    assert owner.role == GoalParticipant.Role.OWNER
+    assert owner.status == GoalParticipant.Status.ACTIVE
+    assert owner.joined_at is not None
+    assert owner.invited_at is None
+    assert owner.left_at is None
+    assert GoalParticipant._meta.db_table == "goal_participants"
+
+
+@pytest.mark.django_db
+def test_goal_participant_unique_per_user(arjun):
+    goal = _create_goal(arjun)
+
+    with pytest.raises(IntegrityError):
+        GoalParticipant.objects.create(
+            goal=goal,
+            user=arjun,
+            role=GoalParticipant.Role.PARTICIPANT,
+            status=GoalParticipant.Status.INVITED,
+            invited_at=timezone.now(),
+        )
+
+
+@pytest.mark.django_db
+def test_check_in_same_period_allowed_for_different_participants(arjun, rahul):
+    goal = _create_goal(arjun)
+    other = GoalParticipant.objects.create(
+        goal=goal,
+        user=rahul,
+        role=GoalParticipant.Role.PARTICIPANT,
+        status=GoalParticipant.Status.ACTIVE,
+        joined_at=timezone.now(),
+    )
+    _create_check_in(goal, created_by=arjun, period_date=date(2026, 8, 20))
+    second = GoalCheckIn.objects.create(
+        goal=goal,
+        participant=other,
+        created_by=rahul,
+        period_date=date(2026, 8, 20),
+        status=GoalCheckIn.Status.COMPLETED,
+        checked_at=timezone.now(),
+    )
+
+    assert second.participant == other
+    assert GoalCheckIn.objects.filter(goal=goal, period_date=date(2026, 8, 20)).count() == 2
+
+
+@pytest.mark.django_db
+def test_deleting_participant_user_is_protected(arjun, rahul):
+    goal = _create_goal(arjun)
+    GoalParticipant.objects.create(
+        goal=goal,
+        user=rahul,
+        role=GoalParticipant.Role.PARTICIPANT,
+        status=GoalParticipant.Status.ACTIVE,
+        joined_at=timezone.now(),
+    )
+
+    with pytest.raises(ProtectedError):
+        rahul.delete()
+
+
+@pytest.mark.django_db
+def test_deleting_participant_cascades_check_ins(arjun):
+    goal = _create_goal(arjun)
+    owner = _owner_participant(goal)
+    check_in = _create_check_in(goal, created_by=arjun, period_date=date(2026, 8, 20))
+    check_in_id = check_in.id
+    owner.delete()
+
+    assert GoalCheckIn.objects.filter(id=check_in_id).exists() is False
+    assert Goal.objects.filter(id=goal.id).exists() is True
+
+
+@pytest.mark.django_db
+def test_create_goal_service_creates_owner_participant(arjun):
+    from apps.goals.services import create_goal
+
+    goal = create_goal(
+        creator=arjun,
+        title="Walk daily",
+        recurrence_kind=Goal.RecurrenceKind.DAILY,
+    )
+    owner = goal.participants.get()
+
+    assert owner.role == GoalParticipant.Role.OWNER
+    assert owner.status == GoalParticipant.Status.ACTIVE
+    assert owner.user == arjun

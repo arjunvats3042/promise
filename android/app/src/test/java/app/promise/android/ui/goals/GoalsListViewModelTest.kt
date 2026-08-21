@@ -1,16 +1,22 @@
 package app.promise.android.ui.goals
 
+import app.promise.android.data.home.HomeFreshness
+
 import app.promise.android.core.ActionState
+import app.promise.android.core.ErrorKind
 import app.promise.android.core.LoadState
+import app.promise.android.data.network.ApiException
 import app.promise.android.data.network.AuthSession
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.CreateGoalInput
 import app.promise.android.domain.Goal
 import app.promise.android.domain.GoalCheckIn
 import app.promise.android.domain.GoalCheckInPage
-import app.promise.android.domain.GoalCheckInStatus
+import app.promise.android.domain.GoalDetail
 import app.promise.android.domain.GoalListFilter
+import app.promise.android.domain.GoalListItem
 import app.promise.android.domain.GoalPage
+import app.promise.android.domain.GoalParticipant
 import app.promise.android.domain.GoalPeriodCounts
 import app.promise.android.domain.GoalProgress
 import app.promise.android.domain.GoalRecurrenceKind
@@ -54,11 +60,11 @@ class GoalsListViewModelTest {
         val session = AuthSession().also {
             it.setUser(User("1", "a@b.com", "Ada", "UTC", "2026-01-01T00:00:00Z"))
         }
-        val vm = GoalsListViewModel(repo, session, FakePromiseHaptics())
+        val vm = GoalsListViewModel(repo, session, HomeFreshness(), FakePromiseHaptics())
         advanceUntilIdle()
         val ready = vm.state.value as LoadState.Ready
         assertEquals(GoalListFilter.ACTIVE, ready.value.filter)
-        assertEquals(listOf("1"), ready.value.items.map { it.id })
+        assertEquals(listOf("1"), ready.value.items.map { it.itemId() })
     }
 
     @Test
@@ -67,7 +73,7 @@ class GoalsListViewModelTest {
             pages = mapOf(GoalListFilter.ACTIVE to listOf(sample("1"))),
         )
         val haptics = FakePromiseHaptics()
-        val vm = GoalsListViewModel(repo, AuthSession(), haptics)
+        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), haptics)
         advanceUntilIdle()
         vm.create(
             CreateGoalInput(title = "New", recurrenceKind = GoalRecurrenceKind.DAILY),
@@ -76,7 +82,25 @@ class GoalsListViewModelTest {
         assertEquals(listOf("confirm"), haptics.events)
         assertTrue(vm.createAction.value is ActionState.Idle)
         val ready = vm.state.value as LoadState.Ready
-        assertEquals("New", ready.value.items.first().title)
+        assertEquals("New", (ready.value.items.first() as GoalListItem.Membership).goal.title)
+    }
+
+    @Test
+    fun createFailure_setsActionState() = runTest {
+        val repo = FakeGoalRepository(
+            pages = mapOf(GoalListFilter.ACTIVE to listOf(sample("1"))),
+            createError = ApiException(status = 429, code = "RATE_LIMITED", retryAfterSeconds = 9),
+        )
+        val haptics = FakePromiseHaptics()
+        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), haptics)
+        advanceUntilIdle()
+        vm.create(
+            CreateGoalInput(title = "New", recurrenceKind = GoalRecurrenceKind.DAILY),
+        ) {}
+        advanceUntilIdle()
+        val failed = vm.createAction.value as ActionState.Failed
+        assertTrue(failed.kind is ErrorKind.RateLimited)
+        assertTrue(haptics.events.contains("error"))
     }
 
     @Test
@@ -88,29 +112,61 @@ class GoalsListViewModelTest {
             ),
         )
         val haptics = FakePromiseHaptics()
-        val vm = GoalsListViewModel(repo, AuthSession(), haptics)
+        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), haptics)
         advanceUntilIdle()
         vm.selectFilter(GoalListFilter.PAUSED)
         advanceUntilIdle()
         val ready = vm.state.value as LoadState.Ready
         assertEquals(GoalListFilter.PAUSED, ready.value.filter)
-        assertEquals(listOf("2"), ready.value.items.map { it.id })
+        assertEquals(listOf("2"), ready.value.items.map { it.itemId() })
         assertEquals(emptyList<String>(), haptics.events)
         assertEquals(false, ready.isRefreshing)
     }
+
+    @Test
+    fun loadMore_appendsNextPage() = runTest {
+        val repo = FakeGoalRepository(
+            pages = mapOf(GoalListFilter.ACTIVE to listOf(sample("1"))),
+            nextPage = 2,
+            pageTwo = listOf(sample("2")),
+        )
+        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), FakePromiseHaptics())
+        advanceUntilIdle()
+        vm.loadMore()
+        advanceUntilIdle()
+        val ready = vm.state.value as LoadState.Ready
+        assertEquals(listOf("1", "2"), ready.value.items.map { it.itemId() })
+    }
+}
+
+private fun GoalListItem.itemId(): String = when (this) {
+    is GoalListItem.Membership -> goal.id
+    is GoalListItem.Invite -> preview.id
 }
 
 class FakeGoalRepository(
     private val pages: Map<GoalListFilter, List<Goal>> = emptyMap(),
     private var createResult: Goal = sample("created", title = "New"),
+    private val createError: ApiException? = null,
+    private val nextPage: Int? = null,
+    private val pageTwo: List<Goal> = emptyList(),
 ) : GoalRepository {
-    override suspend fun list(filter: GoalListFilter, page: Int): GoalPage {
-        return GoalPage(items = pages[filter].orEmpty(), nextPage = null)
+    override suspend fun list(filter: GoalListFilter, page: Int, pageSize: Int): GoalPage {
+        if (page > 1) {
+            return GoalPage(items = pageTwo.map { GoalListItem.Membership(it) }, nextPage = null)
+        }
+        return GoalPage(
+            items = pages[filter].orEmpty().map { GoalListItem.Membership(it) },
+            nextPage = nextPage,
+        )
     }
 
     override suspend fun get(id: String): Goal = sample(id)
 
+    override suspend fun getDetail(id: String): GoalDetail = GoalDetail.Full(sample(id))
+
     override suspend fun create(input: CreateGoalInput): Goal {
+        createError?.let { throw it }
         createResult = sample("created", title = input.title)
         return createResult
     }
@@ -142,6 +198,23 @@ class FakeGoalRepository(
         endDate: String?,
         page: Int,
     ): GoalCheckInPage = GoalCheckInPage(emptyList(), null)
+
+    override suspend fun inviteParticipant(goalId: String, userId: String): GoalParticipant =
+        throw UnsupportedOperationException()
+
+    override suspend fun listParticipants(goalId: String): List<GoalParticipant> = emptyList()
+
+    override suspend fun acceptInvitation(goalId: String): GoalDetail =
+        GoalDetail.Full(sample(goalId))
+
+    override suspend fun declineInvitation(goalId: String): GoalParticipant =
+        throw UnsupportedOperationException()
+
+    override suspend fun removeParticipant(goalId: String, userId: String): GoalParticipant =
+        throw UnsupportedOperationException()
+
+    override suspend fun leave(goalId: String): GoalParticipant =
+        throw UnsupportedOperationException()
 }
 
 fun sample(

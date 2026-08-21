@@ -8,14 +8,20 @@ import app.promise.android.core.ActionState
 import app.promise.android.core.ErrorKind
 import app.promise.android.core.LoadState
 import app.promise.android.core.toErrorKind
+import app.promise.android.data.home.HomeFreshness
 import app.promise.android.data.network.ApiException
 import app.promise.android.data.network.AuthSession
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.Goal
 import app.promise.android.domain.GoalCheckIn
 import app.promise.android.domain.GoalCheckInStatus
+import app.promise.android.domain.GoalDetail
+import app.promise.android.domain.GoalInvitePreview
+import app.promise.android.domain.GoalParticipant
 import app.promise.android.domain.GoalRepository
 import app.promise.android.domain.GoalTrackingKind
+import app.promise.android.domain.LookupUser
+import app.promise.android.domain.UserRepository
 import app.promise.android.ui.haptics.PromiseHaptics
 import app.promise.android.ui.navigation.GoalRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,17 +33,32 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-data class GoalDetailUi(
-    val goal: Goal,
-    val checkIns: List<GoalCheckIn>,
-    val todayCheckIn: GoalCheckIn?,
-)
+sealed class GoalDetailUi {
+    data class Full(
+        val goal: Goal,
+        val checkIns: List<GoalCheckIn>,
+        val todayCheckIn: GoalCheckIn?,
+        val roster: List<GoalParticipant> = emptyList(),
+    ) : GoalDetailUi()
+
+    data class Invite(val preview: GoalInvitePreview) : GoalDetailUi()
+}
+
+sealed interface UserLookupUi {
+    data object Idle : UserLookupUi
+    data object Loading : UserLookupUi
+    data class Found(val user: LookupUser) : UserLookupUi
+    data class NotFound(val email: String) : UserLookupUi
+    data class Failed(val kind: ErrorKind) : UserLookupUi
+}
 
 @HiltViewModel
 class GoalDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: GoalRepository,
+    private val userRepository: UserRepository,
     private val authSession: AuthSession,
+    private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
 ) : ViewModel() {
     private val goalId: String = savedStateHandle.get<String>("goalId")
@@ -48,6 +69,15 @@ class GoalDetailViewModel @Inject constructor(
 
     private val _action = MutableStateFlow<ActionState>(ActionState.Idle)
     val action: StateFlow<ActionState> = _action.asStateFlow()
+
+    private val _inviteAction = MutableStateFlow<ActionState>(ActionState.Idle)
+    val inviteAction: StateFlow<ActionState> = _inviteAction.asStateFlow()
+
+    private val _inviteSheetAction = MutableStateFlow<ActionState>(ActionState.Idle)
+    val inviteSheetAction: StateFlow<ActionState> = _inviteSheetAction.asStateFlow()
+
+    private val _lookupState = MutableStateFlow<UserLookupUi>(UserLookupUi.Idle)
+    val lookupState: StateFlow<UserLookupUi> = _lookupState.asStateFlow()
 
     val timeZoneId: String
         get() = authSession.user.value?.timezone ?: "UTC"
@@ -69,6 +99,7 @@ class GoalDetailViewModel @Inject constructor(
             _action.value = ActionState.InFlight
             try {
                 repository.checkIn(goalId, input)
+                homeFreshness.markDirty()
                 reloadQuiet()
                 _action.value = ActionState.Idle
                 haptics.confirm()
@@ -98,9 +129,155 @@ class GoalDetailViewModel @Inject constructor(
 
     fun cancel() = runGoalAction(confirmHaptic = true) { repository.cancel(goalId) }
 
+    fun leave(onLeft: () -> Unit) {
+        if (_action.value is ActionState.InFlight) return
+        viewModelScope.launch {
+            _action.value = ActionState.InFlight
+            try {
+                repository.leave(goalId)
+                _action.value = ActionState.Idle
+                homeFreshness.markDirty()
+                haptics.light()
+                onLeft()
+            } catch (e: ApiException) {
+                _action.value = ActionState.Failed(e.toErrorKind())
+                haptics.error()
+            } catch (_: Throwable) {
+                _action.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
+
+    fun acceptInvite(onAccepted: () -> Unit = {}) {
+        if (_inviteAction.value is ActionState.InFlight) return
+        viewModelScope.launch {
+            _inviteAction.value = ActionState.InFlight
+            try {
+                repository.acceptInvitation(goalId)
+                _inviteAction.value = ActionState.Idle
+                homeFreshness.markDirty()
+                haptics.confirm()
+                loadDetail()
+                onAccepted()
+            } catch (e: ApiException) {
+                _inviteAction.value = ActionState.Failed(e.toErrorKind())
+                haptics.error()
+            } catch (_: Throwable) {
+                _inviteAction.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
+
+    fun declineInvite(onLeft: () -> Unit) {
+        if (_inviteAction.value is ActionState.InFlight) return
+        viewModelScope.launch {
+            _inviteAction.value = ActionState.InFlight
+            try {
+                repository.declineInvitation(goalId)
+                _inviteAction.value = ActionState.Idle
+                homeFreshness.markDirty()
+                haptics.light()
+                onLeft()
+            } catch (e: ApiException) {
+                _inviteAction.value = ActionState.Failed(e.toErrorKind())
+                haptics.error()
+            } catch (_: Throwable) {
+                _inviteAction.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
+
+    fun inviteParticipant(userId: String) {
+        if (_inviteSheetAction.value is ActionState.InFlight) return
+        viewModelScope.launch {
+            _inviteSheetAction.value = ActionState.InFlight
+            try {
+                repository.inviteParticipant(goalId, userId)
+                _inviteSheetAction.value = ActionState.Idle
+                haptics.confirm()
+                _lookupState.value = UserLookupUi.Idle
+                refreshRoster()
+            } catch (e: ApiException) {
+                _inviteSheetAction.value = ActionState.Failed(e.toErrorKind())
+                haptics.error()
+            } catch (_: Throwable) {
+                _inviteSheetAction.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
+
+    fun removeParticipant(userId: String) {
+        if (_inviteSheetAction.value is ActionState.InFlight) return
+        viewModelScope.launch {
+            _inviteSheetAction.value = ActionState.InFlight
+            try {
+                repository.removeParticipant(goalId, userId)
+                _inviteSheetAction.value = ActionState.Idle
+                haptics.confirm()
+                refreshRoster()
+            } catch (e: ApiException) {
+                _inviteSheetAction.value = ActionState.Failed(e.toErrorKind())
+                haptics.error()
+            } catch (_: Throwable) {
+                _inviteSheetAction.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
+
+    fun refreshRoster() {
+        viewModelScope.launch {
+            val current = (_state.value as? LoadState.Ready)?.value as? GoalDetailUi.Full
+                ?: return@launch
+            runCatching { repository.listParticipants(goalId) }.onSuccess { roster ->
+                _state.value = LoadState.Ready(current.copy(roster = roster))
+            }
+        }
+    }
+
+    fun lookupUser(email: String) {
+        if (_lookupState.value is UserLookupUi.Loading) return
+        viewModelScope.launch {
+            _lookupState.value = UserLookupUi.Loading
+            try {
+                val user = userRepository.lookupByEmail(email)
+                _lookupState.value = UserLookupUi.Found(user)
+            } catch (e: ApiException) {
+                val kind = e.toErrorKind()
+                _lookupState.value = if (kind == ErrorKind.NotFound) {
+                    UserLookupUi.NotFound(email)
+                } else {
+                    UserLookupUi.Failed(kind)
+                }
+            } catch (_: Throwable) {
+                _lookupState.value = UserLookupUi.Failed(ErrorKind.Unknown)
+            }
+        }
+    }
+
+    fun clearLookup() {
+        _lookupState.value = UserLookupUi.Idle
+    }
+
     fun clearActionError() {
         if (_action.value is ActionState.Failed) {
             _action.value = ActionState.Idle
+        }
+    }
+
+    fun clearInviteActionError() {
+        if (_inviteAction.value is ActionState.Failed) {
+            _inviteAction.value = ActionState.Idle
+        }
+    }
+
+    fun clearInviteSheetActionError() {
+        if (_inviteSheetAction.value is ActionState.Failed) {
+            _inviteSheetAction.value = ActionState.Idle
         }
     }
 
@@ -110,13 +287,14 @@ class GoalDetailViewModel @Inject constructor(
             _action.value = ActionState.InFlight
             try {
                 val updated = block()
-                val current = (_state.value as? LoadState.Ready)?.value
+                val current = (_state.value as? LoadState.Ready)?.value as? GoalDetailUi.Full
                 if (current != null) {
                     _state.value = LoadState.Ready(current.copy(goal = updated))
                 } else {
                     reloadQuiet()
                 }
                 _action.value = ActionState.Idle
+                homeFreshness.markDirty()
                 if (confirmHaptic) haptics.confirm() else haptics.light()
             } catch (e: ApiException) {
                 val kind = e.toErrorKind()
@@ -134,24 +312,32 @@ class GoalDetailViewModel @Inject constructor(
 
     private suspend fun loadDetail() {
         try {
-            val goal = repository.get(goalId)
-            val zone = safeZone(goal.timezone)
-            val end = LocalDate.now(zone)
-            val start = end.minusDays(27)
-            val history = repository.listCheckIns(
-                id = goalId,
-                startDate = start.toString(),
-                endDate = end.toString(),
-            )
-            val today = end.toString()
-            val todayCheckIn = history.items.firstOrNull { it.periodDate == today }
-            _state.value = LoadState.Ready(
-                GoalDetailUi(
-                    goal = goal,
-                    checkIns = history.items.sortedByDescending { it.periodDate },
-                    todayCheckIn = todayCheckIn,
-                ),
-            )
+            when (val detail = repository.getDetail(goalId)) {
+                is GoalDetail.Full -> {
+                    val goal = detail.goal
+                    val zone = safeZone(goal.timezone)
+                    val end = LocalDate.now(zone)
+                    val start = end.minusDays(27)
+                    val history = repository.listCheckIns(
+                        id = goalId,
+                        startDate = start.toString(),
+                        endDate = end.toString(),
+                    )
+                    val today = end.toString()
+                    val todayCheckIn = history.items.firstOrNull { it.periodDate == today }
+                    _state.value = LoadState.Ready(
+                        GoalDetailUi.Full(
+                            goal = goal,
+                            checkIns = history.items.sortedByDescending { it.periodDate },
+                            todayCheckIn = todayCheckIn,
+                            roster = goal.participants,
+                        ),
+                    )
+                }
+                is GoalDetail.Invite -> {
+                    _state.value = LoadState.Ready(GoalDetailUi.Invite(detail.preview))
+                }
+            }
         } catch (e: ApiException) {
             _state.value = LoadState.Error(e.toErrorKind(), canRetry = e.toErrorKind() != ErrorKind.NotFound)
         } catch (_: Throwable) {
@@ -172,7 +358,7 @@ class GoalDetailViewModel @Inject constructor(
     }
 }
 
-fun GoalDetailUi.canCheckInToday(): Boolean {
+fun GoalDetailUi.Full.canCheckInToday(): Boolean {
     if (!goal.canCheckIn) return false
     val today = todayCheckIn
     if (today == null) return GoalPresentation.needsCheckInToday(goal)
@@ -180,6 +366,6 @@ fun GoalDetailUi.canCheckInToday(): Boolean {
         goal.trackingKind == GoalTrackingKind.COUNT
 }
 
-fun GoalDetailUi.checkInPrompt(): String {
-    return if (todayCheckIn != null) "Update today’s check-in" else "Check in"
+fun GoalDetailUi.Full.checkInPrompt(): String {
+    return if (todayCheckIn != null) "Update today's check-in" else "Check in"
 }

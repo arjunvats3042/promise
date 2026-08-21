@@ -1,6 +1,7 @@
 package app.promise.android.ui.goals
 
 import app.promise.android.domain.Goal
+import app.promise.android.domain.GoalInvitePreview
 import app.promise.android.domain.GoalRecurrenceKind
 import app.promise.android.domain.GoalStatus
 import app.promise.android.domain.GoalTrackingKind
@@ -57,6 +58,41 @@ object GoalPresentation {
     fun trackingLabel(kind: GoalTrackingKind): String = when (kind) {
         GoalTrackingKind.BINARY -> "Yes / Skip"
         GoalTrackingKind.COUNT -> "Count"
+    }
+
+    fun sharedMetaLine(goal: Goal): String? {
+        if (!goal.isShared) return null
+        val count = goal.participants.size.coerceAtLeast(1)
+        return if (count == 1) "Shared · 1 person" else "Shared · $count people"
+    }
+
+    fun collectiveLine(goal: Goal): String? {
+        val collective = goal.collectiveProgress ?: return null
+        val week = collective.weekProgress
+        return if (week.required > 0) {
+            "Everyone: ${week.completed}/${week.required} this week"
+        } else {
+            val current = collective.currentPeriod
+            if (current.required > 0) {
+                "Everyone: ${current.completed}/${current.required} today"
+            } else {
+                null
+            }
+        }
+    }
+
+    fun inviteScheduleLabel(preview: GoalInvitePreview): String {
+        return when (preview.recurrenceKind) {
+            GoalRecurrenceKind.DAILY -> "Every day"
+            GoalRecurrenceKind.WEEKLY_DAYS -> {
+                val days = preview.weekdays.sorted().joinToString(", ") { weekdayShort(it) }
+                if (days.isBlank()) "Selected days" else "Selected days · $days"
+            }
+            GoalRecurrenceKind.N_PER_PERIOD -> {
+                val n = preview.timesPerPeriod ?: 0
+                if (n == 1) "1 time each week" else "$n times each week"
+            }
+        }
     }
 
     fun needsCheckInToday(goal: Goal): Boolean {

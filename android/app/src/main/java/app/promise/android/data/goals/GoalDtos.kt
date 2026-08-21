@@ -23,18 +23,57 @@ data class GoalProgressDto(
 )
 
 @Serializable
+data class CollectivePeriodCountsDto(
+    val required: Int = 0,
+    val completed: Int = 0,
+    @SerialName("required_participants")
+    val requiredParticipants: Int? = null,
+    @SerialName("completed_participants")
+    val completedParticipants: Int? = null,
+    @SerialName("value_sum")
+    val valueSum: Int? = null,
+    @SerialName("target_sum")
+    val targetSum: Int? = null,
+)
+
+@Serializable
+data class CollectiveProgressDto(
+    @SerialName("current_period")
+    val currentPeriod: CollectivePeriodCountsDto = CollectivePeriodCountsDto(),
+    @SerialName("week_progress")
+    val weekProgress: CollectivePeriodCountsDto = CollectivePeriodCountsDto(),
+)
+
+@Serializable
+data class GoalParticipantDto(
+    val id: String,
+    @SerialName("user_id")
+    val userId: String,
+    @SerialName("user_name")
+    val userName: String,
+    val role: String,
+    val status: String,
+    @SerialName("invited_at")
+    val invitedAt: String? = null,
+    @SerialName("joined_at")
+    val joinedAt: String? = null,
+    @SerialName("left_at")
+    val leftAt: String? = null,
+)
+
+@Serializable
 data class GoalDto(
     val id: String,
     val title: String,
     val description: String = "",
-    val status: String,
+    val status: String = "ACTIVE",
     val timezone: String = "",
     @SerialName("start_date")
-    val startDate: String,
+    val startDate: String = "",
     @SerialName("end_date")
     val endDate: String? = null,
     @SerialName("recurrence_kind")
-    val recurrenceKind: String,
+    val recurrenceKind: String = "DAILY",
     val weekdays: List<Int> = emptyList(),
     @SerialName("period_unit")
     val periodUnit: String? = null,
@@ -54,14 +93,29 @@ data class GoalDto(
     @SerialName("cancelled_at")
     val cancelledAt: String? = null,
     @SerialName("created_at")
-    val createdAt: String,
+    val createdAt: String = "",
     @SerialName("updated_at")
-    val updatedAt: String,
+    val updatedAt: String = "",
     @SerialName("is_ended")
     val isEnded: Boolean = false,
     val progress: GoalProgressDto = GoalProgressDto(),
     @SerialName("current_streak")
     val currentStreak: Int = 0,
+    @SerialName("collective_progress")
+    val collectiveProgress: CollectiveProgressDto? = null,
+    val participants: List<GoalParticipantDto> = emptyList(),
+    @SerialName("membership_role")
+    val membershipRole: String? = null,
+    @SerialName("membership_status")
+    val membershipStatus: String? = null,
+    @SerialName("inviter_user_id")
+    val inviterUserId: String? = null,
+    @SerialName("inviter_name")
+    val inviterName: String? = null,
+    @SerialName("invitation_status")
+    val invitationStatus: String? = null,
+    @SerialName("invitation_expires_at")
+    val invitationExpiresAt: String? = null,
 )
 
 @Serializable
@@ -127,4 +181,10 @@ data class CheckInRequest(
     val periodDate: String? = null,
     val value: Int? = null,
     val note: String = "",
+)
+
+@Serializable
+data class InviteParticipantRequest(
+    @SerialName("user_id")
+    val userId: String,
 )

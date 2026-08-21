@@ -20,17 +20,29 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,22 +51,31 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.promise.android.core.LoadState
 import app.promise.android.core.toUserMessage
+import app.promise.android.domain.CheckInInput
+import app.promise.android.domain.GoalCheckInStatus
+import app.promise.android.domain.GoalTrackingKind
 import app.promise.android.domain.HomeCommitment
 import app.promise.android.domain.HomePractice
 import app.promise.android.ui.components.PromiseGreetingText
 import app.promise.android.ui.components.PromiseHairlineDivider
+import app.promise.android.ui.components.PromiseModalSheet
 import app.promise.android.ui.components.TabSwipeContainer
 import app.promise.android.ui.navigation.LocalTabSwipeHost
 import app.promise.android.ui.theme.Alpha
 import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseThemeColors
+import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
 import app.promise.android.ui.theme.rememberReduceMotion
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onOpenProfile: () -> Unit,
@@ -62,6 +83,19 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val swipeHost = LocalTabSwipeHost.current
+    var countPractice by remember { mutableStateOf<HomePractice?>(null) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.onVisible()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     when (val s = state) {
         is LoadState.Loading -> {
             HomeLoading()
@@ -71,15 +105,30 @@ fun HomeScreen(
                 currentIndex = swipeHost?.currentIndex ?: 0,
                 tabCount = swipeHost?.tabCount ?: 4,
                 enabled = swipeHost?.enabled == true,
+                modalBlocking = countPractice != null,
                 onSwipe = { direction -> swipeHost?.onSwipe(direction) },
                 modifier = Modifier.fillMaxSize(),
             ) {
-                HomeContent(
-                    model = s.value,
-                    onOpenProfile = onOpenProfile,
-                    onComplete = viewModel::completeCommitment,
-                    onCheckIn = viewModel::checkInPractice,
-                )
+                PullToRefreshBox(
+                    isRefreshing = s.isRefreshing,
+                    onRefresh = { viewModel.refresh(fromPull = true, force = true) },
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    HomeContent(
+                        model = s.value,
+                        onOpenProfile = onOpenProfile,
+                        onComplete = viewModel::completeCommitment,
+                        onCheckIn = { practice ->
+                            if (practice.trackingKind == GoalTrackingKind.COUNT && !practice.checkedInToday) {
+                                countPractice = practice
+                            } else {
+                                viewModel.checkInPractice(practice.id)
+                            }
+                        },
+                        onRetryCommitments = viewModel::retryCommitments,
+                        onRetryPractices = viewModel::retryPractices,
+                    )
+                }
             }
         }
         is LoadState.Error -> {
@@ -92,6 +141,17 @@ fun HomeScreen(
         else -> {
             HomeLoading()
         }
+    }
+
+    countPractice?.let { practice ->
+        HomeCountCheckInSheet(
+            practice = practice,
+            onDismiss = { countPractice = null },
+            onSubmit = { input ->
+                viewModel.checkInPractice(practice.id, input)
+                countPractice = null
+            },
+        )
     }
 }
 
@@ -157,7 +217,9 @@ private fun HomeContent(
     model: HomeUiModel,
     onOpenProfile: () -> Unit,
     onComplete: (String) -> Unit,
-    onCheckIn: (String) -> Unit,
+    onCheckIn: (HomePractice) -> Unit,
+    onRetryCommitments: () -> Unit,
+    onRetryPractices: () -> Unit,
 ) {
     val colors = PromiseThemeColors.current
     val reduceMotion = rememberReduceMotion()
@@ -190,30 +252,42 @@ private fun HomeContent(
             )
             Spacer(modifier = Modifier.height(Spacing.sm))
         }
-        if (model.commitments.isEmpty()) {
-            item {
-                Text(
-                    text = "Nothing due today.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = colors.textPrimary,
-                )
-                Spacer(modifier = Modifier.height(Spacing.xxs))
-                Text(
-                    text = "Open Commitments when you’re ready.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary,
-                )
-                Spacer(modifier = Modifier.height(Spacing.section))
+        when {
+            model.commitmentsError != null -> {
+                item {
+                    SectionError(
+                        message = model.commitmentsError.toUserMessage(),
+                        onRetry = onRetryCommitments,
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.section))
+                }
             }
-        } else {
-            items(model.commitments, key = { it.id }) { commitment ->
-                CommitmentTodayRow(
-                    commitment = commitment,
-                    reduceMotion = reduceMotion,
-                    onComplete = { onComplete(commitment.id) },
-                )
+            model.commitments.isEmpty() -> {
+                item {
+                    Text(
+                        text = "Nothing due today.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.xxs))
+                    Text(
+                        text = "Open Commitments when you’re ready.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.section))
+                }
             }
-            item { Spacer(modifier = Modifier.height(Spacing.section)) }
+            else -> {
+                items(model.commitments, key = { it.id }) { commitment ->
+                    CommitmentTodayRow(
+                        commitment = commitment,
+                        reduceMotion = reduceMotion,
+                        onComplete = { onComplete(commitment.id) },
+                    )
+                }
+                item { Spacer(modifier = Modifier.height(Spacing.section)) }
+            }
         }
         item {
             Text(
@@ -223,24 +297,125 @@ private fun HomeContent(
             )
             Spacer(modifier = Modifier.height(Spacing.sm))
         }
-        if (model.practices.isEmpty()) {
-            item {
-                Text(
-                    text = "No active practices yet.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = colors.textPrimary,
-                )
-                Spacer(modifier = Modifier.height(Spacing.xxl))
+        when {
+            model.practicesError != null -> {
+                item {
+                    SectionError(
+                        message = model.practicesError.toUserMessage(),
+                        onRetry = onRetryPractices,
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.xxl))
+                }
             }
-        } else {
-            items(model.practices, key = { it.id }) { practice ->
-                PracticeRow(
-                    practice = practice,
-                    reduceMotion = reduceMotion,
-                    onCheckIn = { onCheckIn(practice.id) },
-                )
+            model.practices.isEmpty() -> {
+                item {
+                    Text(
+                        text = "No active practices yet.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.xxl))
+                }
             }
-            item { Spacer(modifier = Modifier.height(Spacing.xxl)) }
+            else -> {
+                items(model.practices, key = { it.id }) { practice ->
+                    PracticeRow(
+                        practice = practice,
+                        reduceMotion = reduceMotion,
+                        onCheckIn = { onCheckIn(practice) },
+                    )
+                }
+                item { Spacer(modifier = Modifier.height(Spacing.xxl)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionError(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodyLarge,
+        color = colors.textPrimary,
+    )
+    Spacer(modifier = Modifier.height(Spacing.xxs))
+    TextButton(
+        onClick = onRetry,
+        modifier = Modifier.heightIn(min = TouchTarget.min),
+    ) {
+        Text("Try again", color = colors.accent)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeCountCheckInSheet(
+    practice: HomePractice,
+    onDismiss: () -> Unit,
+    onSubmit: (CheckInInput) -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var valueText by remember {
+        mutableStateOf(practice.periodValue?.toString() ?: practice.targetValue?.toString() ?: "")
+    }
+    PromiseModalSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.md)) {
+            Text(
+                text = practice.title,
+                style = MaterialTheme.typography.titleLarge,
+                color = colors.textPrimary,
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = "Today’s check-in",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+            Spacer(modifier = Modifier.height(Spacing.md))
+            OutlinedTextField(
+                value = valueText,
+                onValueChange = { valueText = it.filter { ch -> ch.isDigit() } },
+                singleLine = true,
+                label = { Text("Value") },
+                shape = RoundedCornerShape(Radius.sm),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = colors.accent,
+                    cursorColor = colors.accent,
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics { contentDescription = "Check-in value" },
+            )
+            Spacer(modifier = Modifier.height(Spacing.md))
+            Button(
+                onClick = {
+                    val value = valueText.toIntOrNull() ?: return@Button
+                    onSubmit(
+                        CheckInInput(
+                            status = GoalCheckInStatus.COMPLETED,
+                            value = value,
+                        ),
+                    )
+                },
+                enabled = valueText.toIntOrNull() != null,
+                colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = TouchTarget.min),
+            ) {
+                Text("Save")
+            }
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancel", color = colors.textSecondary)
+            }
         }
     }
 }
@@ -398,8 +573,9 @@ fun PracticeRow(
                 } else {
                     ""
                 }
+                val sharedSuffix = if (practice.isShared) " · Shared" else ""
                 Text(
-                    text = practice.progressLabel + streak,
+                    text = practice.progressLabel + streak + sharedSuffix,
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary,
                 )

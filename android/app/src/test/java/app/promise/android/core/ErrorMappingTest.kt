@@ -66,4 +66,28 @@ class ErrorMappingTest {
         ).toErrorKind() as ErrorKind.Validation
         assertEquals("Enter a valid email address.", kind.fields["email"])
     }
+
+    @Test
+    fun sharedGoalCodes_mapToKinds() {
+        assertEquals(
+            ErrorKind.AlreadyParticipant,
+            ApiException(status = 409, code = "GOAL_ALREADY_PARTICIPANT").toErrorKind(),
+        )
+        assertEquals(
+            ErrorKind.InviteExpired,
+            ApiException(status = 400, code = "GOAL_INVITE_EXPIRED").toErrorKind(),
+        )
+        assertEquals(
+            ErrorKind.InviteRevoked,
+            ApiException(status = 400, code = "GOAL_INVITE_REVOKED").toErrorKind(),
+        )
+        assertEquals(
+            ErrorKind.OwnerCannotLeave,
+            ApiException(status = 400, code = "GOAL_OWNER_CANNOT_LEAVE").toErrorKind(),
+        )
+        assertEquals(
+            ErrorKind.NotFound,
+            ApiException(status = 404, code = "USER_NOT_FOUND").toErrorKind(),
+        )
+    }
 }

@@ -18,12 +18,13 @@ class CommitmentRepositoryImpl @Inject constructor(
         filter: CommitmentListFilter,
         page: Int,
         timeZoneId: String,
+        pageSize: Int,
     ): CommitmentPage {
         return try {
             when (filter) {
-                CommitmentListFilter.OPEN -> listOpenMerged(page, timeZoneId)
+                CommitmentListFilter.OPEN -> listOpenMerged(page, pageSize)
                 CommitmentListFilter.OVERDUE -> {
-                    val response = api.list(isOverdue = true, page = page, pageSize = PAGE_SIZE)
+                    val response = api.list(isOverdue = true, page = page, pageSize = pageSize)
                     CommitmentPage(
                         items = CommitmentListBucketing.sortOpen(response.results.map { it.toDomain() }),
                         nextPage = pageNumberFromNext(response.next),
@@ -33,7 +34,7 @@ class CommitmentRepositoryImpl @Inject constructor(
                 CommitmentListFilter.UPCOMING,
                 -> {
                     // Load open work then bucket locally (API has no due_before/due_after).
-                    val open = listOpenMerged(page = 1, timeZoneId = timeZoneId, pageSize = 100)
+                    val open = listOpenMerged(page = 1, pageSize = 100)
                     val filtered = CommitmentListBucketing.filterClientSide(
                         filter = filter,
                         items = open.items,
@@ -101,8 +102,7 @@ class CommitmentRepositoryImpl @Inject constructor(
 
     private suspend fun listOpenMerged(
         page: Int,
-        timeZoneId: String,
-        pageSize: Int = PAGE_SIZE,
+        pageSize: Int = CommitmentRepository.DEFAULT_PAGE_SIZE,
     ): CommitmentPage {
         val statuses = listOf(
             CommitmentStatus.PENDING,
@@ -128,9 +128,5 @@ class CommitmentRepositoryImpl @Inject constructor(
             .sortedByDescending { it.updatedAt }
         val next = if (completed.next != null || cancelled.next != null) page + 1 else null
         return CommitmentPage(items = items, nextPage = next)
-    }
-
-    companion object {
-        const val PAGE_SIZE = 20
     }
 }

@@ -22,7 +22,7 @@ class Goal(BaseModel):
 
     Progress and streaks are derived from check-ins. Recurrence lives on
     this row, not on per-day clones. Status transitions belong in the
-    service layer, not save().
+    service layer, not save(). Sharing is membership via GoalParticipant.
     """
 
     class Status(models.TextChoices):
@@ -169,11 +169,65 @@ class Goal(BaseModel):
         super().save(*args, **kwargs)
 
 
-class GoalCheckIn(BaseModel):
-    """What the user recorded for one local period_date of a goal.
+class GoalParticipant(BaseModel):
+    """Membership of a user on a goal. Personal and shared use this table."""
 
-    Identity is (goal, period_date). Absence means missed; do not store
-    MISSED rows. value is null for binary/SKIPPED and an integer for count.
+    class Role(models.TextChoices):
+        OWNER = "OWNER", "Owner"
+        PARTICIPANT = "PARTICIPANT", "Participant"
+
+    class Status(models.TextChoices):
+        INVITED = "INVITED", "Invited"
+        ACTIVE = "ACTIVE", "Active"
+        DECLINED = "DECLINED", "Declined"
+        LEFT = "LEFT", "Left"
+        REMOVED = "REMOVED", "Removed"
+
+    goal = models.ForeignKey(
+        Goal,
+        on_delete=models.CASCADE,
+        related_name="participants",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="goal_participations",
+    )
+    role = models.CharField(max_length=16, choices=Role.choices)
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+    )
+    invited_at = models.DateTimeField(null=True, blank=True)
+    joined_at = models.DateTimeField(null=True, blank=True)
+    left_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "goal_participants"
+        indexes = [
+            models.Index(
+                fields=["user", "status"],
+                name="goals_participant_user_status",
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["goal", "user"],
+                name="uniq_goal_participant_user",
+            ),
+        ]
+
+    def __str__(self):
+        return f"GoalParticipant {self.id}"
+
+
+class GoalCheckIn(BaseModel):
+    """What a participant recorded for one local period_date of a goal.
+
+    Identity is (goal, participant, period_date). Absence means missed; do
+    not store MISSED rows. value is null for binary/SKIPPED and an integer
+    for count.
     """
 
     class Status(models.TextChoices):
@@ -182,6 +236,11 @@ class GoalCheckIn(BaseModel):
 
     goal = models.ForeignKey(
         Goal,
+        on_delete=models.CASCADE,
+        related_name="check_ins",
+    )
+    participant = models.ForeignKey(
+        GoalParticipant,
         on_delete=models.CASCADE,
         related_name="check_ins",
     )
@@ -200,8 +259,8 @@ class GoalCheckIn(BaseModel):
         db_table = "goal_check_ins"
         constraints = [
             models.UniqueConstraint(
-                fields=["goal", "period_date"],
-                name="uniq_goal_check_in_period",
+                fields=["goal", "participant", "period_date"],
+                name="uniq_goal_check_in_participant_period",
             ),
         ]
 
@@ -221,6 +280,11 @@ class GoalEvent(BaseModel):
         CANCELLED = "CANCELLED", "Cancelled"
         CHECKIN_RECORDED = "CHECKIN_RECORDED", "Check-in recorded"
         CHECKIN_UPDATED = "CHECKIN_UPDATED", "Check-in updated"
+        PARTICIPANT_INVITED = "PARTICIPANT_INVITED", "Participant invited"
+        PARTICIPANT_JOINED = "PARTICIPANT_JOINED", "Participant joined"
+        PARTICIPANT_DECLINED = "PARTICIPANT_DECLINED", "Participant declined"
+        PARTICIPANT_LEFT = "PARTICIPANT_LEFT", "Participant left"
+        PARTICIPANT_REMOVED = "PARTICIPANT_REMOVED", "Participant removed"
 
     goal = models.ForeignKey(
         Goal,

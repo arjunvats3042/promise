@@ -27,6 +27,19 @@ enum class GoalCheckInStatus {
     SKIPPED,
 }
 
+enum class GoalParticipantRole {
+    OWNER,
+    PARTICIPANT,
+}
+
+enum class GoalParticipantStatus {
+    INVITED,
+    ACTIVE,
+    DECLINED,
+    LEFT,
+    REMOVED,
+}
+
 data class GoalPeriodCounts(
     val required: Int,
     val completed: Int,
@@ -38,6 +51,51 @@ data class GoalProgress(
     val currentPeriod: GoalPeriodCounts,
     val weekProgress: GoalPeriodCounts,
     val consistencyPercent: Int,
+)
+
+data class GoalParticipant(
+    val id: String,
+    val userId: String,
+    val userName: String,
+    val role: GoalParticipantRole,
+    val status: GoalParticipantStatus,
+    val invitedAt: String?,
+    val joinedAt: String?,
+    val leftAt: String?,
+)
+
+data class CollectivePeriodCounts(
+    val required: Int,
+    val completed: Int,
+    val requiredParticipants: Int? = null,
+    val completedParticipants: Int? = null,
+    val valueSum: Int? = null,
+    val targetSum: Int? = null,
+)
+
+data class CollectiveProgress(
+    val currentPeriod: CollectivePeriodCounts,
+    val weekProgress: CollectivePeriodCounts,
+)
+
+data class GoalInvitePreview(
+    val id: String,
+    val title: String,
+    val description: String,
+    val timezone: String,
+    val startDate: String,
+    val endDate: String?,
+    val recurrenceKind: GoalRecurrenceKind,
+    val weekdays: List<Int>,
+    val periodUnit: GoalPeriodUnit?,
+    val timesPerPeriod: Int?,
+    val trackingKind: GoalTrackingKind,
+    val targetValue: Int?,
+    val targetUnit: String,
+    val inviterUserId: String,
+    val inviterName: String,
+    val invitationStatus: GoalParticipantStatus,
+    val invitationExpiresAt: String?,
 )
 
 data class Goal(
@@ -64,24 +122,41 @@ data class Goal(
     val isEnded: Boolean,
     val progress: GoalProgress,
     val currentStreak: Int,
+    val collectiveProgress: CollectiveProgress? = null,
+    val participants: List<GoalParticipant> = emptyList(),
+    val membershipRole: GoalParticipantRole? = null,
+    val membershipStatus: GoalParticipantStatus? = null,
 ) {
     val isTerminal: Boolean
         get() = status == GoalStatus.COMPLETED || status == GoalStatus.CANCELLED
+
+    val isShared: Boolean
+        get() = participants.isNotEmpty() || collectiveProgress != null || membershipRole != null
+
+    val isOwnerViewer: Boolean
+        get() = membershipRole == GoalParticipantRole.OWNER || membershipRole == null
+
+    val canManageParticipants: Boolean
+        get() = isOwnerViewer && !isTerminal
+
+    val canLeave: Boolean
+        get() = membershipRole == GoalParticipantRole.PARTICIPANT &&
+            membershipStatus == GoalParticipantStatus.ACTIVE
 
     val canCheckIn: Boolean
         get() = status == GoalStatus.ACTIVE && !isEnded
 
     val canPause: Boolean
-        get() = status == GoalStatus.ACTIVE
+        get() = status == GoalStatus.ACTIVE && isOwnerViewer
 
     val canResume: Boolean
-        get() = status == GoalStatus.PAUSED
+        get() = status == GoalStatus.PAUSED && isOwnerViewer
 
     val canCompleteGoal: Boolean
-        get() = status == GoalStatus.ACTIVE || status == GoalStatus.PAUSED
+        get() = (status == GoalStatus.ACTIVE || status == GoalStatus.PAUSED) && isOwnerViewer
 
     val canCancel: Boolean
-        get() = status == GoalStatus.ACTIVE || status == GoalStatus.PAUSED
+        get() = (status == GoalStatus.ACTIVE || status == GoalStatus.PAUSED) && isOwnerViewer
 }
 
 data class GoalCheckIn(
@@ -123,12 +198,28 @@ data class CheckInInput(
     val note: String = "",
 )
 
+sealed class GoalListItem {
+    data class Membership(val goal: Goal) : GoalListItem()
+    data class Invite(val preview: GoalInvitePreview) : GoalListItem()
+}
+
+sealed class GoalDetail {
+    data class Full(val goal: Goal) : GoalDetail()
+    data class Invite(val preview: GoalInvitePreview) : GoalDetail()
+}
+
 data class GoalPage(
-    val items: List<Goal>,
+    val items: List<GoalListItem>,
     val nextPage: Int?,
 )
 
 data class GoalCheckInPage(
     val items: List<GoalCheckIn>,
     val nextPage: Int?,
+)
+
+data class LookupUser(
+    val id: String,
+    val name: String,
+    val email: String,
 )

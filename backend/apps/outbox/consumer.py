@@ -49,6 +49,11 @@ SUPPORTED_EVENT_TYPES = (
     "goal.cancelled",
     "goal.checkin.created",
     "goal.checkin.updated",
+    "goal.participant.invited",
+    "goal.participant.joined",
+    "goal.participant.declined",
+    "goal.participant.left",
+    "goal.participant.removed",
 )
 
 

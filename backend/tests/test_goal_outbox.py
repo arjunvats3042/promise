@@ -30,6 +30,11 @@ EVENT_TYPE_MAP = {
     GoalEvent.EventType.CANCELLED: "goal.cancelled",
     GoalEvent.EventType.CHECKIN_RECORDED: "goal.checkin.created",
     GoalEvent.EventType.CHECKIN_UPDATED: "goal.checkin.updated",
+    GoalEvent.EventType.PARTICIPANT_INVITED: "goal.participant.invited",
+    GoalEvent.EventType.PARTICIPANT_JOINED: "goal.participant.joined",
+    GoalEvent.EventType.PARTICIPANT_DECLINED: "goal.participant.declined",
+    GoalEvent.EventType.PARTICIPANT_LEFT: "goal.participant.left",
+    GoalEvent.EventType.PARTICIPANT_REMOVED: "goal.participant.removed",
 }
 FORBIDDEN_PAYLOAD_MARKERS = (
     "password",
@@ -214,6 +219,7 @@ def test_check_in_create_update_and_identical_retry(arjun):
     assert recorded.payload["period_date"] == "2026-08-10"
     assert recorded.payload["checkin_id"] == str(created.id)
     assert recorded.payload["checkin_status"] == GoalCheckIn.Status.COMPLETED
+    assert recorded.payload["participant_id"] == str(created.participant_id)
     assert "secret note" not in json.dumps(recorded.payload)
     assert GoalEvent.objects.filter(goal=goal).count() == 1
     assert OutboxEvent.objects.filter(aggregate_id=goal.id).count() == 1
