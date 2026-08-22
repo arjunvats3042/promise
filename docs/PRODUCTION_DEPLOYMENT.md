@@ -52,7 +52,7 @@ Every backend service uses the same repository and same Dockerfile build context
 
 | Railway Service Name | Start Command | Type / Ports | Healthcheck Path |
 | :--- | :--- | :--- | :--- |
-| `promise-web` | `daphne -b 0.0.0.0 -p $PORT config.asgi:application` | Web (HTTP / WSS) | `/api/v1/health/ready/` |
+| `promise-web` | `sh -c 'daphne -b 0.0.0.0 -p "${PORT:-8000}" config.asgi:application'` (or leave empty) | Web (HTTP / WSS) | `/api/v1/health/ready/` |
 | `promise-outbox-worker` | `python manage.py publish_outbox --continuous` | Background Worker | N/A (Process Monitoring) |
 | `promise-goal-worker` | `python manage.py consume_goal_events` | Background Worker | N/A (Process Monitoring) |
 | `promise-notification-worker` | `python manage.py run_notification_dispatcher --continuous` | Background Worker | N/A (Process Monitoring) |

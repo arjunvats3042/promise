@@ -6,7 +6,8 @@
 # Dedicated Services (Attach 4 services to this repo in Railway):
 #
 # 1. promise-web:
-#    Start Command: daphne -b 0.0.0.0 -p $PORT config.asgi:application
+#    Start Command: (Leave empty to use Dockerfile CMD, or use:)
+#                   sh -c 'daphne -b 0.0.0.0 -p "${PORT:-8000}" config.asgi:application'
 #    Healthcheck:   /api/v1/health/ready/
 #
 # 2. promise-outbox-worker:
