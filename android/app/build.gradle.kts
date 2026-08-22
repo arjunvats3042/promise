@@ -112,6 +112,57 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            val storeFileProp = (project.findProperty("promise.storeFile") as String?)
+                ?: (project.findProperty("RELEASE_STORE_FILE") as String?)
+                ?: localProperties.getProperty("promise.storeFile")
+                ?: localProperties.getProperty("RELEASE_STORE_FILE")
+                ?: System.getenv("PROMISE_STORE_FILE")
+                ?: System.getenv("RELEASE_STORE_FILE")
+                ?: "promise-release.jks"
+
+            val storePasswordProp = (project.findProperty("promise.storePassword") as String?)
+                ?: (project.findProperty("RELEASE_STORE_PASSWORD") as String?)
+                ?: localProperties.getProperty("promise.storePassword")
+                ?: localProperties.getProperty("RELEASE_STORE_PASSWORD")
+                ?: System.getenv("PROMISE_STORE_PASSWORD")
+                ?: System.getenv("RELEASE_STORE_PASSWORD")
+
+            val keyAliasProp = (project.findProperty("promise.keyAlias") as String?)
+                ?: (project.findProperty("RELEASE_KEY_ALIAS") as String?)
+                ?: localProperties.getProperty("promise.keyAlias")
+                ?: localProperties.getProperty("RELEASE_KEY_ALIAS")
+                ?: System.getenv("PROMISE_KEY_ALIAS")
+                ?: System.getenv("RELEASE_KEY_ALIAS")
+                ?: "promise"
+
+            val keyPasswordProp = (project.findProperty("promise.keyPassword") as String?)
+                ?: (project.findProperty("RELEASE_KEY_PASSWORD") as String?)
+                ?: localProperties.getProperty("promise.keyPassword")
+                ?: localProperties.getProperty("RELEASE_KEY_PASSWORD")
+                ?: System.getenv("PROMISE_KEY_PASSWORD")
+                ?: System.getenv("RELEASE_KEY_PASSWORD")
+
+            val keystoreInRoot = rootProject.file(storeFileProp)
+            val keystoreInApp = file(storeFileProp)
+            val keystoreInParent = file("../$storeFileProp")
+
+            val resolvedStoreFile = when {
+                file(storeFileProp).isAbsolute -> file(storeFileProp)
+                keystoreInParent.canonicalFile.exists() -> keystoreInParent
+                keystoreInRoot.canonicalFile.exists() -> keystoreInRoot
+                keystoreInApp.canonicalFile.exists() -> keystoreInApp
+                else -> keystoreInRoot
+            }
+
+            storeFile = resolvedStoreFile
+            storePassword = storePasswordProp
+            keyAlias = keyAliasProp
+            keyPassword = keyPasswordProp
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
@@ -123,6 +174,7 @@ android {
                 "proguard-rules.pro",
             )
             buildConfigField("String", "API_BASE_URL", "\"$releaseApiBaseUrl\"")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

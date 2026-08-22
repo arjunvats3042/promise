@@ -24,6 +24,9 @@ venv/
 build/
 **/build/
 local.properties
+android/promise-release.jks
+*.jks
+*.keystore
 *.apk
 *.aab
 
