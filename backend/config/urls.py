@@ -1,9 +1,10 @@
 from django.urls import include, path
 
-from config.views import api_not_found, health
+from config.views import api_not_found, health, ready
 
 v1_urlpatterns = [
     path("health/", health),
+    path("health/ready/", ready),
     path("auth/", include("apps.authentication.urls")),
     path("users/", include("apps.users.urls")),
     path("commitments/", include("apps.commitments.urls")),

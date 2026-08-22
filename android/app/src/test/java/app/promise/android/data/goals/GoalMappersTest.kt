@@ -249,4 +249,73 @@ class GoalMappersTest {
         assertTrue(pinned[0] is GoalListItem.Invite)
         assertTrue(pinned[1] is GoalListItem.Membership)
     }
+
+    @Test
+    fun goalDto_mapsBatch7GroupSummaryMilestonesAndReflection() {
+        val dto = GoalDto(
+            id = "g-shared-1",
+            title = "Morning Meditation",
+            status = "ACTIVE",
+            startDate = "2026-08-01",
+            recurrenceKind = "DAILY",
+            isShared = true,
+            participantLimit = 10,
+            groupSummary = GroupSummaryDto(
+                activeParticipantsCount = 4,
+                todayCompletedCount = 3,
+                todayCompletionRate = 0.75f,
+                currentPeriodCompletedCount = 18,
+                currentPeriodTargetCount = 28,
+                currentPeriodCompletionRate = 0.64f,
+                headline = "3 of 4 completed today • 64% group weekly pace",
+            ),
+            milestones = listOf(
+                GroupMilestoneDto(
+                    key = "PRACTICES_10",
+                    title = "10 Practices Completed",
+                    description = "Your group has recorded 10 completed practices.",
+                    achieved = true,
+                    target = 10,
+                    current = 10,
+                ),
+            ),
+            weeklyReflection = WeeklyReflectionDto(
+                periodStart = "2026-08-17",
+                periodEnd = "2026-08-23",
+                completed = 18,
+                expected = 28,
+                percentage = 64.3f,
+                reflectionText = "This week, your group completed 18 of 28 planned practices.",
+                trendText = "All active members checked in this week.",
+            ),
+            participants = listOf(
+                GoalParticipantDto(
+                    id = "p1",
+                    userId = "u1",
+                    userName = "Rahul",
+                    role = "PARTICIPANT",
+                    status = "INVITED",
+                    invitedAt = "2026-08-20T10:00:00Z",
+                    invitationExpiresAt = "2026-08-27T10:00:00Z",
+                    isExpired = false,
+                ),
+            ),
+            createdAt = "2026-08-01T00:00:00Z",
+            updatedAt = "2026-08-01T00:00:00Z",
+        )
+        val goal = dto.toDomain()
+        assertTrue(goal.isShared)
+        assertEquals(10, goal.participantLimit)
+        assertNotNull(goal.groupSummary)
+        assertEquals("3 of 4 completed today • 64% group weekly pace", goal.groupSummary?.headline)
+        assertEquals(4, goal.groupSummary?.activeParticipantsCount)
+        assertEquals(1, goal.milestones.size)
+        assertEquals("PRACTICES_10", goal.milestones[0].key)
+        assertTrue(goal.milestones[0].achieved)
+        assertNotNull(goal.weeklyReflection)
+        assertEquals("This week, your group completed 18 of 28 planned practices.", goal.weeklyReflection?.reflectionText)
+        assertEquals(1, goal.participants.size)
+        assertEquals("2026-08-27T10:00:00Z", goal.participants[0].invitationExpiresAt)
+        assertFalse(goal.participants[0].isExpired)
+    }
 }

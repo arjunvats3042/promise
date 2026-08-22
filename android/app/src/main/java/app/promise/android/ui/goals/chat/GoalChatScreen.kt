@@ -367,10 +367,22 @@ private fun ChatMessageBubble(
                 modifier = Modifier.padding(start = Spacing.xs, bottom = 2.dp),
             )
         }
+        val timeStr = formatTimestamp(message.createdAt)
+        val accessibilityLabel = when {
+            message.deliveryStatus == ChatMessageDeliveryStatus.FAILED -> "Message failed to send: ${message.body}. Tap to retry."
+            message.deliveryStatus == ChatMessageDeliveryStatus.SENDING -> "Sending message: ${message.body}"
+            isMe -> "Your message sent at $timeStr: ${message.body}"
+            else -> "Message from ${message.sender.name} at $timeStr: ${message.body}"
+        }
+
         Surface(
             shape = bubbleShape,
             color = bubbleColor,
-            modifier = Modifier.widthIn(max = 280.dp),
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = accessibilityLabel
+                },
         ) {
             Column(
                 modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
@@ -386,7 +398,7 @@ private fun ChatMessageBubble(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = formatTimestamp(message.createdAt),
+                        text = timeStr,
                         style = MaterialTheme.typography.labelSmall,
                         color = textColor.copy(alpha = 0.7f),
                     )
@@ -407,7 +419,7 @@ private fun ChatMessageBubble(
                             ) {
                                 Icon(
                                     Icons.Outlined.Warning,
-                                    contentDescription = "Failed. Tap to retry",
+                                    contentDescription = "Retry sending message",
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(12.dp),
                                 )

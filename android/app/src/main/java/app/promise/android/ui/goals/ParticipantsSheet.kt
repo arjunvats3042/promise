@@ -16,12 +16,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +55,8 @@ fun ParticipantsSheet(
     inviteSheetAction: ActionState,
     onDismiss: () -> Unit,
     onRemove: (GoalParticipant) -> Unit,
+    onReinvite: (GoalParticipant) -> Unit = {},
+    onTransferOwnership: (GoalParticipant) -> Unit = {},
     onLeave: () -> Unit,
 ) {
     val colors = PromiseThemeColors.current
@@ -56,8 +64,15 @@ fun ParticipantsSheet(
     val busy = inviteSheetAction is ActionState.InFlight
     val actionError = (inviteSheetAction as? ActionState.Failed)?.kind
 
+    var participantToTransfer by remember { mutableStateOf<GoalParticipant?>(null) }
+
     val activeMembers = roster.filter { it.status == GoalParticipantStatus.ACTIVE }
     val pendingInvites = roster.filter { it.status == GoalParticipantStatus.INVITED }
+    val pastMembers = roster.filter {
+        it.status == GoalParticipantStatus.DECLINED ||
+            it.status == GoalParticipantStatus.LEFT ||
+            it.status == GoalParticipantStatus.REMOVED
+    }
 
     PromiseModalSheet(
         onDismissRequest = onDismiss,
@@ -76,15 +91,18 @@ fun ParticipantsSheet(
             Spacer(modifier = Modifier.height(Spacing.md))
 
             if (activeMembers.isNotEmpty()) {
-                PromiseMicroLabel("ACTIVE MEMBERS (${activeMembers.size})")
+                PromiseMicroLabel("ACTIVE MEMBERS (${activeMembers.size}/${goal.participantLimit})")
                 Spacer(modifier = Modifier.height(Spacing.xs))
                 activeMembers.forEach { participant ->
                     ParticipantRow(
                         participant = participant,
                         canRemove = goal.canManageParticipants &&
                             participant.role != GoalParticipantRole.OWNER,
+                        canTransfer = goal.isOwnerViewer &&
+                            participant.role != GoalParticipantRole.OWNER,
                         busy = busy,
                         onRemove = { onRemove(participant) },
+                        onTransfer = { participantToTransfer = participant },
                     )
                 }
             } else {
@@ -106,6 +124,20 @@ fun ParticipantsSheet(
                         busy = busy,
                         onRemove = { onRemove(participant) },
                         actionLabel = "Revoke",
+                    )
+                }
+            }
+
+            if (goal.canManageParticipants && pastMembers.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                PromiseMicroLabel("PAST MEMBERS (${pastMembers.size})")
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                pastMembers.forEach { participant ->
+                    ParticipantRow(
+                        participant = participant,
+                        canReinvite = true,
+                        busy = busy,
+                        onReinvite = { onReinvite(participant) },
                     )
                 }
             }
@@ -136,14 +168,43 @@ fun ParticipantsSheet(
             Spacer(modifier = Modifier.height(Spacing.md))
         }
     }
+
+    participantToTransfer?.let { target ->
+        AlertDialog(
+            onDismissRequest = { participantToTransfer = null },
+            title = { Text("Transfer ownership to ${target.userName}?") },
+            text = { Text("${target.userName} will become the owner. You will remain a participant.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val toTransfer = target
+                        participantToTransfer = null
+                        onTransferOwnership(toTransfer)
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = colors.accent),
+                ) {
+                    Text("Transfer")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { participantToTransfer = null }) {
+                    Text("Cancel", color = colors.textSecondary)
+                }
+            },
+        )
+    }
 }
 
 @Composable
 private fun ParticipantRow(
     participant: GoalParticipant,
-    canRemove: Boolean,
-    busy: Boolean,
-    onRemove: () -> Unit,
+    canRemove: Boolean = false,
+    canTransfer: Boolean = false,
+    canReinvite: Boolean = false,
+    busy: Boolean = false,
+    onRemove: () -> Unit = {},
+    onTransfer: () -> Unit = {},
+    onReinvite: () -> Unit = {},
     actionLabel: String = "Remove",
 ) {
     val colors = PromiseThemeColors.current
@@ -195,12 +256,30 @@ private fun ParticipantRow(
                         )
                     }
                 } else {
+                    val statusText = when (participant.status) {
+                        GoalParticipantStatus.INVITED -> if (participant.isExpired) "Invite expired" else "Invited"
+                        GoalParticipantStatus.DECLINED -> "Declined"
+                        GoalParticipantStatus.LEFT -> "Left"
+                        GoalParticipantStatus.REMOVED -> "Removed"
+                        GoalParticipantStatus.ACTIVE -> "Member"
+                    }
                     Text(
-                        text = if (participant.status == GoalParticipantStatus.INVITED) "Invited" else "Member",
+                        text = statusText,
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary,
                     )
                 }
+            }
+        }
+        if (canTransfer) {
+            TextButton(
+                onClick = onTransfer,
+                enabled = !busy,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .semantics { contentDescription = "Transfer ownership to ${participant.userName}" },
+            ) {
+                Text("Make Owner", color = colors.accent)
             }
         }
         if (canRemove) {
@@ -212,6 +291,17 @@ private fun ParticipantRow(
                     .semantics { contentDescription = "$actionLabel ${participant.userName}" },
             ) {
                 Text(actionLabel, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        if (canReinvite) {
+            TextButton(
+                onClick = onReinvite,
+                enabled = !busy,
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .semantics { contentDescription = "Re-invite ${participant.userName}" },
+            ) {
+                Text("Re-invite", color = colors.accent)
             }
         }
     }

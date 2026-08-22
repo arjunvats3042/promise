@@ -97,3 +97,15 @@ class GoalOwnerRequiredError(ApplicationAPIError):
     status_code = status.HTTP_409_CONFLICT
     error_code = "GOAL_OWNER_REQUIRED"
     public_message = "Only the goal owner can perform this action."
+
+
+class GoalParticipantLimitReachedError(ApplicationAPIError):
+    status_code = status.HTTP_409_CONFLICT
+    error_code = "GOAL_PARTICIPANT_LIMIT_REACHED"
+    public_message = "Your shared goal can have up to 10 active participants."
+
+
+class GoalCannotTransferOwnershipToSelfError(ApplicationAPIError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    error_code = "GOAL_CANNOT_TRANSFER_TO_SELF"
+    public_message = "Cannot transfer ownership to yourself."

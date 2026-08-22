@@ -1,5 +1,6 @@
 package app.promise.android.ui.profile
 
+import app.promise.android.domain.NotificationHistoryItem
 import app.promise.android.domain.NotificationPreferences
 import app.promise.android.domain.NotificationPreferencesPatch
 import app.promise.android.domain.NotificationPreferencesRepository
@@ -12,6 +13,9 @@ class FakeNotificationPreferencesRepository(
         commitmentsOverdue = true,
         goalsTodayPractice = true,
         goalsStreakProtection = true,
+        sharedGoalsActivity = true,
+        sharedGoalsChat = true,
+        weeklyDigestEnabled = false,
         quietHoursEnabled = true,
         quietHoursStart = "22:00:00",
         quietHoursEnd = "08:00:00",
@@ -23,6 +27,7 @@ class FakeNotificationPreferencesRepository(
 
     var current = initialPreferences
     var lastPatch: NotificationPreferencesPatch? = null
+    var historyList: List<NotificationHistoryItem> = emptyList()
 
     override suspend fun getPreferences(): Result<NotificationPreferences> {
         return Result.success(current)
@@ -40,6 +45,9 @@ class FakeNotificationPreferencesRepository(
             commitmentsOverdue = patch.commitmentsOverdue ?: current.commitmentsOverdue,
             goalsTodayPractice = patch.goalsTodayPractice ?: current.goalsTodayPractice,
             goalsStreakProtection = patch.goalsStreakProtection ?: current.goalsStreakProtection,
+            sharedGoalsActivity = patch.sharedGoalsActivity ?: current.sharedGoalsActivity,
+            sharedGoalsChat = patch.sharedGoalsChat ?: current.sharedGoalsChat,
+            weeklyDigestEnabled = patch.weeklyDigestEnabled ?: current.weeklyDigestEnabled,
             quietHoursEnabled = patch.quietHoursEnabled ?: current.quietHoursEnabled,
             quietHoursStart = patch.quietHoursStart ?: current.quietHoursStart,
             quietHoursEnd = patch.quietHoursEnd ?: current.quietHoursEnd,
@@ -47,5 +55,9 @@ class FakeNotificationPreferencesRepository(
             eveningAnchorTime = patch.eveningAnchorTime ?: current.eveningAnchorTime,
         )
         return Result.success(current)
+    }
+
+    override suspend fun getNotificationHistory(page: Int): Result<List<NotificationHistoryItem>> {
+        return Result.success(historyList)
     }
 }

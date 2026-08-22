@@ -45,6 +45,64 @@ data class CollectiveProgressDto(
 )
 
 @Serializable
+data class GroupSummaryDto(
+    @SerialName("active_participants_count")
+    val activeParticipantsCount: Int = 0,
+    @SerialName("today_completed_count")
+    val todayCompletedCount: Int = 0,
+    @SerialName("today_completion_rate")
+    val todayCompletionRate: Float = 0f,
+    @SerialName("current_period_completed_count")
+    val currentPeriodCompletedCount: Int = 0,
+    @SerialName("current_period_target_count")
+    val currentPeriodTargetCount: Int = 0,
+    @SerialName("current_period_completion_rate")
+    val currentPeriodCompletionRate: Float = 0f,
+    val headline: String = "",
+)
+
+@Serializable
+data class GroupMilestoneDto(
+    val key: String,
+    val title: String,
+    val description: String = "",
+    val achieved: Boolean = false,
+    val target: Int = 0,
+    val current: Int = 0,
+)
+
+@Serializable
+data class WeeklyReflectionDto(
+    @SerialName("period_start")
+    val periodStart: String,
+    @SerialName("period_end")
+    val periodEnd: String,
+    val completed: Int = 0,
+    val expected: Int = 0,
+    val percentage: Float = 0f,
+    @SerialName("reflection_text")
+    val reflectionText: String = "",
+    @SerialName("trend_text")
+    val trendText: String = "",
+)
+
+@Serializable
+data class TransferOwnershipRequest(
+    @SerialName("participant_id")
+    val participantId: String? = null,
+    @SerialName("user_id")
+    val userId: String? = null,
+)
+
+@Serializable
+data class ReinviteParticipantRequest(
+    @SerialName("participant_id")
+    val participantId: String? = null,
+    @SerialName("user_id")
+    val userId: String? = null,
+)
+
+@Serializable
 data class GoalParticipantDto(
     val id: String,
     @SerialName("user_id")
@@ -55,6 +113,10 @@ data class GoalParticipantDto(
     val status: String,
     @SerialName("invited_at")
     val invitedAt: String? = null,
+    @SerialName("invitation_expires_at")
+    val invitationExpiresAt: String? = null,
+    @SerialName("is_expired")
+    val isExpired: Boolean = false,
     @SerialName("joined_at")
     val joinedAt: String? = null,
     @SerialName("left_at")
@@ -116,8 +178,17 @@ data class GoalDto(
     val invitationStatus: String? = null,
     @SerialName("invitation_expires_at")
     val invitationExpiresAt: String? = null,
+    @SerialName("is_expired")
+    val isExpired: Boolean = false,
     @SerialName("is_shared")
     val isShared: Boolean = false,
+    @SerialName("group_summary")
+    val groupSummary: GroupSummaryDto? = null,
+    val milestones: List<GroupMilestoneDto> = emptyList(),
+    @SerialName("weekly_reflection")
+    val weeklyReflection: WeeklyReflectionDto? = null,
+    @SerialName("participant_limit")
+    val participantLimit: Int = 10,
 )
 
 @Serializable

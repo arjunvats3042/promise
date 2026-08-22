@@ -11,12 +11,17 @@ from apps.goals.views import (
     goal_complete,
     goal_detail,
     goal_leave,
+    goal_milestones,
+    goal_ownership_transfer,
     goal_participant_detail,
     goal_participants,
     goal_participants_accept,
     goal_participants_decline,
     goal_pause,
+    goal_reinvite_participant,
     goal_resume,
+    goal_summary,
+    goal_weekly_reflection,
 )
 
 app_name = "goals"
@@ -30,6 +35,11 @@ urlpatterns = [
     path("<str:goal_id>/cancel/", goal_cancel, name="cancel"),
     path("<str:goal_id>/leave/", goal_leave, name="leave"),
     path("<str:goal_id>/check-ins/", goal_check_ins, name="check-ins"),
+    path(
+        "<str:goal_id>/ownership/transfer/",
+        goal_ownership_transfer,
+        name="ownership-transfer",
+    ),
     path(
         "<str:goal_id>/participants/",
         goal_participants,
@@ -46,9 +56,29 @@ urlpatterns = [
         name="participants-decline",
     ),
     path(
+        "<str:goal_id>/participants/reinvite/",
+        goal_reinvite_participant,
+        name="participants-reinvite",
+    ),
+    path(
         "<str:goal_id>/participants/<str:participant_id>/",
         goal_participant_detail,
         name="participant-detail",
+    ),
+    path(
+        "<str:goal_id>/summary/",
+        goal_summary,
+        name="summary",
+    ),
+    path(
+        "<str:goal_id>/milestones/",
+        goal_milestones,
+        name="milestones",
+    ),
+    path(
+        "<str:goal_id>/weekly-reflection/",
+        goal_weekly_reflection,
+        name="weekly-reflection",
     ),
     path(
         "<str:goal_id>/chat/messages/",

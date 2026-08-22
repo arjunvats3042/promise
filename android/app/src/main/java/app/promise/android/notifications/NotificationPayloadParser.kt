@@ -16,18 +16,20 @@ object NotificationPayloadParser {
             return null
         }
 
-        val channelId = when (eventType) {
-            "commitment.due_now" -> NotificationChannels.CHANNEL_COMMITMENT_ALERTS
-            "commitment.due_soon", "commitment.overdue", "commitment.snooze_expired" -> NotificationChannels.CHANNEL_COMMITMENT_REMINDERS
-            "goal.today_practice", "goal.streak_protection", "goal.at_risk_consistency", "goal.checkin_reminder", "goal.chat.message_created" -> NotificationChannels.CHANNEL_GOAL_REMINDERS
-            "auth.new_device_login" -> NotificationChannels.CHANNEL_SYSTEM
-            else -> {
-                if (entityType == "GOAL") NotificationChannels.CHANNEL_GOAL_REMINDERS
-                else NotificationChannels.CHANNEL_COMMITMENT_REMINDERS
-            }
+        val channelId = data["channel_id"] ?: when {
+            eventType == "commitment.due_now" -> NotificationChannels.CHANNEL_COMMITMENT_ALERTS
+            eventType == "digest.weekly" || entityType == "DIGEST" -> NotificationChannels.CHANNEL_SYSTEM
+            eventType.startsWith("security.") || eventType.startsWith("auth.") || entityType == "SECURITY" || entityType == "SYSTEM" -> NotificationChannels.CHANNEL_SYSTEM
+            eventType.startsWith("goal.") || entityType == "GOAL" -> NotificationChannels.CHANNEL_GOAL_REMINDERS
+            else -> NotificationChannels.CHANNEL_COMMITMENT_REMINDERS
         }
 
-        val priority = if (channelId == NotificationChannels.CHANNEL_COMMITMENT_ALERTS || channelId == NotificationChannels.CHANNEL_SYSTEM) {
+        val priority = data["priority"] ?: if (
+            eventType == "commitment.due_now" ||
+            eventType.startsWith("security.") ||
+            eventType.startsWith("auth.") ||
+            entityType == "SECURITY"
+        ) {
             "high"
         } else {
             "normal"

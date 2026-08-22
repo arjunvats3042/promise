@@ -94,6 +94,46 @@ class NotificationPayloadParserTest {
     }
 
     @Test
+    fun `parse weekly digest routes to system channel`() {
+        val data = mapOf(
+            "reminder_id" to "rem_digest",
+            "identity_key" to "u1:DIGEST:00000000-0000-0000-0000-000000000000:digest.weekly:2026-W34",
+            "entity_type" to "DIGEST",
+            "entity_id" to "00000000-0000-0000-0000-000000000000",
+            "event_type" to "digest.weekly",
+            "title" to "Your Promise week",
+            "body" to "This week: 4 commitments completed.",
+            "deep_link" to "promise://home",
+            "channel_id" to NotificationChannels.CHANNEL_SYSTEM,
+            "priority" to "normal",
+        )
+
+        val parsed = NotificationPayloadParser.parse(data)
+        assertNotNull(parsed)
+        assertEquals(NotificationChannels.CHANNEL_SYSTEM, parsed!!.channelId)
+        assertEquals("normal", parsed.priority)
+    }
+
+    @Test
+    fun `parse shared goal chat message routes to goal reminders channel`() {
+        val data = mapOf(
+            "reminder_id" to "rem_chat",
+            "identity_key" to "u1:GOAL:g1:goal.chat.message_created:m1",
+            "entity_type" to "GOAL",
+            "entity_id" to "g1",
+            "event_type" to "goal.chat.message_created",
+            "title" to "Meditation Circle",
+            "body" to "Alice: Let's do this!",
+            "deep_link" to "promise://goal/g1/chat",
+        )
+
+        val parsed = NotificationPayloadParser.parse(data)
+        assertNotNull(parsed)
+        assertEquals(NotificationChannels.CHANNEL_GOAL_REMINDERS, parsed!!.channelId)
+        assertEquals("promise://goal/g1/chat", parsed.deepLink)
+    }
+
+    @Test
     fun `fnv1a hash generates stable positive notification ids`() {
         val key1 = "u1:COMMITMENT:c1:commitment.due_now:2026-08-22"
         val key2 = "u1:COMMITMENT:c2:commitment.due_now:2026-08-22"

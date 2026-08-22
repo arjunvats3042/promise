@@ -60,7 +60,11 @@ class NotificationActionWorker @AssistedInject constructor(
                 else -> Result.failure()
             }
         } catch (e: Exception) {
-            if (runAttemptCount < 3) {
+            val message = e.message.orEmpty()
+            // Graceful handling for conflict/already completed/not found
+            if (message.contains("409") || message.contains("404") || message.contains("ALREADY_COMPLETED")) {
+                Result.success()
+            } else if (runAttemptCount < 3) {
                 Result.retry()
             } else {
                 Result.failure()

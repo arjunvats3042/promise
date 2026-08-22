@@ -25,7 +25,9 @@ from apps.goals.serializers import (
     GoalInviteCreateSerializer,
     GoalInvitePreviewSerializer,
     GoalListQuerySerializer,
+    GoalOwnershipTransferSerializer,
     GoalParticipantSerializer,
+    GoalReinviteSerializer,
     GoalSerializer,
     GoalUpdateSerializer,
     SharedGoalSerializer,
@@ -51,9 +53,14 @@ from apps.goals.services import (
     mark_chat_read,
     pause_goal,
     record_check_in,
+    reinvite_participant,
     remove_participant,
     resume_goal,
     send_chat_message,
+    shared_goal_group_summary,
+    shared_goal_milestones,
+    shared_goal_weekly_reflection,
+    transfer_goal_ownership,
     update_goal,
 )
 
@@ -268,6 +275,58 @@ def goal_leave(request, goal_id):
         GoalParticipantSerializer(participant).data,
         status=status.HTTP_200_OK,
     )
+
+
+@api_view(["POST"])
+def goal_ownership_transfer(request, goal_id):
+    enforce_goal_write_rate_limit(request.user)
+    serializer = GoalOwnershipTransferSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    goal = transfer_goal_ownership(
+        actor=request.user,
+        goal_id=goal_id,
+        target_participant_id=serializer.validated_data.get("participant_id"),
+        target_user_id=serializer.validated_data.get("user_id"),
+    )
+    return _goal_response(goal, request)
+
+
+@api_view(["POST"])
+def goal_reinvite_participant(request, goal_id):
+    enforce_goal_write_rate_limit(request.user)
+    serializer = GoalReinviteSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    participant = reinvite_participant(
+        actor=request.user,
+        goal_id=goal_id,
+        participant_id=serializer.validated_data.get("participant_id"),
+        user_id=serializer.validated_data.get("user_id"),
+    )
+    return Response(
+        GoalParticipantSerializer(participant).data,
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(["GET"])
+def goal_summary(request, goal_id):
+    goal = get_visible_goal(viewer=request.user, goal_id=goal_id)
+    summary_data = shared_goal_group_summary(goal)
+    return Response(summary_data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def goal_milestones(request, goal_id):
+    goal = get_visible_goal(viewer=request.user, goal_id=goal_id)
+    milestones_data = shared_goal_milestones(goal)
+    return Response(milestones_data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def goal_weekly_reflection(request, goal_id):
+    goal = get_visible_goal(viewer=request.user, goal_id=goal_id)
+    reflection_data = shared_goal_weekly_reflection(goal)
+    return Response(reflection_data, status=status.HTTP_200_OK)
 
 
 @api_view(["GET", "POST"])

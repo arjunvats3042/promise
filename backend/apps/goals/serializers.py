@@ -5,17 +5,24 @@ from rest_framework import serializers
 
 from apps.goals.models import ChatMessage, Goal, GoalCheckIn, GoalParticipant
 from apps.goals.services import (
+    MAX_SHARED_GOAL_PARTICIPANTS,
+    _invite_is_expired,
     collective_progress,
     get_participant,
     goal_progress,
     goal_streak,
     invite_expires_at,
     is_shared_goal,
+    shared_goal_group_summary,
+    shared_goal_milestones,
+    shared_goal_weekly_reflection,
 )
 
 
 class GoalParticipantSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source="user.name", read_only=True)
+    is_expired = serializers.SerializerMethodField()
+    invitation_expires_at = serializers.SerializerMethodField()
 
     class Meta:
         model = GoalParticipant
@@ -26,10 +33,19 @@ class GoalParticipantSerializer(serializers.ModelSerializer):
             "role",
             "status",
             "invited_at",
+            "invitation_expires_at",
+            "is_expired",
             "joined_at",
             "left_at",
         )
         read_only_fields = fields
+
+    def get_is_expired(self, obj) -> bool:
+        return _invite_is_expired(obj)
+
+    def get_invitation_expires_at(self, obj):
+        expires = invite_expires_at(obj)
+        return expires.isoformat() if expires is not None else None
 
 
 class GoalInvitePreviewSerializer(serializers.ModelSerializer):
@@ -131,6 +147,10 @@ class SharedGoalSerializer(GoalSerializer):
     participants = serializers.SerializerMethodField()
     membership_role = serializers.SerializerMethodField()
     membership_status = serializers.SerializerMethodField()
+    group_summary = serializers.SerializerMethodField()
+    milestones = serializers.SerializerMethodField()
+    weekly_reflection = serializers.SerializerMethodField()
+    participant_limit = serializers.SerializerMethodField()
 
     class Meta(GoalSerializer.Meta):
         fields = GoalSerializer.Meta.fields + (
@@ -139,6 +159,10 @@ class SharedGoalSerializer(GoalSerializer):
             "participants",
             "membership_role",
             "membership_status",
+            "group_summary",
+            "milestones",
+            "weekly_reflection",
+            "participant_limit",
         )
         read_only_fields = fields
 
@@ -146,9 +170,15 @@ class SharedGoalSerializer(GoalSerializer):
         return collective_progress(obj)
 
     def get_participants(self, obj):
-        rows = obj.participants.filter(
-            status=GoalParticipant.Status.ACTIVE
-        ).order_by("joined_at", "created_at")
+        if hasattr(obj, "_prefetched_objects_cache") and "participants" in obj._prefetched_objects_cache:
+            rows = [p for p in obj.participants.all() if p.status in (GoalParticipant.Status.ACTIVE, GoalParticipant.Status.INVITED)]
+            rows.sort(key=lambda p: (p.joined_at or p.created_at, p.created_at))
+        else:
+            rows = (
+                obj.participants.filter(status__in=[GoalParticipant.Status.ACTIVE, GoalParticipant.Status.INVITED])
+                .select_related("user")
+                .order_by("joined_at", "created_at")
+            )
         return GoalParticipantSerializer(rows, many=True).data
 
     def get_membership_role(self, obj):
@@ -158,6 +188,38 @@ class SharedGoalSerializer(GoalSerializer):
     def get_membership_status(self, obj):
         participant = self._viewer_participant(obj)
         return participant.status if participant is not None else None
+
+    def get_group_summary(self, obj):
+        return shared_goal_group_summary(obj)
+
+    def get_milestones(self, obj):
+        return shared_goal_milestones(obj)
+
+    def get_weekly_reflection(self, obj):
+        return shared_goal_weekly_reflection(obj)
+
+    def get_participant_limit(self, obj) -> int:
+        return MAX_SHARED_GOAL_PARTICIPANTS
+
+
+class GoalOwnershipTransferSerializer(serializers.Serializer):
+    participant_id = serializers.CharField(required=False, allow_blank=True, default=None)
+    user_id = serializers.CharField(required=False, allow_blank=True, default=None)
+
+    def validate(self, attrs):
+        if not attrs.get("participant_id") and not attrs.get("user_id"):
+            raise serializers.ValidationError("Either participant_id or user_id must be provided.")
+        return attrs
+
+
+class GoalReinviteSerializer(serializers.Serializer):
+    participant_id = serializers.CharField(required=False, allow_blank=True, default=None)
+    user_id = serializers.CharField(required=False, allow_blank=True, default=None)
+
+    def validate(self, attrs):
+        if not attrs.get("participant_id") and not attrs.get("user_id"):
+            raise serializers.ValidationError("Either participant_id or user_id must be provided.")
+        return attrs
 
 
 class GoalCreateSerializer(serializers.Serializer):

@@ -296,6 +296,59 @@ class GoalDetailViewModelTest {
         assertTrue(actState.hasMore)
     }
 
+    @Test
+    fun transferOwnership_callsRepositoryAndUpdatesState() = runTest {
+        val roster = listOf(
+            GoalParticipant("p1", "u1", "Owner", GoalParticipantRole.OWNER, GoalParticipantStatus.ACTIVE, null, null, null),
+            GoalParticipant("p2", "u2", "Rahul", GoalParticipantRole.PARTICIPANT, GoalParticipantStatus.ACTIVE, null, null, null),
+        )
+        val repo = DetailFakeRepo(current = sample("g_shared"), initialRoster = roster)
+        val vm = GoalDetailViewModel(
+            savedStateHandle = handle("g_shared"),
+            repository = repo,
+            userRepository = FakeUserRepository(),
+            authSession = AuthSession(),
+            homeFreshness = HomeFreshness(),
+            haptics = FakePromiseHaptics(),
+            appEventBus = eventBus,
+        )
+        advanceUntilIdle()
+
+        var done = false
+        vm.transferOwnership(participantId = "p2") { done = true }
+        advanceUntilIdle()
+
+        assertTrue(done)
+        val state = vm.state.value as LoadState.Ready
+        val ui = state.value as GoalDetailUi.Full
+        assertFalse(ui.goal.isOwnerViewer)
+    }
+
+    @Test
+    fun reinviteParticipant_callsRepositoryAndRefreshesRoster() = runTest {
+        val roster = listOf(
+            GoalParticipant("p1", "u1", "Owner", GoalParticipantRole.OWNER, GoalParticipantStatus.ACTIVE, null, null, null),
+            GoalParticipant("p2", "u2", "Declined", GoalParticipantRole.PARTICIPANT, GoalParticipantStatus.DECLINED, null, null, null),
+        )
+        val repo = DetailFakeRepo(current = sample("g_shared"), initialRoster = roster)
+        val vm = GoalDetailViewModel(
+            savedStateHandle = handle("g_shared"),
+            repository = repo,
+            userRepository = FakeUserRepository(),
+            authSession = AuthSession(),
+            homeFreshness = HomeFreshness(),
+            haptics = FakePromiseHaptics(),
+            appEventBus = eventBus,
+        )
+        advanceUntilIdle()
+
+        vm.reinviteParticipant(participantId = "p2")
+        advanceUntilIdle()
+
+        val action = vm.inviteSheetAction.value
+        assertTrue(action is ActionState.Idle)
+    }
+
     private fun handle(id: String): SavedStateHandle {
         return SavedStateHandle(mapOf("goalId" to id))
     }
@@ -396,6 +449,22 @@ private class DetailFakeRepo(
     override suspend fun declineInvitation(goalId: String): GoalParticipant {
         declineCalled = true
         return GoalParticipant("p1", "u1", "Me", app.promise.android.domain.GoalParticipantRole.PARTICIPANT, GoalParticipantStatus.DECLINED, null, null, null)
+    }
+
+    override suspend fun reinviteParticipant(
+        goalId: String,
+        participantId: String?,
+        userId: String?,
+    ): GoalParticipant =
+        GoalParticipant(participantId ?: "p_re", userId ?: "u_re", "Reinvited", app.promise.android.domain.GoalParticipantRole.PARTICIPANT, GoalParticipantStatus.INVITED, null, null, null)
+
+    override suspend fun transferOwnership(
+        goalId: String,
+        participantId: String?,
+        userId: String?,
+    ): GoalDetail {
+        current = current.copy(membershipRole = app.promise.android.domain.GoalParticipantRole.PARTICIPANT)
+        return GoalDetail.Full(current)
     }
 
     override suspend fun removeParticipant(goalId: String, userId: String): GoalParticipant {

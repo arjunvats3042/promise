@@ -63,7 +63,7 @@ interface GoalChatRealtimeClient {
 
 @Singleton
 class GoalChatRealtimeClientImpl @Inject constructor(
-    @PublicHttp private val okHttpClient: OkHttpClient,
+    @param:PublicHttp private val okHttpClient: OkHttpClient,
     private val authSession: AuthSession,
     private val sessionRefresher: SessionRefresher,
     private val json: Json,
@@ -92,6 +92,12 @@ class GoalChatRealtimeClientImpl @Inject constructor(
 
     private val eventChannel = Channel<GoalChatRealtimeEvent>(Channel.BUFFERED)
     override val events: Flow<GoalChatRealtimeEvent> = eventChannel.receiveAsFlow()
+
+    private val wsHttpClient by lazy {
+        okHttpClient.newBuilder()
+            .pingInterval(30, TimeUnit.SECONDS)
+            .build()
+    }
 
     private val backoffDelays = listOf(1000L, 2000L, 5000L, 10000L, 30000L)
 
@@ -125,10 +131,6 @@ class GoalChatRealtimeClientImpl @Inject constructor(
                 val request = Request.Builder()
                     .url(wsUrl)
                     .header("Authorization", "Bearer $token")
-                    .build()
-
-                val client = okHttpClient.newBuilder()
-                    .pingInterval(30, TimeUnit.SECONDS)
                     .build()
 
                 val disconnectChannel = Channel<DisconnectReason>(Channel.CONFLATED)
@@ -183,7 +185,7 @@ class GoalChatRealtimeClientImpl @Inject constructor(
                     }
                 }
 
-                val ws = client.newWebSocket(request, listener)
+                val ws = wsHttpClient.newWebSocket(request, listener)
                 activeWebSocket = ws
 
                 val disconnectReason = try {
@@ -207,7 +209,9 @@ class GoalChatRealtimeClientImpl @Inject constructor(
                     break
                 }
 
-                val delayMs = backoffDelays[attempt.coerceAtMost(backoffDelays.lastIndex)]
+                val baseDelay = backoffDelays[attempt.coerceAtMost(backoffDelays.lastIndex)]
+                val jitterMultiplier = 0.8 + (Math.random() * 0.4)
+                val delayMs = (baseDelay * jitterMultiplier).toLong()
                 attempt++
                 delay(delayMs)
             }

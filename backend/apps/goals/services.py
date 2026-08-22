@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.goals.exceptions import (
     GoalAlreadyParticipantError,
     GoalCannotRemoveOwnerError,
+    GoalCannotTransferOwnershipToSelfError,
     GoalChatForbiddenError,
     GoalChatInvalidCursorError,
     GoalChatInvalidMessageError,
@@ -21,6 +22,7 @@ from apps.goals.exceptions import (
     GoalNotFoundError,
     GoalOwnerCannotLeaveError,
     GoalOwnerRequiredError,
+    GoalParticipantLimitReachedError,
     GoalScheduleLockedError,
     GoalTimezoneLockedError,
     GoalValidationError,
@@ -37,7 +39,8 @@ from apps.outbox.services import record_outbox_event
 
 _UNSET = object()
 _TERMINAL_STATUSES = (Goal.Status.COMPLETED, Goal.Status.CANCELLED)
-_INVITE_TTL = timedelta(days=14)
+_INVITE_TTL = timedelta(days=7)
+MAX_SHARED_GOAL_PARTICIPANTS = 10
 _VIEWABLE_PARTICIPANT_STATUSES = (
     GoalParticipant.Status.ACTIVE,
     GoalParticipant.Status.INVITED,
@@ -50,6 +53,12 @@ _ENDED_MEMBERSHIP_STATUSES = (
 
 def get_participant(goal, user):
     if goal is None or user is None:
+        return None
+    if hasattr(goal, "_prefetched_objects_cache") and "participants" in goal._prefetched_objects_cache:
+        user_id = getattr(user, "id", user)
+        for p in goal.participants.all():
+            if p.user_id == user_id:
+                return p
         return None
     return GoalParticipant.objects.filter(goal=goal, user=user).first()
 
@@ -126,7 +135,11 @@ def is_invite_preview(user, goal):
 
 
 def is_shared_goal(goal):
-    return goal.is_shared or goal.participants.exclude(role=GoalParticipant.Role.OWNER).exists()
+    if goal.is_shared:
+        return True
+    if hasattr(goal, "_prefetched_objects_cache") and "participants" in goal._prefetched_objects_cache:
+        return any(p.role != GoalParticipant.Role.OWNER for p in goal.participants.all())
+    return goal.participants.exclude(role=GoalParticipant.Role.OWNER).exists()
 
 
 def can_view_chat(user, goal):
@@ -146,9 +159,22 @@ def can_update_read_state(user, goal):
 
 
 def invite_expires_at(participant):
-    if participant is None or participant.invited_at is None:
+    if participant is None:
         return None
-    return participant.invited_at + _INVITE_TTL
+    if participant.invitation_expires_at is not None:
+        return participant.invitation_expires_at
+    if participant.invited_at is not None:
+        return participant.invited_at + _INVITE_TTL
+    return None
+
+
+def is_invite_expired(participant):
+    if participant is None or participant.status != GoalParticipant.Status.INVITED:
+        return False
+    expires = invite_expires_at(participant)
+    if expires is None:
+        return False
+    return timezone.now() > expires
 
 
 def list_active_participants(*, viewer, goal_id):
@@ -167,14 +193,14 @@ def _lookup_goal(goal_id):
     if isinstance(goal_id, int) or (isinstance(goal_id, str) and str(goal_id).isdigit()):
         return (
             Goal.objects.filter(numeric_id=int(goal_id))
-            .prefetch_related("check_ins", "events", "participants")
+            .prefetch_related("check_ins", "events", "participants", "participants__user")
             .first()
         )
     try:
         val = uuid.UUID(str(goal_id))
         return (
             Goal.objects.filter(id=val)
-            .prefetch_related("check_ins", "events", "participants")
+            .prefetch_related("check_ins", "events", "participants", "participants__user")
             .first()
         )
     except (ValueError, AttributeError):
@@ -209,7 +235,7 @@ def list_visible_goals(
         queryset = queryset.filter(recurrence_kind=recurrence_kind)
     if tracking_kind is not None:
         queryset = queryset.filter(tracking_kind=tracking_kind)
-    return queryset.prefetch_related("check_ins", "events", "participants")
+    return queryset.prefetch_related("check_ins", "events", "participants", "participants__user")
 
 
 def list_goal_check_ins(
@@ -320,6 +346,11 @@ def invite_participant(*, actor, goal_id, user_id):
         if not goal.is_shared:
             goal.is_shared = True
             goal.save(update_fields=["is_shared", "updated_at"])
+
+        active_count = goal.participants.filter(status=GoalParticipant.Status.ACTIVE).count()
+        if active_count >= MAX_SHARED_GOAL_PARTICIPANTS:
+            raise GoalParticipantLimitReachedError()
+
         target = get_user_model().objects.filter(id=user_id).first()
         if target is None:
             raise GoalValidationError()
@@ -331,21 +362,24 @@ def invite_participant(*, actor, goal_id, user_id):
             .filter(goal=goal, user=target)
             .first()
         )
+        now = timezone.now()
         if participant is not None:
             if participant.status == GoalParticipant.Status.ACTIVE:
                 raise GoalAlreadyParticipantError()
-            if participant.status == GoalParticipant.Status.INVITED:
+            if participant.status == GoalParticipant.Status.INVITED and not _invite_is_expired(participant):
                 return participant
             if participant.status not in (
                 GoalParticipant.Status.DECLINED,
                 GoalParticipant.Status.LEFT,
                 GoalParticipant.Status.REMOVED,
+                GoalParticipant.Status.INVITED,
             ):
                 raise GoalInvalidParticipantStateError()
-            now = timezone.now()
+
             participant.role = GoalParticipant.Role.PARTICIPANT
             participant.status = GoalParticipant.Status.INVITED
             participant.invited_at = now
+            participant.invitation_expires_at = now + _INVITE_TTL
             participant.joined_at = None
             participant.left_at = None
             participant.save(
@@ -353,6 +387,7 @@ def invite_participant(*, actor, goal_id, user_id):
                     "role",
                     "status",
                     "invited_at",
+                    "invitation_expires_at",
                     "joined_at",
                     "left_at",
                     "updated_at",
@@ -366,7 +401,6 @@ def invite_participant(*, actor, goal_id, user_id):
             )
             return participant
 
-        now = timezone.now()
         try:
             participant = GoalParticipant.objects.create(
                 goal=goal,
@@ -374,6 +408,7 @@ def invite_participant(*, actor, goal_id, user_id):
                 role=GoalParticipant.Role.PARTICIPANT,
                 status=GoalParticipant.Status.INVITED,
                 invited_at=now,
+                invitation_expires_at=now + _INVITE_TTL,
             )
         except IntegrityError:
             participant = (
@@ -394,11 +429,68 @@ def invite_participant(*, actor, goal_id, user_id):
         return participant
 
 
+def reinvite_participant(*, actor, goal_id, participant_id=None, user_id=None):
+    with transaction.atomic():
+        goal = _lock_for_manager(actor, goal_id)
+        if goal.status in _TERMINAL_STATUSES:
+            raise GoalInvalidTransitionError()
+        if not goal.is_shared:
+            raise GoalNotFoundError()
+
+        active_count = goal.participants.filter(status=GoalParticipant.Status.ACTIVE).count()
+        if active_count >= MAX_SHARED_GOAL_PARTICIPANTS:
+            raise GoalParticipantLimitReachedError()
+
+        query = GoalParticipant.objects.select_for_update().filter(goal=goal)
+        if participant_id is not None:
+            participant = query.filter(Q(id=participant_id) | Q(numeric_id=participant_id) if str(participant_id).isdigit() else Q(id=participant_id)).first()
+        elif user_id is not None:
+            participant = query.filter(Q(user_id=user_id) | Q(user__numeric_id=user_id) if str(user_id).isdigit() else Q(user_id=user_id)).first()
+        else:
+            raise GoalValidationError()
+
+        if participant is None:
+            raise GoalNotFoundError()
+        if participant.status == GoalParticipant.Status.ACTIVE:
+            raise GoalAlreadyParticipantError()
+        if participant.status == GoalParticipant.Status.INVITED and not _invite_is_expired(participant):
+            return participant
+
+        now = timezone.now()
+        participant.role = GoalParticipant.Role.PARTICIPANT
+        participant.status = GoalParticipant.Status.INVITED
+        participant.invited_at = now
+        participant.invitation_expires_at = now + _INVITE_TTL
+        participant.joined_at = None
+        participant.left_at = None
+        participant.save(
+            update_fields=[
+                "role",
+                "status",
+                "invited_at",
+                "invitation_expires_at",
+                "joined_at",
+                "left_at",
+                "updated_at",
+            ]
+        )
+        _add_participant_event(
+            goal,
+            actor=actor,
+            event_type=GoalEvent.EventType.PARTICIPANT_REINVITED,
+            participant=participant,
+        )
+        return participant
+
+
 def accept_invitation(*, actor, goal_id):
     with transaction.atomic():
         goal = Goal.objects.select_for_update().filter(id=goal_id).first()
-        if goal is None:
+        if goal is None or not goal.is_shared:
             raise GoalNotFoundError()
+        if goal.status != Goal.Status.ACTIVE:
+            raise GoalInvalidTransitionError()
+
         participant = (
             GoalParticipant.objects.select_for_update()
             .filter(goal=goal, user=actor)
@@ -412,8 +504,10 @@ def accept_invitation(*, actor, goal_id):
             raise GoalInviteRevokedError()
         if _invite_is_expired(participant):
             raise GoalInviteExpiredError()
-        if goal.status in _TERMINAL_STATUSES:
-            raise GoalInvalidTransitionError()
+
+        active_count = goal.participants.filter(status=GoalParticipant.Status.ACTIVE).count()
+        if active_count >= MAX_SHARED_GOAL_PARTICIPANTS:
+            raise GoalParticipantLimitReachedError()
 
         now = timezone.now()
         participant.status = GoalParticipant.Status.ACTIVE
@@ -427,6 +521,60 @@ def accept_invitation(*, actor, goal_id):
             participant=participant,
         )
         return participant
+
+
+def transfer_goal_ownership(*, actor, goal_id, target_participant_id=None, target_user_id=None):
+    with transaction.atomic():
+        goal = Goal.objects.select_for_update().filter(id=goal_id).first()
+        if goal is None or not goal.is_shared:
+            raise GoalNotFoundError()
+        if goal.status != Goal.Status.ACTIVE:
+            raise GoalInvalidTransitionError()
+
+        current_owner = (
+            GoalParticipant.objects.select_for_update()
+            .filter(goal=goal, user=actor, role=GoalParticipant.Role.OWNER, status=GoalParticipant.Status.ACTIVE)
+            .first()
+        )
+        if current_owner is None:
+            raise GoalOwnerRequiredError()
+
+        query = GoalParticipant.objects.select_for_update().filter(goal=goal)
+        if target_participant_id is not None:
+            target = query.filter(Q(id=target_participant_id) | Q(numeric_id=target_participant_id) if str(target_participant_id).isdigit() else Q(id=target_participant_id)).first()
+        elif target_user_id is not None:
+            target = query.filter(Q(user_id=target_user_id) | Q(user__numeric_id=target_user_id) if str(target_user_id).isdigit() else Q(user_id=target_user_id)).first()
+        else:
+            raise GoalValidationError()
+
+        if target is None:
+            raise GoalNotFoundError()
+        if target.user_id == actor.id:
+            raise GoalCannotTransferOwnershipToSelfError()
+        if target.status != GoalParticipant.Status.ACTIVE:
+            raise GoalInvalidParticipantStateError("Target must be an active participant.")
+
+        now = timezone.now()
+        current_owner.role = GoalParticipant.Role.PARTICIPANT
+        current_owner.save(update_fields=["role", "updated_at"])
+
+        target.role = GoalParticipant.Role.OWNER
+        target.save(update_fields=["role", "updated_at"])
+
+        goal.created_by = target.user
+        goal.save(update_fields=["created_by", "updated_at"])
+
+        _add_event(
+            goal,
+            actor=actor,
+            event_type=GoalEvent.EventType.GOAL_OWNERSHIP_TRANSFERRED,
+            metadata={
+                "previous_owner_id": str(actor.id),
+                "new_owner_id": str(target.user_id),
+                "new_owner_name": target.user.name,
+            },
+        )
+        return goal
 
 
 def decline_invitation(*, actor, goal_id):
@@ -1204,12 +1352,28 @@ def _validate_end_date(start_date, end_date):
 
 
 def _invite_is_expired(participant, *, at=None):
-    if participant.invited_at is None:
+    if participant is None:
         return True
-    return _now(at) > participant.invited_at + _INVITE_TTL
+    now = _now(at)
+    if participant.invitation_expires_at is not None:
+        return now > participant.invitation_expires_at
+    if participant.invited_at is not None:
+        return now > (participant.invited_at + _INVITE_TTL)
+    return True
 
 
 def _owner_participant(goal):
+    if hasattr(goal, "_prefetched_objects_cache") and "participants" in goal._prefetched_objects_cache:
+        active_owners = [
+            p for p in goal.participants.all()
+            if p.role == GoalParticipant.Role.OWNER and p.status == GoalParticipant.Status.ACTIVE
+        ]
+        if active_owners:
+            return sorted(active_owners, key=lambda p: p.created_at)[0]
+        for p in goal.participants.all():
+            if p.user_id == goal.created_by_id:
+                return p
+        return None
     owner = (
         GoalParticipant.objects.filter(
             goal=goal,
@@ -1798,6 +1962,8 @@ _OUTBOX_EVENT_TYPES = {
     GoalEvent.EventType.PARTICIPANT_DECLINED: "goal.participant.declined",
     GoalEvent.EventType.PARTICIPANT_LEFT: "goal.participant.left",
     GoalEvent.EventType.PARTICIPANT_REMOVED: "goal.participant.removed",
+    GoalEvent.EventType.GOAL_OWNERSHIP_TRANSFERRED: "goal.ownership_transferred",
+    GoalEvent.EventType.PARTICIPANT_REINVITED: "goal.participant.reinvited",
 }
 
 
@@ -2080,6 +2246,8 @@ ACTIVITY_EVENT_TYPES = [
     GoalEvent.EventType.PARTICIPANT_JOINED,
     GoalEvent.EventType.PARTICIPANT_LEFT,
     GoalEvent.EventType.PARTICIPANT_REMOVED,
+    GoalEvent.EventType.GOAL_OWNERSHIP_TRANSFERRED,
+    GoalEvent.EventType.PARTICIPANT_REINVITED,
 ]
 
 
@@ -2118,6 +2286,14 @@ def _format_activity_summary(goal, event, target_users_by_id):
         target_user = target_users_by_id.get(target_id)
         target_name = target_user.name if target_user else "A participant"
         return f"{target_name} was removed by {actor_name}"
+
+    if ev_type == GoalEvent.EventType.GOAL_OWNERSHIP_TRANSFERRED:
+        new_name = meta.get("new_owner_name") or "another member"
+        return f"{actor_name} transferred ownership to {new_name}"
+
+    if ev_type == GoalEvent.EventType.PARTICIPANT_REINVITED:
+        reinvited_name = meta.get("reinvited_user_name") or "A participant"
+        return f"{actor_name} re-invited {reinvited_name}"
 
     if ev_type == GoalEvent.EventType.COMPLETED:
         return f"{actor_name} marked the goal as completed"
@@ -2199,3 +2375,254 @@ def get_goal_activity(*, viewer, goal_id, limit=20, before_created_at=None, befo
             "created_at": ev.created_at,
         })
     return items
+
+
+def shared_goal_group_summary(goal):
+    """Calculates deterministic collective summary for the current day and period."""
+    if not goal.is_shared:
+        return None
+
+    if hasattr(goal, "_prefetched_objects_cache") and "participants" in goal._prefetched_objects_cache:
+        active_participants = [p for p in goal.participants.all() if p.status == GoalParticipant.Status.ACTIVE]
+    else:
+        active_participants = list(goal.participants.filter(status=GoalParticipant.Status.ACTIVE))
+
+    active_count = len(active_participants)
+    if active_count == 0:
+        return {
+            "active_participants_count": 0,
+            "today_completed_count": 0,
+            "today_completion_rate": 0.0,
+            "current_period_completed_count": 0,
+            "current_period_target_count": 0,
+            "current_period_completion_rate": 0.0,
+            "headline": "No active participants",
+        }
+
+    active_ids = {p.id for p in active_participants}
+    tz = ZoneInfo(goal.timezone or "UTC")
+    today = timezone.now().astimezone(tz).date()
+
+    # Current period (week) bounds
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+
+    if hasattr(goal, "_prefetched_objects_cache") and "check_ins" in goal._prefetched_objects_cache:
+        all_checkins = list(goal.check_ins.all())
+        today_completed_count = sum(
+            1 for c in all_checkins
+            if c.period_date == today and c.status == GoalCheckIn.Status.COMPLETED and (c.participant_id in active_ids or (c.participant and c.participant.status == GoalParticipant.Status.ACTIVE))
+        )
+        week_checkins = [
+            c for c in all_checkins
+            if start_of_week <= c.period_date <= end_of_week and c.status == GoalCheckIn.Status.COMPLETED and (c.participant_id in active_ids or (c.participant and c.participant.status == GoalParticipant.Status.ACTIVE))
+        ]
+        week_completed_count = len(week_checkins)
+        week_sum_value = sum(c.value or 0 for c in week_checkins)
+    else:
+        today_completed_count = goal.check_ins.filter(
+            period_date=today,
+            status=GoalCheckIn.Status.COMPLETED,
+            participant__status=GoalParticipant.Status.ACTIVE,
+        ).count()
+        week_qs = goal.check_ins.filter(
+            period_date__gte=start_of_week,
+            period_date__lte=end_of_week,
+            status=GoalCheckIn.Status.COMPLETED,
+            participant__status=GoalParticipant.Status.ACTIVE,
+        )
+        week_completed_count = week_qs.count()
+        week_sum_value = week_qs.aggregate(models.Sum("value"))["value__sum"] or 0
+
+    today_rate = round(today_completed_count / active_count, 2)
+
+    if goal.tracking_kind == Goal.TrackingKind.COUNT:
+        total_value = week_sum_value
+        expected_per_member = (goal.target_value or 1) * (goal.times_per_period if goal.recurrence_kind == Goal.RecurrenceKind.N_PER_PERIOD else (len(goal.weekdays) if goal.recurrence_kind == Goal.RecurrenceKind.WEEKLY_DAYS else 7))
+        target_value = expected_per_member * active_count
+        period_rate = round(min(1.0, total_value / target_value), 2) if target_value > 0 else 0.0
+        unit = goal.target_unit or "units"
+        headline = f"{total_value} of {target_value} {unit} this week"
+        completed_metric = total_value
+        target_metric = target_value
+    else:
+        completed_metric = week_completed_count
+        expected_per_member = goal.times_per_period if goal.recurrence_kind == Goal.RecurrenceKind.N_PER_PERIOD else (len(goal.weekdays) if goal.recurrence_kind == Goal.RecurrenceKind.WEEKLY_DAYS else 7)
+        target_metric = expected_per_member * active_count
+        period_rate = round(min(1.0, completed_metric / target_metric), 2) if target_metric > 0 else 0.0
+        pct = int(period_rate * 100)
+        headline = f"{today_completed_count} of {active_count} completed today • {pct}% group weekly pace"
+
+    return {
+        "active_participants_count": active_count,
+        "today_completed_count": today_completed_count,
+        "today_completion_rate": today_rate,
+        "current_period_completed_count": completed_metric,
+        "current_period_target_count": target_metric,
+        "current_period_completion_rate": period_rate,
+        "headline": headline,
+    }
+
+
+def shared_goal_milestones(goal):
+    """Calculates deterministic lightweight milestone status without extra persistence."""
+    if not goal.is_shared:
+        return []
+
+    if hasattr(goal, "_prefetched_objects_cache") and "check_ins" in goal._prefetched_objects_cache:
+        completed_checkins = [c for c in goal.check_ins.all() if c.status == GoalCheckIn.Status.COMPLETED]
+        total_completed = len(completed_checkins)
+        total_count_value = sum(c.value or 0 for c in completed_checkins) if goal.tracking_kind == Goal.TrackingKind.COUNT else 0
+        distinct_weeks = len({c.period_date.isocalendar()[:2] for c in completed_checkins})
+    else:
+        total_completed = goal.check_ins.filter(
+            status=GoalCheckIn.Status.COMPLETED,
+        ).count()
+
+        total_count_value = 0
+        if goal.tracking_kind == Goal.TrackingKind.COUNT:
+            total_count_value = goal.check_ins.filter(
+                status=GoalCheckIn.Status.COMPLETED,
+            ).aggregate(models.Sum("value"))["value__sum"] or 0
+
+        checkin_dates = list(
+            goal.check_ins.filter(status=GoalCheckIn.Status.COMPLETED)
+            .values_list("period_date", flat=True)
+        )
+        distinct_weeks = len({d.isocalendar()[:2] for d in checkin_dates})
+
+    milestones_def = [
+        {
+            "key": "FIRST_SHARED_WEEK",
+            "title": "First Week Together",
+            "description": "Completed practice check-ins across the first week.",
+            "achieved": distinct_weeks >= 1,
+            "target": 1,
+            "current": distinct_weeks,
+        },
+        {
+            "key": "PRACTICES_10",
+            "title": "10 Practices Completed",
+            "description": "Your group has recorded 10 completed practices.",
+            "achieved": total_completed >= 10,
+            "target": 10,
+            "current": total_completed,
+        },
+        {
+            "key": "PRACTICES_30",
+            "title": "30 Practices Completed",
+            "description": "Your group has recorded 30 completed practices.",
+            "achieved": total_completed >= 30,
+            "target": 30,
+            "current": total_completed,
+        },
+        {
+            "key": "PRACTICES_50",
+            "title": "50 Practices Completed",
+            "description": "Your group has recorded 50 practices completed together.",
+            "achieved": total_completed >= 50,
+            "target": 50,
+            "current": total_completed,
+        },
+        {
+            "key": "PRACTICES_100",
+            "title": "100 Practices Completed",
+            "description": "Your group has recorded 100 completed practices.",
+            "achieved": total_completed >= 100,
+            "target": 100,
+            "current": total_completed,
+        },
+    ]
+
+    if goal.tracking_kind == Goal.TrackingKind.COUNT:
+        unit = goal.target_unit or "units"
+        milestones_def.extend([
+            {
+                "key": "COUNT_MILESTONE_100",
+                "title": f"100 {unit.capitalize()} Reached",
+                "description": f"The group has recorded over 100 {unit} together.",
+                "achieved": total_count_value >= 100,
+                "target": 100,
+                "current": total_count_value,
+            },
+            {
+                "key": "COUNT_MILESTONE_500",
+                "title": f"500 {unit.capitalize()} Reached",
+                "description": f"The group has recorded over 500 {unit} together.",
+                "achieved": total_count_value >= 500,
+                "target": 500,
+                "current": total_count_value,
+            },
+        ])
+
+    return milestones_def
+
+
+def shared_goal_weekly_reflection(goal):
+    """Generates a neutral, deterministic weekly summary for the current ISO week."""
+    if not goal.is_shared:
+        return None
+
+    tz = ZoneInfo(goal.timezone or "UTC")
+    today = timezone.now().astimezone(tz).date()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+
+    if hasattr(goal, "_prefetched_objects_cache") and "participants" in goal._prefetched_objects_cache:
+        active_participants = [p for p in goal.participants.all() if p.status == GoalParticipant.Status.ACTIVE]
+    else:
+        active_participants = list(goal.participants.filter(status=GoalParticipant.Status.ACTIVE))
+
+    active_count = len(active_participants)
+    if active_count == 0:
+        return None
+
+    active_ids = {p.id for p in active_participants}
+    expected_per_member = goal.times_per_period if goal.recurrence_kind == Goal.RecurrenceKind.N_PER_PERIOD else (len(goal.weekdays) if goal.recurrence_kind == Goal.RecurrenceKind.WEEKLY_DAYS else 7)
+    expected_total = expected_per_member * active_count
+
+    if hasattr(goal, "_prefetched_objects_cache") and "check_ins" in goal._prefetched_objects_cache:
+        all_checkins = list(goal.check_ins.all())
+        week_checkins = [
+            c for c in all_checkins
+            if start_of_week <= c.period_date <= end_of_week and c.status == GoalCheckIn.Status.COMPLETED and (c.participant_id in active_ids or (c.participant and c.participant.status == GoalParticipant.Status.ACTIVE))
+        ]
+        completed_total = len(week_checkins)
+        total_val = sum(c.value or 0 for c in week_checkins)
+        members_with_checkins = len({c.participant_id for c in week_checkins})
+    else:
+        week_checkins_qs = goal.check_ins.filter(
+            period_date__gte=start_of_week,
+            period_date__lte=end_of_week,
+            status=GoalCheckIn.Status.COMPLETED,
+            participant__status=GoalParticipant.Status.ACTIVE,
+        )
+        completed_total = week_checkins_qs.count()
+        total_val = week_checkins_qs.aggregate(models.Sum("value"))["value__sum"] or 0
+        members_with_checkins = week_checkins_qs.values("participant_id").distinct().count()
+
+    pct = round((completed_total / expected_total) * 100, 1) if expected_total > 0 else 0.0
+
+    if goal.tracking_kind == Goal.TrackingKind.COUNT:
+        expected_val = (goal.target_value or 1) * expected_total
+        unit = goal.target_unit or "units"
+        reflection_text = f"This week, the group completed {total_val} of {expected_val} {unit}."
+    else:
+        reflection_text = f"This week, your group completed {completed_total} of {expected_total} planned practices."
+
+    if members_with_checkins == active_count:
+        trend_text = "All active members checked in this week."
+    elif members_with_checkins > 0:
+        trend_text = f"{members_with_checkins} of {active_count} members checked in this week."
+    else:
+        trend_text = "No practices recorded yet this week."
+
+    return {
+        "period_start": start_of_week.isoformat(),
+        "period_end": end_of_week.isoformat(),
+        "completed": completed_total,
+        "expected": expected_total,
+        "percentage": pct,
+        "reflection_text": reflection_text,
+        "trend_text": trend_text,
+    }

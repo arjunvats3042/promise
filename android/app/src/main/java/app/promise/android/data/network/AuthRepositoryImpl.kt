@@ -229,6 +229,96 @@ class AuthRepositoryImpl(
         }
     }
 
+    override suspend fun linkGoogle(idToken: String) {
+        try {
+            val response = authedApi.linkGoogle(GoogleLinkRequest(idToken = idToken))
+            val user = response.user.toDomain()
+            memory.setUser(user)
+            _session.value = SessionState.Authenticated(user)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun unlinkGoogle() {
+        try {
+            val response = authedApi.unlinkGoogle()
+            val user = response.user.toDomain()
+            memory.setUser(user)
+            _session.value = SessionState.Authenticated(user)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun requestEmailChange(newEmail: String, currentPassword: String?): String {
+        return try {
+            val res = authedApi.emailChangeRequest(EmailChangeRequest(newEmail = newEmail.trim(), currentPassword = currentPassword))
+            res.debugToken ?: res.detail
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun confirmEmailChange(token: String) {
+        try {
+            val response = authedApi.emailChangeConfirm(EmailChangeConfirmRequest(token = token.trim()))
+            val user = response.user.toDomain()
+            memory.setUser(user)
+            _session.value = SessionState.Authenticated(user)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun getSessions(): List<app.promise.android.domain.UserSession> {
+        return try {
+            authedApi.getSessions().sessions.map { it.toDomain() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun revokeSession(sessionId: String) {
+        try {
+            authedApi.revokeSession(sessionId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun revokeAllSessions(exceptCurrent: Boolean) {
+        try {
+            authedApi.revokeAllSessions(RevokeAllSessionsRequest(exceptCurrent = exceptCurrent))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun getSecurityEvents(): List<app.promise.android.domain.SecurityEventItem> {
+        return try {
+            authedApi.getSecurityEvents().results.map { it.toDomain() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
     private suspend fun acceptAuthenticated(response: AuthSessionResponse) {
         AppLog.d(TAG, "auth response accepted; persisting session")
         try {

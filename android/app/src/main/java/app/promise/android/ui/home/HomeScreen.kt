@@ -545,6 +545,9 @@ fun CommitmentTodayRow(
             .fillMaxWidth()
             .animateContentSize(animationSpec = Motion.standardTween(Motion.CompletionMs))
     }
+    val statusText = if (commitment.isCompleted) "Completed" else if (commitment.isOverdue) "Overdue" else "Due"
+    val commitmentDesc = "${commitment.title}, $statusText, ${commitment.dueLabel}"
+
     Row(
         modifier = animModifier.padding(vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
@@ -554,7 +557,11 @@ fun CommitmentTodayRow(
             modifier = Modifier
                 .size(TouchTarget.min)
                 .semantics {
-                    contentDescription = "Complete ${commitment.title}"
+                    contentDescription = if (commitment.isCompleted) {
+                        "${commitment.title} completed"
+                    } else {
+                        "Mark ${commitment.title} completed"
+                    }
                 },
         ) {
             Icon(
@@ -570,7 +577,10 @@ fun CommitmentTodayRow(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .clickable(onClick = onOpen),
+                .clickable(onClick = onOpen)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = commitmentDesc
+                },
         ) {
             Text(
                 text = commitment.title,
@@ -587,8 +597,7 @@ fun CommitmentTodayRow(
                         modifier = Modifier
                             .size(Spacing.statusMark)
                             .clip(CircleShape)
-                            .background(colors.warning)
-                            .semantics { contentDescription = "Overdue" },
+                            .background(colors.warning),
                     )
                     Spacer(modifier = Modifier.width(Spacing.xs))
                 }
@@ -622,6 +631,14 @@ fun PracticeRow(
             .fillMaxWidth()
             .animateContentSize(animationSpec = Motion.standardTween(Motion.CompletionMs))
     }
+    val practiceDesc = buildString {
+        append(practice.title)
+        if (practice.isShared) append(", Shared practice")
+        if (practice.streakDays > 0) append(", ${practice.streakDays} day streak")
+        append(", ${practice.progressLabel}")
+        if (practice.checkedInToday) append(", Checked in today")
+    }
+
     Column(
         modifier = animModifier.padding(vertical = Spacing.sm),
     ) {
@@ -632,7 +649,10 @@ fun PracticeRow(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = onOpen),
+                    .clickable(onClick = onOpen)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = practiceDesc
+                    },
             ) {
                 Text(
                     text = practice.title,
@@ -677,7 +697,7 @@ fun PracticeRow(
                     .heightIn(min = TouchTarget.min)
                     .semantics {
                         contentDescription = if (practice.checkedInToday) {
-                            "${practice.title} checked in"
+                            "${practice.title} checked in today"
                         } else {
                             "Check in ${practice.title}"
                         }

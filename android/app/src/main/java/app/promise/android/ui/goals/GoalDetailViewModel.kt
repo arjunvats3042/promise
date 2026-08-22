@@ -113,6 +113,9 @@ class GoalDetailViewModel @Inject constructor(
                     when (event) {
                         is AppMutationEvent.GoalCheckedIn -> if (event.goalId == goalId) reloadQuiet()
                         is AppMutationEvent.SharedGoalMembershipChanged -> if (event.goalId == goalId) reloadQuiet()
+                        is AppMutationEvent.OwnershipTransferred -> if (event.goalId == goalId) reloadQuiet()
+                        is AppMutationEvent.InvitationUpdated -> if (event.goalId == goalId) reloadQuiet()
+                        is AppMutationEvent.SharedGoalSummaryChanged -> if (event.goalId == goalId) reloadQuiet()
                         is AppMutationEvent.GoalUpdated -> if (event.goalId == goalId) reloadQuiet()
                         is AppMutationEvent.GoalPaused -> if (event.goalId == goalId) reloadQuiet()
                         is AppMutationEvent.GoalResumed -> if (event.goalId == goalId) reloadQuiet()
@@ -341,6 +344,61 @@ class GoalDetailViewModel @Inject constructor(
                 haptics.error()
             } catch (_: Throwable) {
                 _inviteSheetAction.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
+
+    fun reinviteParticipant(participantId: String? = null, userId: String? = null) {
+        if (_inviteSheetAction.value is ActionState.InFlight) return
+        viewModelScope.launch {
+            _inviteSheetAction.value = ActionState.InFlight
+            try {
+                repository.reinviteParticipant(goalId, participantId = participantId, userId = userId)
+                _inviteSheetAction.value = ActionState.Idle
+                homeFreshness.markDirty()
+                haptics.confirm()
+                refreshRoster()
+                appEventBus.emit(AppMutationEvent.InvitationUpdated(goalId))
+            } catch (e: ApiException) {
+                _inviteSheetAction.value = ActionState.Failed(e.toErrorKind())
+                haptics.error()
+            } catch (_: Throwable) {
+                _inviteSheetAction.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
+
+    fun transferOwnership(participantId: String? = null, userId: String? = null, onDone: () -> Unit = {}) {
+        if (_action.value is ActionState.InFlight) return
+        viewModelScope.launch {
+            _action.value = ActionState.InFlight
+            try {
+                val detail = repository.transferOwnership(goalId, participantId = participantId, userId = userId)
+                _action.value = ActionState.Idle
+                homeFreshness.markDirty()
+                haptics.confirm()
+                val current = (_state.value as? LoadState.Ready)?.value as? GoalDetailUi.Full
+                if (current != null) {
+                    when (detail) {
+                        is GoalDetail.Full -> _state.value = LoadState.Ready(
+                            current.copy(goal = detail.goal, roster = detail.goal.participants),
+                        )
+                        is GoalDetail.Invite -> _state.value = LoadState.Ready(
+                            GoalDetailUi.Invite(preview = detail.preview),
+                        )
+                    }
+                } else {
+                    reloadQuiet()
+                }
+                appEventBus.emit(AppMutationEvent.OwnershipTransferred(goalId))
+                onDone()
+            } catch (e: ApiException) {
+                _action.value = ActionState.Failed(e.toErrorKind())
+                haptics.error()
+            } catch (_: Throwable) {
+                _action.value = ActionState.Failed(ErrorKind.Unknown)
                 haptics.error()
             }
         }

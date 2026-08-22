@@ -60,6 +60,12 @@ data class GoogleAuthRequest(
 )
 
 @Serializable
+data class GoogleLinkRequest(
+    @SerialName("id_token")
+    val idToken: String,
+)
+
+@Serializable
 data class VerifyEmailConfirmRequest(
     val token: String,
 )
@@ -89,6 +95,19 @@ data class ChangePasswordRequest(
 )
 
 @Serializable
+data class EmailChangeRequest(
+    @SerialName("new_email")
+    val newEmail: String,
+    @SerialName("current_password")
+    val currentPassword: String? = null,
+)
+
+@Serializable
+data class EmailChangeConfirmRequest(
+    val token: String,
+)
+
+@Serializable
 data class MessageDetailResponse(
     val detail: String,
     @SerialName("debug_token")
@@ -109,4 +128,46 @@ data class UserDto(
     val googleLinked: Boolean = false,
     @SerialName("created_at")
     val createdAt: String,
+)
+
+@Serializable
+data class AuthSessionDto(
+    val id: String,
+    @SerialName("device_name")
+    val deviceName: String = "",
+    val platform: String = "unknown",
+    @SerialName("last_used_at")
+    val lastUsedAt: String,
+    @SerialName("created_at")
+    val createdAt: String,
+    @SerialName("is_current")
+    val isCurrent: Boolean = false,
+)
+
+@Serializable
+data class SessionsResponse(
+    val sessions: List<AuthSessionDto> = emptyList(),
+)
+
+@Serializable
+data class RevokeAllSessionsRequest(
+    @SerialName("except_current")
+    val exceptCurrent: Boolean = true,
+)
+
+@Serializable
+data class SecurityEventDto(
+    val id: String,
+    @SerialName("event_type")
+    val eventType: String,
+    @SerialName("device_name")
+    val deviceName: String = "",
+    val platform: String = "unknown",
+    @SerialName("created_at")
+    val createdAt: String,
+)
+
+@Serializable
+data class SecurityEventsResponse(
+    val results: List<SecurityEventDto> = emptyList(),
 )

@@ -107,14 +107,19 @@ def _publish_batch(publish):
                         event.attempts,
                     )
                 failed += 1
-            event.save(
-                update_fields=[
+        if events:
+            now = timezone.now()
+            for event in events:
+                event.updated_at = now
+            OutboxEvent.objects.bulk_update(
+                events,
+                fields=[
                     "attempts",
                     "published_at",
                     "next_attempt_at",
                     "last_error",
                     "updated_at",
-                ]
+                ],
             )
     return published, failed, len(events)
 

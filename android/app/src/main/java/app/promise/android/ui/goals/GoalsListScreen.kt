@@ -44,7 +44,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -274,7 +277,10 @@ private fun FilterChipsRow(
                         onClick = { onSelect(filter) },
                     )
                     .padding(horizontal = Spacing.md, vertical = Spacing.xs)
-                    .semantics { contentDescription = "${filter.label()} filter" },
+                    .semantics {
+                        role = Role.Tab
+                        this.selected = isSelected
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -298,9 +304,17 @@ fun GoalRow(
     val colors = PromiseThemeColors.current
     val progressLine = GoalPresentation.progressLine(goal)
     val streak = GoalPresentation.streakLine(goal)
+    val statusPrefix = if (goal.status == GoalStatus.PAUSED) "Paused, " else ""
+    val sharedDesc = if (goal.isShared) "Shared goal" else "Personal goal"
+    val streakDesc = if (streak != null) ", $streak streak" else ""
+    val readableProgress = progressLine.replace("/", " of ")
+    val goalDesc = "$statusPrefix${goal.title}, $sharedDesc, ${goalMetaLine(goal)}, $readableProgress$streakDesc"
+
     app.promise.android.ui.components.PromiseCardSurface(
         onClick = onClick,
-        modifier = Modifier.semantics { contentDescription = goal.title },
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription = goalDesc
+        },
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -319,8 +333,7 @@ fun GoalRow(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(colors.warning)
-                                .semantics { contentDescription = "Paused" },
+                                .background(colors.warning),
                         )
                         Spacer(modifier = Modifier.width(Spacing.xs))
                     }
@@ -350,9 +363,6 @@ fun GoalRow(
                 text = progressLine,
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
-                modifier = Modifier.semantics {
-                    contentDescription = progressLine.replace("/", " of ")
-                },
             )
         }
         Spacer(modifier = Modifier.height(Spacing.xs))

@@ -33,6 +33,13 @@ class UserNotificationPreferences(BaseModel):
     goals_evening_reminder = models.BooleanField(default=True)
     goals_evening_reminder_time = models.TimeField(default=datetime.time(20, 30))
 
+    # Shared goal categories
+    shared_goals_activity = models.BooleanField(default=True)
+    shared_goals_chat = models.BooleanField(default=True)
+
+    # Weekly digest
+    weekly_digest_enabled = models.BooleanField(default=False)
+
     # Quiet hours
     quiet_hours_enabled = models.BooleanField(default=True)
     quiet_hours_start = models.TimeField(default=datetime.time(22, 0))
@@ -89,6 +96,9 @@ class Reminder(UUIDBaseModel):
     class EntityType(models.TextChoices):
         COMMITMENT = "COMMITMENT", "Commitment"
         GOAL = "GOAL", "Goal"
+        SYSTEM = "SYSTEM", "System"
+        SECURITY = "SECURITY", "Security"
+        DIGEST = "DIGEST", "Digest"
 
     class ReminderStatus(models.TextChoices):
         SCHEDULED = "SCHEDULED", "Scheduled"
@@ -108,7 +118,7 @@ class Reminder(UUIDBaseModel):
     event_type = models.CharField(max_length=64)
 
     target_timestamp = models.DateTimeField(null=True, blank=True)
-    target_period = models.CharField(max_length=32, blank=True, default="")
+    target_period = models.CharField(max_length=128, blank=True, default="")
 
     identity_key = models.CharField(max_length=255, unique=True)
     status = models.CharField(

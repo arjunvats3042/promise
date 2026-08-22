@@ -204,6 +204,7 @@ class GoalParticipant(BaseModel):
         default=Status.ACTIVE,
     )
     invited_at = models.DateTimeField(null=True, blank=True)
+    invitation_expires_at = models.DateTimeField(null=True, blank=True)
     joined_at = models.DateTimeField(null=True, blank=True)
     left_at = models.DateTimeField(null=True, blank=True)
 
@@ -261,6 +262,12 @@ class GoalCheckIn(BaseModel):
 
     class Meta:
         db_table = "goal_check_ins"
+        indexes = [
+            models.Index(
+                fields=["goal", "period_date"],
+                name="goal_checkin_goal_period_idx",
+            ),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["goal", "participant", "period_date"],
@@ -289,6 +296,8 @@ class GoalEvent(BaseModel):
         PARTICIPANT_DECLINED = "PARTICIPANT_DECLINED", "Participant declined"
         PARTICIPANT_LEFT = "PARTICIPANT_LEFT", "Participant left"
         PARTICIPANT_REMOVED = "PARTICIPANT_REMOVED", "Participant removed"
+        GOAL_OWNERSHIP_TRANSFERRED = "GOAL_OWNERSHIP_TRANSFERRED", "Goal ownership transferred"
+        PARTICIPANT_REINVITED = "PARTICIPANT_REINVITED", "Participant reinvited"
 
     goal = models.ForeignKey(
         Goal,

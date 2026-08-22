@@ -70,3 +70,9 @@ class PasswordAlreadySetError(ApplicationAPIError):
     status_code = status.HTTP_400_BAD_REQUEST
     error_code = "PASSWORD_ALREADY_SET"
     public_message = "A password has already been set for this account. Please use change password."
+
+
+class PasswordRequiredToUnlinkError(ApplicationAPIError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    error_code = "PASSWORD_REQUIRED_TO_UNLINK"
+    public_message = "Cannot unlink Google without setting a password first."

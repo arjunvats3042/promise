@@ -28,6 +28,9 @@ sealed interface AppMutationEvent {
         val goalId: String,
         val changeType: MembershipChangeType = MembershipChangeType.ACCEPTED,
     ) : AppMutationEvent
+    data class OwnershipTransferred(val goalId: String) : AppMutationEvent
+    data class InvitationUpdated(val goalId: String) : AppMutationEvent
+    data class SharedGoalSummaryChanged(val goalId: String) : AppMutationEvent
 
     // Commitment events
     data class CommitmentCreated(val commitmentId: String) : AppMutationEvent

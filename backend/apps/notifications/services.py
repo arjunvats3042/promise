@@ -133,19 +133,24 @@ def mark_reminder_failed(
 def handle_goal_event(envelope: dict) -> None:
     """Processes goal integration events for notifications."""
     event_type = envelope.get("event_type")
+    payload = envelope.get("payload", {})
+    goal_id = payload.get("goal_id")
+
+    if not goal_id:
+        return
+
+    from apps.goals.models import ChatMessage, Goal, GoalParticipant
+
+    goal = Goal.objects.filter(id=goal_id, is_shared=True, status=Goal.Status.ACTIVE).first()
+    if not goal:
+        return
+
+    now = django_timezone.now()
+
     if event_type == "goal.chat.message_created":
-        payload = envelope.get("payload", {})
-        goal_id = payload.get("goal_id")
         message_id = payload.get("message_id")
         sender_id = payload.get("sender_id")
-
-        if not goal_id or not message_id or not sender_id:
-            return
-
-        from apps.goals.models import ChatMessage, Goal, GoalParticipant
-
-        goal = Goal.objects.filter(id=goal_id, is_shared=True, status=Goal.Status.ACTIVE).first()
-        if not goal:
+        if not message_id or not sender_id:
             return
 
         msg = ChatMessage.objects.filter(id=message_id, goal=goal).first()
@@ -161,7 +166,6 @@ def handle_goal_event(envelope: dict) -> None:
             .select_related("user")
         )
 
-        now = django_timezone.now()
         target_hex = uuid.UUID(str(message_id)).hex
         for participant in active_participants:
             identity_key = f"{participant.user_id}:GOAL:{goal.id}:goal.chat.message_created:{message_id}"
@@ -175,3 +179,199 @@ def handle_goal_event(envelope: dict) -> None:
                 target_period=target_hex,
                 identity_key=identity_key,
             )
+
+    elif event_type == "goal.participant.joined":
+        actor_id = payload.get("user_id") or payload.get("actor_id")
+        owner = goal.created_by
+        if owner and str(owner.id) != str(actor_id):
+            actor_name = payload.get("user_name", "A participant")
+            identity_key = f"{owner.id}:GOAL:{goal.id}:goal.participant.joined:{actor_id}"
+            schedule_reminder(
+                user=owner,
+                entity_type=Reminder.EntityType.GOAL,
+                entity_id=goal.id,
+                event_type="goal.participant.joined",
+                scheduled_for=now,
+                target_period=str(actor_id or ""),
+                identity_key=identity_key,
+            )
+
+    elif event_type == "goal.participant.left":
+        actor_id = payload.get("user_id") or payload.get("actor_id")
+        owner = goal.created_by
+        if owner and str(owner.id) != str(actor_id):
+            identity_key = f"{owner.id}:GOAL:{goal.id}:goal.participant.left:{actor_id}:{now.date().isoformat()}"
+            schedule_reminder(
+                user=owner,
+                entity_type=Reminder.EntityType.GOAL,
+                entity_id=goal.id,
+                event_type="goal.participant.left",
+                scheduled_for=now,
+                target_period=str(actor_id or ""),
+                identity_key=identity_key,
+            )
+
+    elif event_type == "goal.participant.removed":
+        target_user_id = payload.get("user_id")
+        if target_user_id:
+            target_user = User.objects.filter(id=target_user_id).first()
+            if target_user:
+                identity_key = f"{target_user.id}:GOAL:{goal.id}:goal.participant.removed:{now.date().isoformat()}"
+                schedule_reminder(
+                    user=target_user,
+                    entity_type=Reminder.EntityType.GOAL,
+                    entity_id=goal.id,
+                    event_type="goal.participant.removed",
+                    scheduled_for=now,
+                    target_period=str(goal.id),
+                    identity_key=identity_key,
+                )
+
+    elif event_type == "goal.ownership_transferred":
+        new_owner_id = payload.get("new_owner_id")
+        if new_owner_id:
+            new_owner = User.objects.filter(id=new_owner_id).first()
+            if new_owner:
+                identity_key = f"{new_owner.id}:GOAL:{goal.id}:goal.ownership_transferred:{now.date().isoformat()}"
+                schedule_reminder(
+                    user=new_owner,
+                    entity_type=Reminder.EntityType.GOAL,
+                    entity_id=goal.id,
+                    event_type="goal.ownership_transferred",
+                    scheduled_for=now,
+                    target_period=str(goal.id),
+                    identity_key=identity_key,
+                )
+
+
+SYSTEM_UUID = uuid.UUID("00000000-0000-0000-0000-000000000000")
+WEEKLY_DIGEST_ANCHOR_DAY = 6  # Sunday
+WEEKLY_DIGEST_ANCHOR_TIME = datetime.time(19, 0)
+
+
+def calculate_weekly_digest_summary(user: User, week_start: datetime.date, week_end: datetime.date) -> Optional[dict]:
+    """Calculates deterministic weekly summary metrics for a user's activity in a given week.
+
+    Returns None if there was zero meaningful activity during the week.
+    """
+    from apps.commitments.models import CommitmentEvent
+    from apps.goals.models import Goal, GoalCheckIn, GoalParticipant
+
+    # 1. Commitments completed by user in the week
+    completed_commitments = CommitmentEvent.objects.filter(
+        commitment__created_by=user,
+        event_type="COMPLETED",
+        created_at__date__gte=week_start,
+        created_at__date__lte=week_end,
+    ).count()
+
+    # 2. Personal goal practices completed
+    user_completed_practices = GoalCheckIn.objects.filter(
+        goal__created_by=user,
+        created_by=user,
+        status=GoalCheckIn.Status.COMPLETED,
+        period_date__gte=week_start,
+        period_date__lte=week_end,
+    ).count()
+
+    # 3. Shared goal practices completed across all groups user is in
+    user_active_shared_goals = Goal.objects.filter(
+        is_shared=True,
+        participants__user=user,
+        participants__status=GoalParticipant.Status.ACTIVE,
+    ).distinct()
+
+    shared_practices = 0
+    if user_active_shared_goals.exists():
+        shared_practices = GoalCheckIn.objects.filter(
+            goal__in=user_active_shared_goals,
+            status=GoalCheckIn.Status.COMPLETED,
+            period_date__gte=week_start,
+            period_date__lte=week_end,
+        ).count()
+
+    total_activity = completed_commitments + user_completed_practices + shared_practices
+    if total_activity == 0:
+        return None
+
+    # Construct neutral, non-shaming copy
+    parts = []
+    if completed_commitments > 0:
+        parts.append(f"{completed_commitments} commitment{'s' if completed_commitments != 1 else ''} completed")
+    if user_completed_practices > 0:
+        parts.append(f"{user_completed_practices} practice{'s' if user_completed_practices != 1 else ''} completed")
+    if shared_practices > 0:
+        parts.append(f"{shared_practices} shared practice{'s' if shared_practices != 1 else ''} completed")
+
+    headline = " • ".join(parts) if parts else "Weekly activity summary"
+    body = f"This week: {headline}."
+
+    return {
+        "completed_commitments": completed_commitments,
+        "user_completed_practices": user_completed_practices,
+        "shared_practices": shared_practices,
+        "total_activity": total_activity,
+        "body": body,
+    }
+
+
+def schedule_weekly_digest(user: User, reference_date: Optional[datetime.date] = None) -> Optional[Reminder]:
+    """Generates and schedules an idempotent weekly digest reminder for the user.
+
+    Returns the Reminder or None if no activity or already scheduled.
+    """
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        tz = ZoneInfo(user.timezone or "UTC")
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = ZoneInfo("UTC")
+
+    now = django_timezone.now().astimezone(tz)
+    target_date = reference_date or now.date()
+
+    # Current week bounds (Monday to Sunday)
+    week_start = target_date - datetime.timedelta(days=target_date.weekday())
+    week_end = week_start + datetime.timedelta(days=6)
+    iso_year, iso_week, _ = week_start.isocalendar()
+    iso_week_str = f"{iso_year}-W{iso_week:02d}"
+
+    summary = calculate_weekly_digest_summary(user, week_start, week_end)
+    if summary is None:
+        return None
+
+    # Schedule for Sunday at anchor time in user's timezone
+    scheduled_dt_local = datetime.datetime.combine(week_end, WEEKLY_DIGEST_ANCHOR_TIME, tzinfo=tz)
+    scheduled_dt_utc = scheduled_dt_local.astimezone(datetime.timezone.utc)
+
+    identity_key = f"{user.id}:DIGEST:{SYSTEM_UUID}:digest.weekly:{iso_week_str}"
+
+    reminder, _ = schedule_reminder(
+        user=user,
+        entity_type=Reminder.EntityType.DIGEST,
+        entity_id=SYSTEM_UUID,
+        event_type="digest.weekly",
+        scheduled_for=scheduled_dt_utc,
+        target_period=iso_week_str,
+        identity_key=identity_key,
+    )
+    return reminder
+
+
+def schedule_security_alert(user: User, event_type: str, metadata: Optional[dict] = None) -> Reminder:
+    """Schedules an immediate high-priority security reminder for a user."""
+    now = django_timezone.now()
+    metadata_id = metadata.get("event_id") if metadata else None
+    unique_marker = metadata_id or str(uuid.uuid4())
+    identity_key = f"{user.id}:SECURITY:{SYSTEM_UUID}:{event_type}:{unique_marker}"
+
+    reminder, _ = schedule_reminder(
+        user=user,
+        entity_type=Reminder.EntityType.SECURITY,
+        entity_id=SYSTEM_UUID,
+        event_type=event_type,
+        scheduled_for=now,
+        target_period=unique_marker,
+        identity_key=identity_key,
+    )
+    return reminder

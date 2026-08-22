@@ -65,6 +65,22 @@ internal class FakeAuthRepository(
         (session as MutableStateFlow).value = SessionState.Unauthenticated
     }
 
+    override suspend fun linkGoogle(idToken: String) = Unit
+
+    override suspend fun unlinkGoogle() = Unit
+
+    override suspend fun requestEmailChange(newEmail: String, currentPassword: String?): String = "Email change requested."
+
+    override suspend fun confirmEmailChange(token: String) = Unit
+
+    override suspend fun getSessions(): List<app.promise.android.domain.UserSession> = emptyList()
+
+    override suspend fun revokeSession(sessionId: String) = Unit
+
+    override suspend fun revokeAllSessions(exceptCurrent: Boolean) = Unit
+
+    override suspend fun getSecurityEvents(): List<app.promise.android.domain.SecurityEventItem> = emptyList()
+
     override suspend fun restoreSession() {
         restoreCalled = true
         (session as MutableStateFlow).value = SessionState.Unauthenticated

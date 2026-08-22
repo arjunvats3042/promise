@@ -148,11 +148,16 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
         )
 
         reminders = list(due_query) or list(expired_lease_query)
-        for r in reminders:
-            r.status = Reminder.ReminderStatus.CLAIMED
-            r.claimed_at = now
-            r.lease_expires_at = now + LEASE_DURATION
-            r.save(update_fields=["status", "claimed_at", "lease_expires_at", "updated_at"])
+        if reminders:
+            for r in reminders:
+                r.status = Reminder.ReminderStatus.CLAIMED
+                r.claimed_at = now
+                r.lease_expires_at = now + LEASE_DURATION
+                r.updated_at = now
+            Reminder.objects.bulk_update(
+                reminders,
+                fields=["status", "claimed_at", "lease_expires_at", "updated_at"],
+            )
 
     claimed_count = len(reminders)
     if claimed_count == 0:
@@ -186,15 +191,33 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
             mark_reminder_suppressed(reminder.id, "CATEGORY_DISABLED")
             suppressed += 1
             continue
-        if reminder.event_type in ("goal.streak_protection", "goal.checkin_reminder") and not prefs.goals_evening_reminder:
+        if reminder.event_type in ("goal.streak_protection", "goal.checkin_reminder", "goal.at_risk_consistency") and not prefs.goals_evening_reminder:
+            mark_reminder_suppressed(reminder.id, "CATEGORY_DISABLED")
+            suppressed += 1
+            continue
+        if reminder.event_type == "goal.chat.message_created" and not prefs.shared_goals_chat:
+            mark_reminder_suppressed(reminder.id, "CATEGORY_DISABLED")
+            suppressed += 1
+            continue
+        if reminder.event_type.startswith("goal.participant.") or reminder.event_type == "goal.ownership_transferred":
+            if not prefs.shared_goals_activity:
+                mark_reminder_suppressed(reminder.id, "CATEGORY_DISABLED")
+                suppressed += 1
+                continue
+        if reminder.event_type == "digest.weekly" and not prefs.weekly_digest_enabled:
             mark_reminder_suppressed(reminder.id, "CATEGORY_DISABLED")
             suppressed += 1
             continue
 
         # Check 2: Quiet hours
+        is_critical = (
+            reminder.event_type == "commitment.due_now"
+            or reminder.entity_type == Reminder.EntityType.SECURITY
+            or reminder.event_type.startswith("security.")
+        )
         if prefs.quiet_hours_enabled and is_in_quiet_hours(user.timezone, prefs.quiet_hours_start, prefs.quiet_hours_end, now):
             # If it's a non-critical reminder, defer to quiet hours exit
-            if reminder.event_type != "commitment.due_now":
+            if not is_critical:
                 next_exit = next_quiet_hours_exit(user.timezone, prefs.quiet_hours_end, now)
                 reminder.status = Reminder.ReminderStatus.SCHEDULED
                 reminder.scheduled_for = next_exit
@@ -204,6 +227,9 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                 continue
 
         # Check 3: Resolved state
+        channel_id = "channel_commitment_reminders"
+        priority = "normal"
+
         if reminder.entity_type == Reminder.EntityType.COMMITMENT:
             commitment = Commitment.objects.filter(id=reminder.entity_id).first()
             if commitment is None or commitment.status in (Commitment.Status.COMPLETED, Commitment.Status.CANCELLED):
@@ -215,7 +241,16 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                     cancel_reminders_for_entity(Reminder.EntityType.COMMITMENT, reminder.entity_id, "SNOOZED")
                     cancelled += 1
                     continue
-            title = "Due now" if reminder.event_type == "commitment.due_now" else "Due soon"
+            if reminder.event_type == "commitment.due_now":
+                title = "Due now"
+                channel_id = "channel_commitment_alerts"
+                priority = "high"
+            elif reminder.event_type == "commitment.overdue":
+                title = "Unfinished commitment"
+                channel_id = "channel_commitment_reminders"
+            else:
+                title = "Due soon"
+                channel_id = "channel_commitment_reminders"
             body = commitment.title
             deep_link = f"promise://commitment/{commitment.id}"
 
@@ -225,6 +260,8 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                 cancel_reminders_for_entity(Reminder.EntityType.GOAL, reminder.entity_id, "PAUSED")
                 cancelled += 1
                 continue
+
+            channel_id = "channel_goal_reminders"
 
             if reminder.event_type == "goal.chat.message_created":
                 is_active_member = GoalParticipant.objects.filter(
@@ -258,6 +295,22 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                 title = goal.title
                 body = f"{sender_name}: {msg.body}"
                 deep_link = f"promise://goal/{goal.id}/chat"
+            elif reminder.event_type == "goal.participant.joined":
+                title = goal.title
+                body = "A participant joined your shared goal."
+                deep_link = f"promise://goal/{goal.id}"
+            elif reminder.event_type == "goal.participant.left":
+                title = goal.title
+                body = "A participant left your shared goal."
+                deep_link = f"promise://goal/{goal.id}"
+            elif reminder.event_type == "goal.participant.removed":
+                title = goal.title
+                body = f"You were removed from {goal.title}."
+                deep_link = "promise://home"
+            elif reminder.event_type == "goal.ownership_transferred":
+                title = goal.title
+                body = f"You are now the owner of {goal.title}."
+                deep_link = f"promise://goal/{goal.id}"
             else:
                 if reminder.target_period:
                     if GoalCheckIn.objects.filter(goal_id=reminder.entity_id, period_date=reminder.target_period).exists():
@@ -267,10 +320,43 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                 title = "Practice check-in" if "streak" in reminder.event_type else "Today’s practice"
                 body = goal.title
                 deep_link = f"promise://goal/{goal.id}"
+
+        elif reminder.entity_type == Reminder.EntityType.DIGEST:
+            channel_id = "channel_system"
+            title = "Your Promise week"
+            from apps.notifications.services import calculate_weekly_digest_summary
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+            try:
+                tz = ZoneInfo(user.timezone or "UTC")
+            except (ZoneInfoNotFoundError, ValueError):
+                tz = ZoneInfo("UTC")
+            today_local = now.astimezone(tz).date()
+            week_start = today_local - timedelta(days=today_local.weekday())
+            week_end = week_start + timedelta(days=6)
+            summary = calculate_weekly_digest_summary(user, week_start, week_end)
+            if summary is None:
+                mark_reminder_suppressed(reminder.id, "NO_ACTIVITY")
+                suppressed += 1
+                continue
+            body = summary["body"]
+            deep_link = "promise://home"
+
+        elif reminder.entity_type == Reminder.EntityType.SECURITY:
+            channel_id = "channel_system"
+            priority = "high"
+            if reminder.event_type == "security.new_device_login":
+                title = "New device login"
+                body = "A new device logged into your Promise account."
+            else:
+                title = "Security alert"
+                body = "An important security event occurred on your account."
+            deep_link = "promise://profile"
+
         else:
             title = "Promise Reminder"
             body = "You have an active promise item."
             deep_link = "promise://home"
+            channel_id = "channel_system"
 
         # Check 4: Active Devices
         active_devices = list(UserDevice.objects.filter(user=user, is_active=True))
@@ -279,7 +365,6 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
             suppressed += 1
             continue
 
-        priority = "high" if reminder.event_type == "commitment.due_now" else "normal"
         payload_data = {
             "reminder_id": str(reminder.id),
             "identity_key": reminder.identity_key,
@@ -289,6 +374,8 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
             "title": title,
             "body": body,
             "deep_link": deep_link,
+            "channel_id": channel_id,
+            "priority": priority,
         }
 
         # Step 3: Dispatch per-device

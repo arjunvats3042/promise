@@ -30,6 +30,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import app.promise.android.ui.theme.Alpha
 import app.promise.android.ui.theme.Elevation
@@ -207,7 +210,13 @@ fun PromiseLinearProgressBar(
             .fillMaxWidth()
             .height(6.dp)
             .clip(RoundedCornerShape(3.dp))
-            .background(actualTrack),
+            .background(actualTrack)
+            .semantics {
+                progressBarRangeInfo = androidx.compose.ui.semantics.ProgressBarRangeInfo(
+                    current = clampedProgress,
+                    range = 0f..1f,
+                )
+            },
     ) {
         if (clampedProgress > 0f) {
             Box(

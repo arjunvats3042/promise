@@ -370,6 +370,27 @@ class GoalRepositoryTest {
         assertEquals("Arjun completed today's practice", items[0].summary)
     }
 
+    @Test
+    fun transferOwnership_postsToTransferEndpointAndReturnsDetail() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(goalJson("g1")))
+        val detail = repo.transferOwnership("g1", participantId = "p2")
+        val req = server.takeRequest()
+        assertEquals("/api/v1/goals/g1/ownership/transfer/", req.path)
+        assertEquals("POST", req.method)
+        assertTrue(detail is GoalDetail.Full)
+        assertEquals("g1", (detail as GoalDetail.Full).goal.id)
+    }
+
+    @Test
+    fun reinviteParticipant_postsToReinviteEndpointAndReturnsParticipant() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(participantJson("p-reinvited")))
+        val participant = repo.reinviteParticipant("g1", participantId = "p-old")
+        val req = server.takeRequest()
+        assertEquals("/api/v1/goals/g1/participants/reinvite/", req.path)
+        assertEquals("POST", req.method)
+        assertEquals("p-reinvited", participant.id)
+    }
+
     private fun retrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl(server.url("/api/v1/"))

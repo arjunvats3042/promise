@@ -190,6 +190,36 @@ class GoalRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun reinviteParticipant(
+        goalId: String,
+        participantId: String?,
+        userId: String?,
+    ): GoalParticipant {
+        return try {
+            api.reinviteParticipant(
+                goalId,
+                ReinviteParticipantRequest(participantId = participantId, userId = userId),
+            ).toDomain()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun transferOwnership(
+        goalId: String,
+        participantId: String?,
+        userId: String?,
+    ): GoalDetail {
+        return try {
+            api.transferOwnership(
+                goalId,
+                TransferOwnershipRequest(participantId = participantId, userId = userId),
+            ).toDetail()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
     override suspend fun removeParticipant(goalId: String, userId: String): GoalParticipant {
         return try {
             api.removeParticipant(goalId, userId).toDomain()

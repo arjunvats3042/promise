@@ -47,11 +47,13 @@ def incr_with_ttl(key, ttl_seconds):
     return count
 
 
-def increment_rate_limit(key, window_seconds):
+def increment_rate_limit(key, window_seconds, *, fail_closed=False):
     """Atomically INCR a rate-limit key and set TTL on first hit.
 
     Returns {"count": int, "ttl": int}. Does not decide allow/deny.
-    Redis failure returns {"count": 0, "ttl": 0} (fail open).
+    Redis failure:
+    - If fail_closed is False (ordinary endpoints): returns {"count": 0, "ttl": 0} (fail open).
+    - If fail_closed is True (auth/security-sensitive endpoints): returns {"count": 999999, "ttl": window_seconds} (fail closed).
     """
     _validate_rate_limit_key(key)
     ttl_seconds = _validate_window_seconds(window_seconds)
@@ -63,7 +65,10 @@ def increment_rate_limit(key, window_seconds):
             ttl_seconds,
         )
         return {"count": int(raw[0]), "ttl": int(raw[1])}
-    except (RedisError, TypeError, ValueError, IndexError, KeyError):
+    except (RedisError, TypeError, ValueError, IndexError, KeyError) as exc:
+        if fail_closed:
+            logger.warning("Redis rate-limit increment failed on security-sensitive key; failing closed")
+            return {"count": 999999, "ttl": ttl_seconds}
         logger.warning("Redis rate-limit increment failed; failing open")
         return {"count": 0, "ttl": 0}
 

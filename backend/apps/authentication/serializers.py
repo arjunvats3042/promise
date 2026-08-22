@@ -112,3 +112,43 @@ class UserResponseSerializer(serializers.ModelSerializer):
 
     def get_google_linked(self, obj) -> bool:
         return bool(obj.google_sub)
+
+
+class AuthSessionSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    device_name = serializers.CharField()
+    platform = serializers.CharField()
+    last_used_at = serializers.DateTimeField()
+    created_at = serializers.DateTimeField()
+    is_current = serializers.SerializerMethodField()
+
+    def get_is_current(self, obj) -> bool:
+        current_id = self.context.get("current_session_id")
+        if current_id is None:
+            return False
+        return str(obj.id) == str(current_id)
+
+
+class SecurityEventSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    event_type = serializers.CharField()
+    device_name = serializers.CharField()
+    platform = serializers.CharField()
+    metadata = serializers.DictField()
+    created_at = serializers.DateTimeField()
+
+
+class GoogleLinkSerializer(serializers.Serializer):
+    id_token = serializers.CharField(write_only=True, trim_whitespace=True)
+
+
+class EmailChangeRequestSerializer(serializers.Serializer):
+    new_email = serializers.EmailField()
+    current_password = serializers.CharField(required=False, allow_blank=True, write_only=True, trim_whitespace=False)
+
+    def validate_new_email(self, value):
+        return canonicalize_email(value)
+
+
+class EmailChangeConfirmSerializer(serializers.Serializer):
+    token = serializers.CharField(trim_whitespace=True)

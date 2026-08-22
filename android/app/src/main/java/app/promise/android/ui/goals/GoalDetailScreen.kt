@@ -44,8 +44,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -62,6 +64,9 @@ import app.promise.android.domain.GoalParticipant
 import app.promise.android.domain.GoalParticipantStatus
 import app.promise.android.domain.GoalStatus
 import app.promise.android.domain.GoalTrackingKind
+import app.promise.android.domain.GroupMilestone
+import app.promise.android.domain.GroupSummary
+import app.promise.android.domain.WeeklyReflection
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
@@ -256,6 +261,8 @@ fun GoalDetailScreen(
                 inviteSheetAction = inviteSheetAction,
                 onDismiss = { showParticipants = false },
                 onRemove = { participantToRemove = it },
+                onReinvite = { viewModel.reinviteParticipant(participantId = it.id, userId = it.userId) },
+                onTransferOwnership = { viewModel.transferOwnership(participantId = it.id, userId = it.userId) },
                 onLeave = { confirm = ConfirmKind.Leave },
             )
         }
@@ -409,6 +416,21 @@ private fun DetailContent(
                 )
             }
         }
+        if (goal.isShared && goal.groupSummary != null) {
+            Spacer(modifier = Modifier.height(Spacing.md))
+            GroupProgressSummaryCard(summary = goal.groupSummary)
+        }
+
+        if (goal.isShared && goal.milestones.any { it.achieved }) {
+            Spacer(modifier = Modifier.height(Spacing.md))
+            GroupMilestoneCard(milestones = goal.milestones)
+        }
+
+        if (goal.isShared && goal.weeklyReflection != null) {
+            Spacer(modifier = Modifier.height(Spacing.md))
+            WeeklyReflectionCard(reflection = goal.weeklyReflection)
+        }
+
         if (actionError != null) {
             Spacer(modifier = Modifier.height(Spacing.md))
             app.promise.android.ui.components.PromiseErrorBanner(
@@ -862,4 +884,105 @@ private fun detailMeta(goal: Goal): String {
     if (goal.timezone.isNotBlank()) parts += goal.timezone
     if (goal.status == GoalStatus.PAUSED) parts += "Paused"
     return parts.joinToString(" · ")
+}
+
+@Composable
+private fun GroupProgressSummaryCard(summary: GroupSummary) {
+    val colors = PromiseThemeColors.current
+    app.promise.android.ui.components.PromiseCardSurface {
+        app.promise.android.ui.components.PromiseMicroLabel("GROUP PROGRESS SUMMARY")
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Text(
+            text = summary.headline,
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.textPrimary,
+        )
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        app.promise.android.ui.components.PromiseLinearProgressBar(
+            progress = summary.currentPeriodCompletionRate,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = "${summary.todayCompletedCount} of ${summary.activeParticipantsCount} active completed today",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+            Text(
+                text = "${(summary.currentPeriodCompletionRate * 100).toInt()}% pace",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = colors.accent,
+            )
+        }
+    }
+}
+
+@Composable
+private fun GroupMilestoneCard(milestones: List<GroupMilestone>) {
+    val colors = PromiseThemeColors.current
+    val achievedMilestone = milestones.lastOrNull { it.achieved } ?: return
+    app.promise.android.ui.components.PromiseCardSurface {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                app.promise.android.ui.components.PromiseMicroLabel("GROUP MILESTONE")
+                Spacer(modifier = Modifier.height(Spacing.xxs))
+                Text(
+                    text = achievedMilestone.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = colors.textPrimary,
+                )
+                if (achievedMilestone.description.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(Spacing.xxs))
+                    Text(
+                        text = achievedMilestone.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(colors.accent.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = "Achieved",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.accent,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeeklyReflectionCard(reflection: WeeklyReflection) {
+    val colors = PromiseThemeColors.current
+    app.promise.android.ui.components.PromiseCardSurface {
+        app.promise.android.ui.components.PromiseMicroLabel("WEEKLY GROUP REFLECTION")
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Text(
+            text = reflection.reflectionText,
+            style = MaterialTheme.typography.bodyLarge,
+            color = colors.textPrimary,
+        )
+        if (reflection.trendText.isNotBlank()) {
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Text(
+                text = reflection.trendText,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+        }
+    }
 }

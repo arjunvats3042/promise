@@ -431,6 +431,8 @@ def test_event_id_is_uuid_v4_with_nullable_actor(arjun, rahul):
         GoalEvent.EventType.PARTICIPANT_DECLINED,
         GoalEvent.EventType.PARTICIPANT_LEFT,
         GoalEvent.EventType.PARTICIPANT_REMOVED,
+        GoalEvent.EventType.GOAL_OWNERSHIP_TRANSFERRED,
+        GoalEvent.EventType.PARTICIPANT_REINVITED,
     }
 
 

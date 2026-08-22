@@ -62,6 +62,37 @@ data class GoalParticipant(
     val invitedAt: String?,
     val joinedAt: String?,
     val leftAt: String?,
+    val isExpired: Boolean = false,
+    val invitationExpiresAt: String? = null,
+)
+
+data class GroupSummary(
+    val activeParticipantsCount: Int,
+    val todayCompletedCount: Int,
+    val todayCompletionRate: Float,
+    val currentPeriodCompletedCount: Int,
+    val currentPeriodTargetCount: Int,
+    val currentPeriodCompletionRate: Float,
+    val headline: String,
+)
+
+data class GroupMilestone(
+    val key: String,
+    val title: String,
+    val description: String,
+    val achieved: Boolean,
+    val target: Int,
+    val current: Int,
+)
+
+data class WeeklyReflection(
+    val periodStart: String,
+    val periodEnd: String,
+    val completed: Int,
+    val expected: Int,
+    val percentage: Float,
+    val reflectionText: String,
+    val trendText: String,
 )
 
 data class CollectivePeriodCounts(
@@ -96,6 +127,7 @@ data class GoalInvitePreview(
     val inviterName: String,
     val invitationStatus: GoalParticipantStatus,
     val invitationExpiresAt: String?,
+    val isExpired: Boolean = false,
 )
 
 data class Goal(
@@ -126,6 +158,10 @@ data class Goal(
     val participants: List<GoalParticipant> = emptyList(),
     val membershipRole: GoalParticipantRole? = null,
     val membershipStatus: GoalParticipantStatus? = null,
+    val groupSummary: GroupSummary? = null,
+    val milestones: List<GroupMilestone> = emptyList(),
+    val weeklyReflection: WeeklyReflection? = null,
+    val participantLimit: Int = 10,
 ) {
     val isTerminal: Boolean
         get() = status == GoalStatus.COMPLETED || status == GoalStatus.CANCELLED

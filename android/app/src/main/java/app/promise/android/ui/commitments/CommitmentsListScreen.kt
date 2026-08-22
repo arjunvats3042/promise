@@ -45,7 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -222,7 +225,10 @@ private fun FilterChipsRow(
                         onClick = { onSelect(filter) },
                     )
                     .padding(horizontal = Spacing.md, vertical = Spacing.xs)
-                    .semantics { contentDescription = "${filter.label()} filter" },
+                    .semantics {
+                        role = Role.Tab
+                        this.selected = isSelected
+                    },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -244,12 +250,17 @@ fun CommitmentRow(
     onClick: () -> Unit,
 ) {
     val colors = PromiseThemeColors.current
+    val statusText = if (commitment.isOverdue) "Overdue" else "Due"
+    val commitmentDesc = "${commitment.title}, $statusText · ${commitment.metaLine(timeZoneId)}"
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(vertical = Spacing.sm)
-            .semantics { contentDescription = commitment.title },
+            .semantics(mergeDescendants = true) {
+                contentDescription = commitmentDesc
+            },
     ) {
         Text(
             text = commitment.title,
@@ -263,8 +274,7 @@ fun CommitmentRow(
                     modifier = Modifier
                         .size(Spacing.statusMark)
                         .clip(CircleShape)
-                        .background(colors.warning)
-                        .semantics { contentDescription = "Overdue" },
+                        .background(colors.warning),
                 )
                 Spacer(modifier = Modifier.width(Spacing.xs))
             }

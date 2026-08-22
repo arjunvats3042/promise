@@ -1,10 +1,12 @@
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.notifications.models import UserDevice, UserNotificationPreferences
+from apps.notifications.models import Reminder, UserDevice, UserNotificationPreferences
 from apps.notifications.serializers import (
+    NotificationHistoryItemSerializer,
     RegisterDeviceSerializer,
     UserDeviceSerializer,
     UserNotificationPreferencesSerializer,
@@ -86,3 +88,29 @@ class NotificationPreferencesView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class NotificationHistoryPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+
+class NotificationHistoryView(APIView):
+    """Retrieve in-app paginated notification history for the authenticated user."""
+
+    permission_classes = [IsAuthenticated]
+    pagination_class = NotificationHistoryPagination
+
+    def get(self, request):
+        reminders = (
+            Reminder.objects.filter(
+                user=request.user,
+                status__in=[Reminder.ReminderStatus.DISPATCHED, Reminder.ReminderStatus.SCHEDULED],
+            )
+            .order_by("-dispatched_at", "-created_at")
+        )
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(reminders, request, view=self)
+        serializer = NotificationHistoryItemSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)

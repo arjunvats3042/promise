@@ -387,6 +387,18 @@ private class FakeChatGoalRepository(
     override suspend fun declineInvitation(goalId: String): GoalParticipant =
         throw UnsupportedOperationException()
 
+    override suspend fun reinviteParticipant(
+        goalId: String,
+        participantId: String?,
+        userId: String?,
+    ): GoalParticipant = throw UnsupportedOperationException()
+
+    override suspend fun transferOwnership(
+        goalId: String,
+        participantId: String?,
+        userId: String?,
+    ): GoalDetail = GoalDetail.Full(sampleGoal(goalId))
+
     override suspend fun removeParticipant(goalId: String, userId: String): GoalParticipant =
         throw UnsupportedOperationException()
 

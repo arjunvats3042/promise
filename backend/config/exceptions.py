@@ -24,7 +24,9 @@ class ApplicationAPIError(APIException):
     error_code = "INVALID_REQUEST"
     public_message = "Request is invalid."
 
-    def __init__(self):
+    def __init__(self, message=None):
+        if message is not None:
+            self.public_message = message
         super().__init__(detail=self.public_message, code=self.error_code)
 
 
@@ -84,7 +86,16 @@ def api_exception_handler(exc, context):
 
     response = drf_exception_handler(exc, context)
     if response is None:
-        logger.exception("Unhandled API exception")
+        request = context.get("request") if isinstance(context, dict) else None
+        req_id = getattr(request, "request_id", "-") if request else "-"
+        path = getattr(request, "path", "-") if request else "-"
+        logger.error(
+            "Unhandled API exception request_id=%s endpoint=%s exc_type=%s",
+            req_id,
+            path,
+            type(exc).__name__,
+            exc_info=True,
+        )
         return Response(
             _error_payload(
                 "INTERNAL_SERVER_ERROR",

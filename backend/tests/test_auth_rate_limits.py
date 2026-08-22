@@ -363,7 +363,7 @@ def test_malformed_refresh_ip_limit_returns_429(client, fake_redis):
 
 
 @pytest.mark.django_db
-def test_login_redis_unavailable_fails_open(client, user, monkeypatch, caplog):
+def test_login_redis_unavailable_fails_closed(client, user, monkeypatch, caplog):
     def raise_down():
         raise RedisConnectionError("redis down")
 
@@ -371,14 +371,14 @@ def test_login_redis_unavailable_fails_open(client, user, monkeypatch, caplog):
     with caplog.at_level(logging.WARNING, logger="promise"):
         response = _login(client, email=user.email)
 
-    assert response.status_code == 200
+    assert response.status_code == 429
     assert "redis down" not in response.content.decode()
     assert user.email not in caplog.text
     assert "redis down" not in caplog.text
 
 
 @pytest.mark.django_db
-def test_refresh_redis_unavailable_fails_open(client, user, monkeypatch, caplog):
+def test_refresh_redis_unavailable_fails_closed(client, user, monkeypatch, caplog):
     tokens = _login_tokens(client, user)
 
     def raise_down():
@@ -388,7 +388,7 @@ def test_refresh_redis_unavailable_fails_open(client, user, monkeypatch, caplog)
     with caplog.at_level(logging.WARNING, logger="promise"):
         response = _refresh(client, tokens["refresh_token"])
 
-    assert response.status_code == 200
+    assert response.status_code == 429
     secret = tokens["refresh_token"].split(".", 1)[1]
     assert secret not in caplog.text
     assert tokens["refresh_token"] not in response.content.decode()

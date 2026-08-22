@@ -183,10 +183,61 @@ def _session_id_from_refresh_token(refresh_token):
 def _enforce(buckets):
     retry_after = None
     for key, window, limit in buckets:
-        result = increment_rate_limit(key, window)
+        result = increment_rate_limit(key, window, fail_closed=True)
         if result["count"] > limit:
             wait = result["ttl"] if result["ttl"] > 0 else window
             if retry_after is None or wait > retry_after:
                 retry_after = wait
     if retry_after is not None:
         raise RateLimitedError(retry_after=retry_after)
+
+
+SESSION_REVOKE_USER_WINDOW = 900
+SESSION_REVOKE_USER_LIMIT = 20
+GOOGLE_LINK_USER_WINDOW = 900
+GOOGLE_LINK_USER_LIMIT = 5
+GOOGLE_UNLINK_USER_WINDOW = 900
+GOOGLE_UNLINK_USER_LIMIT = 5
+EMAIL_CHANGE_USER_WINDOW = 3600
+EMAIL_CHANGE_USER_LIMIT = 5
+EMAIL_CHANGE_CONFIRM_IP_WINDOW = 900
+EMAIL_CHANGE_CONFIRM_IP_LIMIT = 15
+
+
+def enforce_session_revocation_rate_limits(request, user_id):
+    ip = client_ip_identifier(request)
+    _enforce([
+        (f"promise:ratelimit:session_revoke:user:{user_id}", SESSION_REVOKE_USER_WINDOW, SESSION_REVOKE_USER_LIMIT),
+        (f"promise:ratelimit:session_revoke:ip:{ip}", SESSION_REVOKE_USER_WINDOW, SESSION_REVOKE_USER_LIMIT * 2),
+    ])
+
+
+def enforce_google_link_rate_limits(request, user_id):
+    ip = client_ip_identifier(request)
+    _enforce([
+        (f"promise:ratelimit:google_link:user:{user_id}", GOOGLE_LINK_USER_WINDOW, GOOGLE_LINK_USER_LIMIT),
+        (f"promise:ratelimit:google_link:ip:{ip}", GOOGLE_LINK_USER_WINDOW, GOOGLE_LINK_USER_LIMIT * 2),
+    ])
+
+
+def enforce_google_unlink_rate_limits(request, user_id):
+    ip = client_ip_identifier(request)
+    _enforce([
+        (f"promise:ratelimit:google_unlink:user:{user_id}", GOOGLE_UNLINK_USER_WINDOW, GOOGLE_UNLINK_USER_LIMIT),
+        (f"promise:ratelimit:google_unlink:ip:{ip}", GOOGLE_UNLINK_USER_WINDOW, GOOGLE_UNLINK_USER_LIMIT * 2),
+    ])
+
+
+def enforce_email_change_request_rate_limits(request, user_id):
+    ip = client_ip_identifier(request)
+    _enforce([
+        (f"promise:ratelimit:email_change:user:{user_id}", EMAIL_CHANGE_USER_WINDOW, EMAIL_CHANGE_USER_LIMIT),
+        (f"promise:ratelimit:email_change:ip:{ip}", EMAIL_CHANGE_USER_WINDOW, EMAIL_CHANGE_USER_LIMIT * 2),
+    ])
+
+
+def enforce_email_change_confirm_rate_limits(request):
+    ip = client_ip_identifier(request)
+    _enforce([
+        (f"promise:ratelimit:email_change_confirm:ip:{ip}", EMAIL_CHANGE_CONFIRM_IP_WINDOW, EMAIL_CHANGE_CONFIRM_IP_LIMIT),
+    ])

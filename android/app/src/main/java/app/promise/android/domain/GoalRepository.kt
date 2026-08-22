@@ -38,6 +38,10 @@ interface GoalRepository {
 
     suspend fun declineInvitation(goalId: String): GoalParticipant
 
+    suspend fun reinviteParticipant(goalId: String, participantId: String? = null, userId: String? = null): GoalParticipant
+
+    suspend fun transferOwnership(goalId: String, participantId: String? = null, userId: String? = null): GoalDetail
+
     suspend fun removeParticipant(goalId: String, userId: String): GoalParticipant
 
     suspend fun leave(goalId: String): GoalParticipant

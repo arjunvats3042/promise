@@ -24,6 +24,9 @@ import app.promise.android.domain.GoalProgress
 import app.promise.android.domain.GoalRecurrenceKind
 import app.promise.android.domain.GoalStatus
 import app.promise.android.domain.GoalTrackingKind
+import app.promise.android.domain.GroupMilestone
+import app.promise.android.domain.GroupSummary
+import app.promise.android.domain.WeeklyReflection
 
 fun GoalDto.isInvitePreview(): Boolean = invitationStatus != null || inviterUserId != null
 
@@ -46,6 +49,7 @@ fun GoalDto.toInvitePreview(): GoalInvitePreview {
         inviterName = inviterName ?: "",
         invitationStatus = (invitationStatus ?: "INVITED").toParticipantStatus(),
         invitationExpiresAt = invitationExpiresAt,
+        isExpired = isExpired,
     )
 }
 
@@ -78,6 +82,45 @@ fun GoalDto.toDomain(): Goal {
         participants = participants.map { it.toDomain() },
         membershipRole = membershipRole?.toParticipantRole(),
         membershipStatus = membershipStatus?.toParticipantStatus(),
+        groupSummary = groupSummary?.toDomain(),
+        milestones = milestones.map { it.toDomain() },
+        weeklyReflection = weeklyReflection?.toDomain(),
+        participantLimit = participantLimit,
+    )
+}
+
+fun GroupSummaryDto.toDomain(): GroupSummary {
+    return GroupSummary(
+        activeParticipantsCount = activeParticipantsCount,
+        todayCompletedCount = todayCompletedCount,
+        todayCompletionRate = todayCompletionRate,
+        currentPeriodCompletedCount = currentPeriodCompletedCount,
+        currentPeriodTargetCount = currentPeriodTargetCount,
+        currentPeriodCompletionRate = currentPeriodCompletionRate,
+        headline = headline,
+    )
+}
+
+fun GroupMilestoneDto.toDomain(): GroupMilestone {
+    return GroupMilestone(
+        key = key,
+        title = title,
+        description = description,
+        achieved = achieved,
+        target = target,
+        current = current,
+    )
+}
+
+fun WeeklyReflectionDto.toDomain(): WeeklyReflection {
+    return WeeklyReflection(
+        periodStart = periodStart,
+        periodEnd = periodEnd,
+        completed = completed,
+        expected = expected,
+        percentage = percentage,
+        reflectionText = reflectionText,
+        trendText = trendText,
     )
 }
 
@@ -134,6 +177,8 @@ fun GoalParticipantDto.toDomain(): GoalParticipant {
         role = role.toParticipantRole(),
         status = status.toParticipantStatus(),
         invitedAt = invitedAt,
+        invitationExpiresAt = invitationExpiresAt,
+        isExpired = isExpired,
         joinedAt = joinedAt,
         leftAt = leftAt,
     )

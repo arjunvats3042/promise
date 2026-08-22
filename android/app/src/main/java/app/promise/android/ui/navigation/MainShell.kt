@@ -90,7 +90,7 @@ fun MainShell(
         }
     }
 
-    fun navigateToTab(index: Int, haptic: Boolean) {
+    fun navigateToTab(index: Int) {
         if (index !in TabDestinations.items.indices) return
         if (index == currentTabIndex) return
         val route = TabDestinations.items[index].route
@@ -100,9 +100,6 @@ fun MainShell(
             }
             launchSingleTop = true
             restoreState = true
-        }
-        if (haptic) {
-            viewModel.haptics.light()
         }
     }
 
@@ -117,7 +114,7 @@ fun MainShell(
                     direction = direction,
                     tabCount = TabDestinations.items.size,
                 ) ?: return@TabSwipeHost
-                navigateToTab(next, haptic = true)
+                navigateToTab(next)
             },
         )
     } else {
@@ -137,7 +134,7 @@ fun MainShell(
                     val selected = index == currentTabIndex
                     NavigationBarItem(
                         selected = selected,
-                        onClick = { navigateToTab(index, haptic = true) },
+                        onClick = { navigateToTab(index) },
                         icon = {
                             Icon(
                                 imageVector = tab.icon,
@@ -199,7 +196,7 @@ fun MainShell(
                 ) {
                     HomeScreen(
                         onOpenProfile = {
-                            navigateToTab(3, haptic = false)
+                            navigateToTab(3)
                         },
                         onOpenCommitment = { id ->
                             navController.navigate(CommitmentRoute(id))
@@ -292,8 +289,8 @@ private fun directionEnter(
     val fadeMs = if (reduceMotion) Motion.ReducedMotionFadeMs else Motion.TabMs
     val fade = fadeIn(tween(fadeMs, easing = Motion.StandardEasing))
     if (reduceMotion) return fade
-    return fade + slideInHorizontally(tween(Motion.TabMs, easing = Motion.StandardEasing)) {
-        sign * slidePx
+    return slideInHorizontally(tween(Motion.TabMs, easing = Motion.StandardEasing)) { fullWidth ->
+        sign * fullWidth
     }
 }
 
@@ -305,8 +302,8 @@ private fun directionExit(
     val fadeMs = if (reduceMotion) Motion.ReducedMotionFadeMs else Motion.TabMs
     val fade = fadeOut(tween(fadeMs, easing = Motion.ExitEasing))
     if (reduceMotion) return fade
-    return fade + slideOutHorizontally(tween(Motion.TabMs, easing = Motion.ExitEasing)) {
-        sign * slidePx
+    return slideOutHorizontally(tween(Motion.TabMs, easing = Motion.StandardEasing)) { fullWidth ->
+        sign * fullWidth
     }
 }
 

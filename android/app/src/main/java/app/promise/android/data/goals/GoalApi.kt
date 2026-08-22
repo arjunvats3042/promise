@@ -63,6 +63,18 @@ interface GoalApi {
     @POST("goals/{id}/participants/decline/")
     suspend fun declineInvitation(@Path("id") id: String): GoalParticipantDto
 
+    @POST("goals/{id}/participants/reinvite/")
+    suspend fun reinviteParticipant(
+        @Path("id") id: String,
+        @Body body: ReinviteParticipantRequest,
+    ): GoalParticipantDto
+
+    @POST("goals/{id}/ownership/transfer/")
+    suspend fun transferOwnership(
+        @Path("id") id: String,
+        @Body body: TransferOwnershipRequest,
+    ): GoalDto
+
     @DELETE("goals/{id}/participants/{userId}/")
     suspend fun removeParticipant(
         @Path("id") id: String,
