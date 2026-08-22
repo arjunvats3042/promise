@@ -296,6 +296,25 @@ class GoalRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun searchChatMessages(
+        goalId: String,
+        query: String,
+        limit: Int,
+    ): List<app.promise.android.domain.ChatSearchResult> {
+        val cleanQuery = query.trim()
+        if (cleanQuery.isEmpty()) return emptyList()
+        return try {
+            val res = api.searchChatMessages(
+                id = goalId,
+                query = cleanQuery,
+                limit = limit,
+            )
+            res.results.map { it.toDomain() }
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
     private suspend fun getDetailInternal(id: String): GoalDetail {
         return api.get(id).toDetail()
     }

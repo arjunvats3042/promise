@@ -261,4 +261,13 @@ fun GoalActivityItemDto.toDomain(): GoalActivityItem = GoalActivityItem(
     createdAt = createdAt,
 )
 
+fun ChatSearchResultDto.toDomain(): app.promise.android.domain.ChatSearchResult = app.promise.android.domain.ChatSearchResult(
+    id = id,
+    messageId = if (messageId.isNotBlank()) messageId else id,
+    sender = sender.toDomain(),
+    body = body,
+    snippet = snippet.ifBlank { body },
+    createdAt = createdAt,
+)
+
 fun goalPageNumberFromNext(next: String?): Int? = pageNumberFromNext(next)

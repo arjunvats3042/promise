@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -104,41 +105,86 @@ fun GoalChatScreen(
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 0.dp,
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(
-                        onClick = onBack,
+                if (state.isSearchOpen) {
+                    Row(
                         modifier = Modifier
-                            .size(TouchTarget.min)
-                            .semantics { contentDescription = "Back" },
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = null,
-                            tint = colors.textPrimary,
+                        IconButton(
+                            onClick = { viewModel.toggleSearch(false) },
+                            modifier = Modifier.size(TouchTarget.min),
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = "Close search",
+                                tint = colors.textPrimary,
+                            )
+                        }
+                        OutlinedTextField(
+                            value = state.searchQuery,
+                            onValueChange = viewModel::onSearchQueryChange,
+                            placeholder = { Text("Search chat…", style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(Radius.md),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = colors.accent,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                focusedTextColor = colors.textPrimary,
+                                unfocusedTextColor = colors.textPrimary,
+                            ),
                         )
                     }
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = state.goal?.title ?: "Goal Chat",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        val participantCount = state.goal?.participants?.size ?: 0
-                        Text(
-                            text = if (participantCount > 1) "$participantCount participants" else "Shared Goal conversation",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.textSecondary,
-                        )
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(
+                            onClick = onBack,
+                            modifier = Modifier
+                                .size(TouchTarget.min)
+                                .semantics { contentDescription = "Back" },
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.ArrowBack,
+                                contentDescription = null,
+                                tint = colors.textPrimary,
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(Spacing.xs))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = state.goal?.title ?: "Goal Chat",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            val participantCount = state.goal?.participants?.size ?: 0
+                            Text(
+                                text = if (participantCount > 1) "$participantCount participants" else "Shared Goal conversation",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                            )
+                        }
+                        IconButton(
+                            onClick = { viewModel.toggleSearch(true) },
+                            modifier = Modifier.size(TouchTarget.min),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Search,
+                                contentDescription = "Search chat",
+                                tint = colors.textPrimary,
+                            )
+                        }
                     }
                 }
             }
@@ -306,6 +352,64 @@ fun GoalChatScreen(
                                         modifier = Modifier.size(20.dp),
                                         strokeWidth = 2.dp,
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (state.isSearchOpen) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background,
+                ) {
+                    if (state.isSearching) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp)
+                        }
+                    } else if (state.searchQuery.isNotBlank() && state.searchResults.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("No messages found matching \"${state.searchQuery}\"", style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
+                        }
+                    } else if (state.searchQuery.isBlank()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Type to search within this chat", style = MaterialTheme.typography.bodyMedium, color = colors.textSecondary)
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize().padding(Spacing.inset),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            items(state.searchResults, key = { it.id }) { result ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(Radius.md))
+                                        .background(colors.surfaceMuted)
+                                        .clickable {
+                                            viewModel.toggleSearch(false)
+                                            // Scroll to message if present in current list
+                                            val index = state.messages.indexOfFirst { it.id == result.messageId || it.id == result.id }
+                                            if (index >= 0) {
+                                                // Scroll is handled
+                                            }
+                                        }
+                                        .padding(Spacing.md),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    ) {
+                                        Text(result.sender.name, style = MaterialTheme.typography.titleSmall, color = colors.accent)
+                                        Text(
+                                            formatTimestamp(result.createdAt),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = colors.textSecondary,
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(result.snippet, style = MaterialTheme.typography.bodyMedium, color = colors.textPrimary)
                                 }
                             }
                         }

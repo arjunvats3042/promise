@@ -511,6 +511,12 @@ private class DetailFakeRepo(
         beforeCreatedAt: String?,
         beforeId: String?,
     ): List<GoalActivityItem> = initialActivity
+
+    override suspend fun searchChatMessages(
+        goalId: String,
+        query: String,
+        limit: Int,
+    ): List<app.promise.android.domain.ChatSearchResult> = emptyList()
 }
 
 private fun sample(
@@ -577,5 +583,10 @@ private class FakeUserRepository(
             return usersByEmail[email] ?: throw ApiException(status = 404, code = "USER_NOT_FOUND")
         }
         return defaultUser
+    }
+
+    override suspend fun searchUsers(query: String): List<LookupUser> {
+        error?.let { throw it }
+        return listOf(defaultUser)
     }
 }

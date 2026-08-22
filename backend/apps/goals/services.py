@@ -2176,6 +2176,23 @@ def list_chat_messages(*, viewer, goal_id, limit=50, before_id=None, before_crea
     return list(queryset[:limit])
 
 
+def search_chat_messages(*, viewer, goal_id, query, limit=20):
+    goal = Goal.objects.filter(id=goal_id).first()
+    if goal is None or not can_view_chat(viewer, goal):
+        raise GoalNotFoundError()
+
+    clean_query = " ".join(query.strip().split())
+    if not clean_query:
+        return []
+
+    queryset = (
+        goal.chat_messages.filter(body__icontains=clean_query)
+        .select_related("sender")
+        .order_by("-created_at")[:limit]
+    )
+    return list(queryset)
+
+
 def mark_chat_read(*, viewer, goal_id, last_read_message_id):
     goal = Goal.objects.filter(id=goal_id).first()
     if goal is None or not can_update_read_state(viewer, goal):

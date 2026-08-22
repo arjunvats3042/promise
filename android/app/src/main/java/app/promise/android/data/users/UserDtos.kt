@@ -8,3 +8,8 @@ data class LookupUserDto(
     val name: String,
     val email: String,
 )
+
+@Serializable
+data class UserSearchResponseDto(
+    val results: List<LookupUserDto> = emptyList(),
+)

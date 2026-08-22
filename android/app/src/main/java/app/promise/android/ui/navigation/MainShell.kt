@@ -77,7 +77,8 @@ fun MainShell(
         currentDestination.hierarchy.none {
             it.hasRoute(CommitmentRoute::class) ||
                 it.hasRoute(GoalRoute::class) ||
-                it.hasRoute(GoalChatRoute::class)
+                it.hasRoute(GoalChatRoute::class) ||
+                it.hasRoute(SearchRoute::class)
         }
 
     val currentTabIndex = remember(currentDestination) {
@@ -204,6 +205,9 @@ fun MainShell(
                         onOpenPractice = { id ->
                             navController.navigate(GoalRoute(id))
                         },
+                        onOpenSearch = {
+                            navController.navigate(SearchRoute)
+                        },
                     )
                 }
                 composable<CommitmentsRoute> {
@@ -263,6 +267,18 @@ fun MainShell(
                 ) {
                     app.promise.android.ui.goals.chat.GoalChatScreen(
                         onBack = { navController.popBackStack() },
+                    )
+                }
+                composable<SearchRoute>(
+                    enterTransition = { detailEnter(reduceMotion, detailSlidePx) },
+                    exitTransition = { detailExit(reduceMotion, detailSlidePx) },
+                    popEnterTransition = { detailEnter(reduceMotion, detailSlidePx) },
+                    popExitTransition = { detailExit(reduceMotion, detailSlidePx) },
+                ) {
+                    app.promise.android.ui.search.SearchScreen(
+                        onNavigateToCommitment = { id -> navController.navigate(CommitmentRoute(id)) },
+                        onNavigateToGoal = { id -> navController.navigate(GoalRoute(id)) },
+                        onNavigateBack = { navController.popBackStack() },
                     )
                 }
             }

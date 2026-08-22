@@ -89,7 +89,7 @@ fun InviteParticipantSheet(
             )
             Spacer(modifier = Modifier.height(Spacing.xs))
             Text(
-                text = "Enter their email to find them.",
+                text = "Search by email or name to find them.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
             )
@@ -102,21 +102,21 @@ fun InviteParticipantSheet(
                 },
                 enabled = !submitting && !isLooking,
                 singleLine = true,
-                label = { Text("Email") },
+                label = { Text("Email or Name") },
                 keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
+                    keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Search,
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .semantics { contentDescription = "Email address" },
+                    .semantics { contentDescription = "Email or name search" },
                 shape = RoundedCornerShape(Radius.sm),
                 colors = fieldColors(),
             )
             Spacer(modifier = Modifier.height(Spacing.sm))
             TextButton(
                 onClick = { onLookup(email.trim()) },
-                enabled = email.isNotBlank() && !isLooking && !submitting &&
+                enabled = email.trim().length >= 2 && !isLooking && !submitting &&
                     lookupState !is UserLookupUi.Found,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -124,7 +124,7 @@ fun InviteParticipantSheet(
                     .semantics { contentDescription = "Look up user" },
             ) {
                 Text(
-                    text = if (isLooking) "Looking up…" else "Look up",
+                    text = if (isLooking) "Searching…" else "Search",
                     color = if (isLooking || submitting) colors.textSecondary else colors.accent,
                 )
             }

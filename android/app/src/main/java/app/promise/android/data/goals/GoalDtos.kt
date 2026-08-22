@@ -326,3 +326,18 @@ data class GoalActivityItemDto(
     @SerialName("created_at")
     val createdAt: String,
 )
+
+@Serializable
+data class ChatSearchResultDto(
+    val id: String,
+    @SerialName("message_id") val messageId: String = "",
+    val sender: ChatMessageSenderDto,
+    val body: String,
+    val snippet: String = "",
+    @SerialName("created_at") val createdAt: String,
+)
+
+@Serializable
+data class ChatSearchResponseDto(
+    val results: List<ChatSearchResultDto> = emptyList(),
+)

@@ -448,6 +448,12 @@ private class FakeChatGoalRepository(
         beforeCreatedAt: String?,
         beforeId: String?,
     ): List<app.promise.android.domain.GoalActivityItem> = emptyList()
+
+    override suspend fun searchChatMessages(
+        goalId: String,
+        query: String,
+        limit: Int,
+    ): List<app.promise.android.domain.ChatSearchResult> = emptyList()
 }
 
 private fun sampleGoal(id: String): Goal = Goal(

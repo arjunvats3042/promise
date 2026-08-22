@@ -116,4 +116,11 @@ interface GoalApi {
         @Query("before_created_at") beforeCreatedAt: String? = null,
         @Query("before_id") beforeId: String? = null,
     ): List<GoalActivityItemDto>
+
+    @GET("goals/{id}/chat/search/")
+    suspend fun searchChatMessages(
+        @Path("id") id: String,
+        @Query("q") query: String,
+        @Query("limit") limit: Int = 20,
+    ): ChatSearchResponseDto
 }

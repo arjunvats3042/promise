@@ -27,6 +27,10 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -41,6 +45,10 @@ data class GoalChatUiState(
     val hasMore: Boolean = false,
     val errorMessage: String? = null,
     val sendAction: ActionState = ActionState.Idle,
+    val isSearchOpen: Boolean = false,
+    val searchQuery: String = "",
+    val isSearching: Boolean = false,
+    val searchResults: List<app.promise.android.domain.ChatSearchResult> = emptyList(),
 )
 
 @HiltViewModel
@@ -58,11 +66,62 @@ class GoalChatViewModel @Inject constructor(
     private val _state = MutableStateFlow(GoalChatUiState())
     val state: StateFlow<GoalChatUiState> = _state.asStateFlow()
 
+    private val _chatSearchQuery = MutableStateFlow("")
+
     init {
         loadInitial()
         realtimeClient.connect(goalId)
         observeRealtimeEvents()
         observeRealtimeConnection()
+        observeChatSearch()
+    }
+
+    @OptIn(kotlinx.coroutines.FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private fun observeChatSearch() {
+        viewModelScope.launch {
+            _chatSearchQuery
+                .debounce(300L)
+                .distinctUntilChanged()
+                .flatMapLatest { q ->
+                    flow {
+                        val trimmed = q.trim()
+                        if (trimmed.isEmpty()) {
+                            emit(emptyList<app.promise.android.domain.ChatSearchResult>())
+                            return@flow
+                        }
+                        _state.update { it.copy(isSearching = true) }
+                        try {
+                            val results = repository.searchChatMessages(goalId, trimmed)
+                            emit(results)
+                        } catch (t: Throwable) {
+                            emit(emptyList())
+                        } finally {
+                            _state.update { it.copy(isSearching = false) }
+                        }
+                    }
+                }
+                .collect { results ->
+                    _state.update { it.copy(searchResults = results) }
+                }
+        }
+    }
+
+    fun toggleSearch(open: Boolean) {
+        _state.update {
+            it.copy(
+                isSearchOpen = open,
+                searchQuery = if (!open) "" else it.searchQuery,
+                searchResults = if (!open) emptyList() else it.searchResults,
+            )
+        }
+        if (!open) {
+            _chatSearchQuery.value = ""
+        }
+    }
+
+    fun onSearchQueryChange(query: String) {
+        _state.update { it.copy(searchQuery = query) }
+        _chatSearchQuery.value = query
     }
 
     fun loadInitial() {

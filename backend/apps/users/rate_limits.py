@@ -39,6 +39,18 @@ def enforce_user_lookup_rate_limit(user, email):
     )
 
 
+def enforce_user_search_rate_limit(user):
+    _enforce(
+        [
+            (
+                user_lookup_user_key(user.id),
+                USER_LOOKUP_USER_WINDOW,
+                USER_LOOKUP_USER_LIMIT,
+            ),
+        ]
+    )
+
+
 def _enforce(buckets):
     retry_after = None
     for key, window, limit in buckets:

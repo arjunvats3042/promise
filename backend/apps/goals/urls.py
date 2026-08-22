@@ -5,6 +5,7 @@ from apps.goals.views import (
     goal_cancel,
     goal_chat_messages,
     goal_chat_read,
+    goal_chat_search,
     goal_chat_summary,
     goal_check_ins,
     goal_collection,
@@ -84,6 +85,11 @@ urlpatterns = [
         "<str:goal_id>/chat/messages/",
         goal_chat_messages,
         name="chat-messages",
+    ),
+    path(
+        "<str:goal_id>/chat/search/",
+        goal_chat_search,
+        name="chat-search",
     ),
     path(
         "<str:goal_id>/chat/read/",

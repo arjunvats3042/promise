@@ -6,4 +6,7 @@ import retrofit2.http.Query
 interface UserApi {
     @GET("users/lookup/")
     suspend fun lookupByEmail(@Query("email") email: String): LookupUserDto
+
+    @GET("users/lookup/")
+    suspend fun searchUsers(@Query("q") query: String): UserSearchResponseDto
 }

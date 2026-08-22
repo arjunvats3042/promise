@@ -16,6 +16,8 @@ from apps.goals.serializers import (
     ChatMessageSerializer,
     ChatMessageWriteSerializer,
     ChatReadWriteSerializer,
+    ChatSearchQuerySerializer,
+    ChatSearchResultSerializer,
     ChatSummarySerializer,
     GoalActivityItemSerializer,
     GoalCheckInListQuerySerializer,
@@ -56,6 +58,7 @@ from apps.goals.services import (
     reinvite_participant,
     remove_participant,
     resume_goal,
+    search_chat_messages,
     send_chat_message,
     shared_goal_group_summary,
     shared_goal_milestones,
@@ -419,3 +422,22 @@ def goal_activity(request, goal_id):
         before_id=parsed_before_id,
     )
     return Response(GoalActivityItemSerializer(items, many=True).data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def goal_chat_search(request, goal_id):
+    serializer = ChatSearchQuerySerializer(data=request.query_params)
+    serializer.is_valid(raise_exception=True)
+    q = serializer.validated_data["q"]
+    limit = serializer.validated_data.get("limit", 20)
+
+    messages = search_chat_messages(
+        viewer=request.user,
+        goal_id=goal_id,
+        query=q,
+        limit=limit,
+    )
+    return Response(
+        {"results": ChatSearchResultSerializer(messages, many=True).data},
+        status=status.HTTP_200_OK,
+    )

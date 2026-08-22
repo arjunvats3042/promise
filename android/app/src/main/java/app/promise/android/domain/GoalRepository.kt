@@ -66,6 +66,12 @@ interface GoalRepository {
         beforeId: String? = null,
     ): List<GoalActivityItem>
 
+    suspend fun searchChatMessages(
+        goalId: String,
+        query: String,
+        limit: Int = DEFAULT_PAGE_SIZE,
+    ): List<ChatSearchResult>
+
     companion object {
         const val DEFAULT_PAGE_SIZE = 20
         const val HOME_PAGE_SIZE = 100

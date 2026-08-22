@@ -414,17 +414,28 @@ class GoalDetailViewModel @Inject constructor(
         }
     }
 
-    fun lookupUser(email: String) {
+    fun lookupUser(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) return
         if (_lookupState.value is UserLookupUi.Loading) return
         viewModelScope.launch {
             _lookupState.value = UserLookupUi.Loading
             try {
-                val user = userRepository.lookupByEmail(email)
-                _lookupState.value = UserLookupUi.Found(user)
+                if (trimmed.contains("@")) {
+                    val user = userRepository.lookupByEmail(trimmed)
+                    _lookupState.value = UserLookupUi.Found(user)
+                } else {
+                    val users = userRepository.searchUsers(trimmed)
+                    if (users.isNotEmpty()) {
+                        _lookupState.value = UserLookupUi.Found(users.first())
+                    } else {
+                        _lookupState.value = UserLookupUi.NotFound(trimmed)
+                    }
+                }
             } catch (e: ApiException) {
                 val kind = e.toErrorKind()
                 _lookupState.value = if (kind == ErrorKind.NotFound) {
-                    UserLookupUi.NotFound(email)
+                    UserLookupUi.NotFound(trimmed)
                 } else {
                     UserLookupUi.Failed(kind)
                 }

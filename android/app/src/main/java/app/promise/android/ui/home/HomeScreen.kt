@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -81,6 +82,7 @@ fun HomeScreen(
     onOpenProfile: () -> Unit,
     onOpenCommitment: (String) -> Unit = {},
     onOpenPractice: (String) -> Unit = {},
+    onOpenSearch: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -121,6 +123,7 @@ fun HomeScreen(
                         onOpenProfile = onOpenProfile,
                         onOpenCommitment = onOpenCommitment,
                         onOpenPractice = onOpenPractice,
+                        onOpenSearch = onOpenSearch,
                         onComplete = viewModel::completeCommitment,
                         onCheckIn = { practice ->
                             if (practice.trackingKind == GoalTrackingKind.COUNT && !practice.checkedInToday) {
@@ -222,6 +225,7 @@ private fun HomeContent(
     onOpenProfile: () -> Unit,
     onOpenCommitment: (String) -> Unit,
     onOpenPractice: (String) -> Unit,
+    onOpenSearch: () -> Unit = {},
     onComplete: (String) -> Unit,
     onCheckIn: (HomePractice) -> Unit,
     onRetryCommitments: () -> Unit,
@@ -245,6 +249,7 @@ private fun HomeContent(
                 dateLabel = model.dateLabel,
                 initials = model.initials,
                 onOpenProfile = onOpenProfile,
+                onOpenSearch = onOpenSearch,
             )
             Spacer(modifier = Modifier.height(Spacing.md + Spacing.xxs))
             PromiseHairlineDivider()
@@ -485,6 +490,7 @@ fun HomeHeader(
     dateLabel: String,
     initials: String,
     onOpenProfile: () -> Unit,
+    onOpenSearch: () -> Unit = {},
 ) {
     val colors = PromiseThemeColors.current
     Row(
@@ -509,6 +515,19 @@ fun HomeHeader(
                 color = colors.textSecondary,
             )
         }
+        IconButton(
+            onClick = onOpenSearch,
+            modifier = Modifier
+                .size(TouchTarget.min)
+                .semantics { contentDescription = "Search" },
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Search,
+                contentDescription = null,
+                tint = colors.textSecondary,
+            )
+        }
+        Spacer(modifier = Modifier.width(Spacing.xs))
         Box(
             modifier = Modifier
                 .size(TouchTarget.min)

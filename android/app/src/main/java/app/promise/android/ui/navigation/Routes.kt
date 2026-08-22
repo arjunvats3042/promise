@@ -37,3 +37,6 @@ data class GoalRoute(val goalId: String)
 
 @Serializable
 data class GoalChatRoute(val goalId: String)
+
+@Serializable
+data object SearchRoute

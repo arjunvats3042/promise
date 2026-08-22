@@ -18,4 +18,15 @@ class UserRepositoryImpl @Inject constructor(
             throw t.toApiException()
         }
     }
+
+    override suspend fun searchUsers(query: String): List<LookupUser> {
+        val trimmed = query.trim()
+        if (trimmed.length < 2) return emptyList()
+        return try {
+            val response = api.searchUsers(trimmed)
+            response.results.map { LookupUser(id = it.id, name = it.name, email = it.email) }
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
 }

@@ -391,3 +391,29 @@ class GoalActivityItemSerializer(serializers.Serializer):
     summary = serializers.CharField(read_only=True)
     period_date = serializers.DateField(read_only=True, allow_null=True)
     created_at = serializers.DateTimeField(read_only=True)
+
+
+class ChatSearchQuerySerializer(serializers.Serializer):
+    q = serializers.CharField(min_length=1, max_length=100, trim_whitespace=True)
+    limit = serializers.IntegerField(min_value=1, max_value=50, default=20, required=False)
+
+    def validate_q(self, value):
+        collapsed = " ".join(value.strip().split())
+        if not collapsed:
+            raise serializers.ValidationError("Search query cannot be empty.")
+        return collapsed
+
+
+class ChatSearchResultSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    message_id = serializers.UUIDField(source="id", read_only=True)
+    sender = ChatMessageSenderSerializer(source="*", read_only=True)
+    body = serializers.CharField(read_only=True)
+    snippet = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(read_only=True)
+
+    def get_snippet(self, obj):
+        body = obj.body or ""
+        if len(body) <= 120:
+            return body
+        return body[:117] + "..."
