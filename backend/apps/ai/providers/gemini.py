@@ -34,12 +34,13 @@ class GeminiProvider(AIProvider):
         if api_keys is not None:
             self._keys = [k for k in api_keys if k and k.strip()]
         else:
+            import os
             configured = [
-                getattr(settings, "GEMINI_API_KEY_1", ""),
-                getattr(settings, "GEMINI_API_KEY_2", ""),
-                getattr(settings, "GEMINI_API_KEY_3", ""),
+                os.environ.get("GEMINI_API_KEY_1") or getattr(settings, "GEMINI_API_KEY_1", ""),
+                os.environ.get("GEMINI_API_KEY_2") or getattr(settings, "GEMINI_API_KEY_2", ""),
+                os.environ.get("GEMINI_API_KEY_3") or getattr(settings, "GEMINI_API_KEY_3", ""),
             ]
-            self._keys = [k.strip() for k in configured if k and k.strip()]
+            self._keys = [str(k).strip() for k in configured if k and str(k).strip()]
 
         self.default_model = (
             default_model
@@ -201,7 +202,12 @@ class GeminiProvider(AIProvider):
         except urllib.error.HTTPError as http_err:
             status_code = http_err.code
             err_body = http_err.read().decode("utf-8", errors="replace")
-            if status_code in (400, 422):
+            err_body_lower = err_body.lower()
+
+            # Check if HTTP 400/401/403 is due to an invalid/revoked/unauthorized API Key
+            if "api_key" in err_body_lower or "api key" in err_body_lower or "unauthenticated" in err_body_lower or status_code in (401, 403):
+                raise AiUnavailableError(f"Gemini API key invalid or unauthorized: {status_code}") from http_err
+            elif status_code in (400, 422):
                 raise AiBadRequestError(f"AI request validation failed: {status_code}") from http_err
             elif status_code == 429:
                 raise AiUnavailableError("AI rate limit / quota exceeded") from http_err
