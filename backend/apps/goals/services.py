@@ -347,7 +347,13 @@ def invite_participant(*, actor, goal_id, user_id):
             goal.is_shared = True
             goal.save(update_fields=["is_shared", "updated_at"])
 
-        active_count = goal.participants.filter(status=GoalParticipant.Status.ACTIVE).count()
+        # Lock all active participant rows before counting to prevent phantom reads
+        # under concurrent invites racing against the capacity limit.
+        active_count = (
+            GoalParticipant.objects.select_for_update()
+            .filter(goal=goal, status=GoalParticipant.Status.ACTIVE)
+            .count()
+        )
         if active_count >= MAX_SHARED_GOAL_PARTICIPANTS:
             raise GoalParticipantLimitReachedError()
 
@@ -437,7 +443,12 @@ def reinvite_participant(*, actor, goal_id, participant_id=None, user_id=None):
         if not goal.is_shared:
             raise GoalNotFoundError()
 
-        active_count = goal.participants.filter(status=GoalParticipant.Status.ACTIVE).count()
+        # Lock all active participant rows before counting (same pattern as invite_participant).
+        active_count = (
+            GoalParticipant.objects.select_for_update()
+            .filter(goal=goal, status=GoalParticipant.Status.ACTIVE)
+            .count()
+        )
         if active_count >= MAX_SHARED_GOAL_PARTICIPANTS:
             raise GoalParticipantLimitReachedError()
 
@@ -505,7 +516,15 @@ def accept_invitation(*, actor, goal_id):
         if _invite_is_expired(participant):
             raise GoalInviteExpiredError()
 
-        active_count = goal.participants.filter(status=GoalParticipant.Status.ACTIVE).count()
+        # Lock all active participant rows before counting.  The goal row lock
+        # serialises concurrent accepts, but locking the participant rows as
+        # well prevents phantom reads if rows are inserted by another
+        # transaction that holds a different lock order.
+        active_count = (
+            GoalParticipant.objects.select_for_update()
+            .filter(goal=goal, status=GoalParticipant.Status.ACTIVE)
+            .count()
+        )
         if active_count >= MAX_SHARED_GOAL_PARTICIPANTS:
             raise GoalParticipantLimitReachedError()
 
