@@ -177,6 +177,8 @@ def run_consumer(
 
     from apps.outbox.kafka import get_kafka_consumer
 
+    import signal
+
     owned = consumer is None
     if owned:
         consumer = get_kafka_consumer(group_id)
@@ -190,8 +192,22 @@ def run_consumer(
     handled = 0
     started = time.monotonic()
     consumer.subscribe([topic])
+
+    stop_requested = False
+
+    def sig_handler(signum, frame):
+        nonlocal stop_requested
+        logger.info("Kafka consumer %s received signal %s, shutting down...", group_id, signum)
+        stop_requested = True
+
     try:
-        while True:
+        signal.signal(signal.SIGINT, sig_handler)
+        signal.signal(signal.SIGTERM, sig_handler)
+    except (ValueError, AttributeError):
+        pass  # if not in main thread
+
+    try:
+        while not stop_requested:
             if max_messages is not None and handled >= max_messages:
                 break
             if (
@@ -232,7 +248,7 @@ def run_consumer(
                     )
                 )
     except KeyboardInterrupt:
-        logger.info("Commitment consumer shutting down")
+        logger.info("Kafka consumer shutting down")
     finally:
         consumer.close()
     return counts

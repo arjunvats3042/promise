@@ -99,6 +99,10 @@ class TestNotificationDeduplication:
             device_id="dev-1",
             is_active=True,
         )
+        prefs = get_or_create_preferences(user_kolkata)
+        prefs.quiet_hours_enabled = False
+        prefs.save()
+
         UserDevice.objects.create(
             user=user_kolkata,
             fcm_token="fcm-token-device-2",
@@ -400,6 +404,10 @@ class TestNotificationHistoryAPI:
 class TestSharedGoalAndSecurityNotifications:
     @pytest.mark.django_db
     def test_shared_goal_joined_and_left_notifications(self, user_kolkata, user_new_york, mock_fcm):
+        prefs = get_or_create_preferences(user_kolkata)
+        prefs.quiet_hours_enabled = False
+        prefs.save()
+
         UserDevice.objects.create(
             user=user_kolkata,
             fcm_token="token-kolkata",

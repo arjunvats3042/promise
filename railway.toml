@@ -1,0 +1,38 @@
+# ==============================================================================
+# Railway Configuration for Promise
+# ==============================================================================
+# Target: Railway Managed Infrastructure
+#
+# Dedicated Services (Attach 4 services to this repo in Railway):
+#
+# 1. promise-web:
+#    Start Command: daphne -b 0.0.0.0 -p $PORT config.asgi:application
+#    Healthcheck:   /api/v1/health/ready/
+#
+# 2. promise-outbox-worker:
+#    Start Command: python manage.py publish_outbox --continuous
+#
+# 3. promise-goal-worker:
+#    Start Command: python manage.py consume_goal_events
+#
+# 4. promise-notification-worker:
+#    Start Command: python manage.py run_notification_dispatcher --continuous
+#
+# Managed Services:
+# - Railway PostgreSQL (Private network only: postgres.railway.internal)
+# - Railway Redis Key-Value (Private network only: redis.railway.internal)
+#
+# External Messaging:
+# - Aiven Managed Kafka (SASL_SSL / SCRAM-SHA-256)
+# ==============================================================================
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+watchPatterns = ["backend/**"]
+
+[deploy]
+healthcheckPath = "/api/v1/health/ready/"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
