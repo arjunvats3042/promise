@@ -79,4 +79,46 @@ class LoginViewModel @Inject constructor(
             }
         }
     }
+
+    fun submitGoogleLogin(idToken: String) {
+        if (_action.value is ActionState.InFlight) return
+        viewModelScope.launch {
+            _action.value = ActionState.InFlight
+            try {
+                authRepository.googleLogin(idToken)
+                _action.value = ActionState.Idle
+                haptics.confirm()
+            } catch (e: ApiException) {
+                val kind = e.toErrorKind()
+                _action.value = ActionState.Failed(kind)
+                haptics.error()
+            } catch (_: Throwable) {
+                _action.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
+
+    fun submitPasswordReset(email: String, onSent: (String) -> Unit) {
+        if (email.isBlank()) {
+            _action.value = ActionState.Failed(ErrorKind.Validation())
+            haptics.error()
+            return
+        }
+        viewModelScope.launch {
+            _action.value = ActionState.InFlight
+            try {
+                val message = authRepository.requestPasswordReset(email)
+                _action.value = ActionState.Idle
+                onSent(message)
+                haptics.confirm()
+            } catch (e: ApiException) {
+                _action.value = ActionState.Failed(e.toErrorKind())
+                haptics.error()
+            } catch (_: Throwable) {
+                _action.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
 }

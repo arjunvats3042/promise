@@ -5,7 +5,7 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone as django_timezone
 
-from apps.core.models import BaseModel
+from apps.core.models import BaseModel, UUIDBaseModel
 
 
 class UserNotificationPreferences(BaseModel):
@@ -79,7 +79,7 @@ class UserDevice(BaseModel):
         return f"UserDevice({self.device_id}, user={self.user_id}, active={self.is_active})"
 
 
-class Reminder(BaseModel):
+class Reminder(UUIDBaseModel):
     """Durable scheduled reminder instance.
 
     Enforces semantic identity and idempotency via identity_key:

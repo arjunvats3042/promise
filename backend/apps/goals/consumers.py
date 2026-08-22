@@ -82,31 +82,38 @@ def _authenticate_scope_headers(headers: list[tuple[bytes, bytes]]) -> tuple[Use
     return user, session.id
 
 
-def _validate_goal_membership(goal_id: str, user: User) -> tuple[bool, int]:
-    """Returns (is_valid, close_code).
+from django.db.models import Q
+
+
+def _validate_goal_membership(goal_id: str, user: User) -> tuple[bool, int, str]:
+    """Returns (is_valid, close_code, canonical_goal_id_str).
 
     Close codes:
     4401: Unauthenticated
     4403: Forbidden (invited, left, removed)
     4404: Not Found (personal goal or unrelated user)
     """
-    try:
-        goal_uuid = uuid.UUID(str(goal_id))
-    except ValueError:
-        return False, 4404
+    goal = None
+    if str(goal_id).isdigit():
+        goal = Goal.objects.filter(numeric_id=int(goal_id)).first()
+    else:
+        try:
+            goal_uuid = uuid.UUID(str(goal_id))
+            goal = Goal.objects.filter(id=goal_uuid).first()
+        except (ValueError, AttributeError):
+            return False, 4404, ""
 
-    goal = Goal.objects.filter(id=goal_uuid).first()
     if goal is None or not goal.is_shared:
-        return False, 4404
+        return False, 4404, ""
 
     participant = GoalParticipant.objects.filter(goal=goal, user=user).first()
     if participant is None:
-        return False, 4404
+        return False, 4404, ""
 
     if participant.status != GoalParticipant.Status.ACTIVE or goal.status != Goal.Status.ACTIVE:
-        return False, 4403
+        return False, 4403, ""
 
-    return True, 0
+    return True, 0, str(goal.id)
 
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
@@ -130,11 +137,12 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             await self.close(code=4404)
             return
 
-        is_valid, close_code = await sync_to_async(_validate_goal_membership)(self.goal_id, self.user)
+        is_valid, close_code, canonical_id = await sync_to_async(_validate_goal_membership)(self.goal_id, self.user)
         if not is_valid:
             await self.close(code=close_code)
             return
 
+        self.goal_id = canonical_id
         self.room_group_name = f"goal_chat_{self.goal_id}"
 
         await self.channel_layer.group_add(

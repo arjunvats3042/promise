@@ -6,4 +6,7 @@ data class User(
     val name: String,
     val timezone: String,
     val createdAt: String,
+    val emailVerified: Boolean = false,
+    val hasPassword: Boolean = true,
+    val googleLinked: Boolean = false,
 )

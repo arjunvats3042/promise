@@ -51,11 +51,62 @@ data class TokensDto(
 )
 
 @Serializable
+data class GoogleAuthRequest(
+    @SerialName("id_token")
+    val idToken: String,
+    @SerialName("device_name")
+    val deviceName: String = "",
+    val platform: String = "android",
+)
+
+@Serializable
+data class VerifyEmailConfirmRequest(
+    val token: String,
+)
+
+@Serializable
+data class PasswordResetRequest(
+    val email: String,
+)
+
+@Serializable
+data class PasswordResetConfirmRequest(
+    val token: String,
+    val password: String,
+)
+
+@Serializable
+data class SetPasswordRequest(
+    val password: String,
+)
+
+@Serializable
+data class ChangePasswordRequest(
+    @SerialName("old_password")
+    val oldPassword: String,
+    @SerialName("new_password")
+    val newPassword: String,
+)
+
+@Serializable
+data class MessageDetailResponse(
+    val detail: String,
+    @SerialName("debug_token")
+    val debugToken: String? = null,
+)
+
+@Serializable
 data class UserDto(
     val id: String,
     val email: String,
     val name: String,
     val timezone: String,
+    @SerialName("email_verified")
+    val emailVerified: Boolean = false,
+    @SerialName("has_password")
+    val hasPassword: Boolean = true,
+    @SerialName("google_linked")
+    val googleLinked: Boolean = false,
     @SerialName("created_at")
     val createdAt: String,
 )

@@ -250,6 +250,34 @@ private fun HomeContent(
             PromiseHairlineDivider()
             Spacer(modifier = Modifier.height(Spacing.lg))
         }
+        if (!model.emailVerified) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.md))
+                        .background(colors.warning.copy(alpha = 0.12f))
+                        .border(1.dp, colors.warning.copy(alpha = 0.35f), RoundedCornerShape(Radius.md))
+                        .clickable(onClick = onOpenProfile)
+                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                ) {
+                    Column {
+                        Text(
+                            text = "Verify your email address",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = colors.textPrimary,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Tap to visit Profile & Security to send a verification link.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(Spacing.md))
+            }
+        }
         item {
             Text(
                 text = "Today’s commitments",

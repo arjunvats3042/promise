@@ -37,8 +37,78 @@ class RefreshSerializer(serializers.Serializer):
     refresh_token = serializers.CharField(write_only=True, trim_whitespace=False)
 
 
+class GoogleAuthSerializer(serializers.Serializer):
+    id_token = serializers.CharField(write_only=True, trim_whitespace=True)
+    device_name = serializers.CharField(max_length=128, required=False, default="", allow_blank=True)
+    platform = serializers.CharField(max_length=16, required=False, default="android", allow_blank=True)
+
+
+class VerifyEmailConfirmSerializer(serializers.Serializer):
+    token = serializers.CharField(trim_whitespace=True)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        return canonicalize_email(value)
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    token = serializers.CharField(trim_whitespace=True)
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        try:
+            validate_password(attrs["password"])
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"password": list(exc.messages)}) from None
+        return attrs
+
+
+class SetPasswordSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        try:
+            validate_password(attrs["password"])
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"password": list(exc.messages)}) from None
+        return attrs
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate(self, attrs):
+        try:
+            validate_password(attrs["new_password"])
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"new_password": list(exc.messages)}) from None
+        return attrs
+
+
 class UserResponseSerializer(serializers.ModelSerializer):
+    has_password = serializers.SerializerMethodField()
+    google_linked = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ("id", "email", "name", "timezone", "created_at")
+        fields = (
+            "id",
+            "email",
+            "name",
+            "timezone",
+            "email_verified",
+            "has_password",
+            "google_linked",
+            "created_at",
+        )
         read_only_fields = fields
+
+    def get_has_password(self, obj) -> bool:
+        return obj.has_usable_password()
+
+    def get_google_linked(self, obj) -> bool:
+        return bool(obj.google_sub)

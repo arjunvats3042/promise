@@ -35,6 +35,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.promise.android.ui.auth.GreetingClock
 import app.promise.android.ui.components.PromiseGreetingText
+import app.promise.android.ui.components.PromiseHairlineDivider
 import app.promise.android.ui.components.TabSwipeContainer
 import app.promise.android.ui.home.HomeViewModel
 import app.promise.android.ui.navigation.LocalTabSwipeHost
@@ -139,6 +140,92 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.section))
                 Text(
+                    text = "Security & Account",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.textPrimary,
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.lg))
+                        .background(colors.surfaceMuted)
+                        .padding(Spacing.md),
+                ) {
+                    // Email verification status
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column {
+                            Text(
+                                text = "Email Verification",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = colors.textPrimary,
+                            )
+                            Text(
+                                text = if (user?.emailVerified == true) "Verified" else "Not verified",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (user?.emailVerified == true) colors.accent else colors.warning,
+                            )
+                        }
+                        if (user?.emailVerified != true) {
+                            TextButton(
+                                onClick = {
+                                    viewModel.requestEmailVerification { detail ->
+                                        // Feedback handled
+                                    }
+                                },
+                            ) {
+                                Text("Send Link", color = colors.accent)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    PromiseHairlineDivider()
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+
+                    // Password management
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column {
+                            Text(
+                                text = "Password",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = colors.textPrimary,
+                            )
+                            Text(
+                                text = if (user?.hasPassword == true) "Password is set" else "No password (Google login)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                            )
+                        }
+                    }
+
+                    if (user?.googleLinked == true) {
+                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        PromiseHairlineDivider()
+                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        Text(
+                            text = "Google Account",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = colors.textPrimary,
+                        )
+                        Text(
+                            text = "Connected for sign in",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.section))
+                Text(
                     text = "Appearance",
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
@@ -191,6 +278,58 @@ fun ProfileScreen(
                         text = "Sign out of all devices",
                         style = MaterialTheme.typography.labelLarge,
                         color = colors.textSecondary,
+                    )
+                }
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                var showDeleteAccountDialog by remember { mutableStateOf(false) }
+                TextButton(
+                    onClick = { showDeleteAccountDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = TouchTarget.min)
+                        .semantics { contentDescription = "Delete account" },
+                ) {
+                    Text(
+                        text = "Delete account",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                    )
+                }
+
+                if (showDeleteAccountDialog) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { showDeleteAccountDialog = false },
+                        title = {
+                            Text(
+                                text = "Delete your account?",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = colors.textPrimary,
+                            )
+                        },
+                        text = {
+                            Text(
+                                text = "This will permanently anonymize your account, cancel all active commitments and goals, and sign you out.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textSecondary,
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showDeleteAccountDialog = false
+                                    viewModel.deleteAccount(onSignOut)
+                                },
+                            ) {
+                                Text("Delete", color = MaterialTheme.colorScheme.error)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDeleteAccountDialog = false }) {
+                                Text("Cancel", color = colors.textSecondary)
+                            }
+                        },
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(Radius.md),
                     )
                 }
             }

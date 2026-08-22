@@ -46,3 +46,27 @@ class RefreshSessionRevokedError(ApplicationAPIError):
 
 class RefreshSecretDecryptionError(Exception):
     """Current refresh secret ciphertext could not be decrypted."""
+
+
+class EmailVerificationRequiredForLinkingError(ApplicationAPIError):
+    status_code = status.HTTP_409_CONFLICT
+    error_code = "EMAIL_VERIFICATION_REQUIRED_FOR_LINKING"
+    public_message = "Please verify your Promise account email before linking with Google."
+
+
+class InvalidOrExpiredTokenError(ApplicationAPIError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    error_code = "INVALID_TOKEN"
+    public_message = "The provided token is invalid or has expired."
+
+
+class InvalidCurrentPasswordError(ApplicationAPIError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    error_code = "INVALID_CURRENT_PASSWORD"
+    public_message = "The current password provided is incorrect."
+
+
+class PasswordAlreadySetError(ApplicationAPIError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    error_code = "PASSWORD_ALREADY_SET"
+    public_message = "A password has already been set for this account. Please use change password."

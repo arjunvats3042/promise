@@ -8,17 +8,29 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+import hashlib
+import secrets
+
 from apps.authentication.access_tokens import issue_access_token
 from apps.authentication.denylist import deny_access_session
 from apps.authentication.exceptions import (
     AuthenticationCredentialsError,
     EmailAlreadyExistsError,
+    EmailVerificationRequiredForLinkingError,
+    InvalidCurrentPasswordError,
+    InvalidOrExpiredTokenError,
+    PasswordAlreadySetError,
     RefreshSecretDecryptionError,
     RefreshSessionRevokedError,
     RefreshTokenExpiredError,
     RefreshTokenInvalidError,
 )
-from apps.authentication.models import AuthSession
+from apps.authentication.google import verify_google_id_token
+from apps.authentication.models import (
+    AuthSession,
+    EmailVerificationToken,
+    PasswordResetToken,
+)
 from apps.authentication.tokens import (
     compose_refresh_token,
     decrypt_refresh_secret,
@@ -47,6 +59,172 @@ class AuthenticationResult:
 
 def canonicalize_email(email):
     return email.strip().lower()
+
+
+def google_login_or_register(*, id_token, device_name="", platform="android"):
+    claims = verify_google_id_token(id_token)
+    sub = claims["sub"]
+    email = canonicalize_email(claims["email"])
+    name = claims.get("name") or email.split("@")[0]
+
+    with transaction.atomic():
+        # Case A: User already linked by google_sub
+        user = User.objects.filter(google_sub=sub).first()
+        if user is not None:
+            if not user.is_active:
+                raise AuthenticationCredentialsError("Account is inactive.")
+            return _create_session_and_tokens(user, device_name=device_name, platform=platform)
+
+        # Case B: User with matching email
+        existing_user = User.objects.filter(email__iexact=email).first()
+        if existing_user is not None:
+            if not existing_user.is_active:
+                raise AuthenticationCredentialsError("Account is inactive.")
+            if not existing_user.email_verified:
+                # Do NOT silently attach Google identity to unverified Promise email
+                raise EmailVerificationRequiredForLinkingError()
+            existing_user.google_sub = sub
+            existing_user.save(update_fields=["google_sub", "updated_at"])
+            return _create_session_and_tokens(existing_user, device_name=device_name, platform=platform)
+
+        # Case C: New user creation from Google
+        user = User.objects.create_user(
+            email=email,
+            password=None,
+            name=name,
+            email_verified=True,
+            google_sub=sub,
+        )
+        return _create_session_and_tokens(user, device_name=device_name, platform=platform)
+
+
+def request_email_verification(*, user):
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    now = timezone.now()
+    with transaction.atomic():
+        EmailVerificationToken.objects.filter(user=user, used_at__isnull=True).update(used_at=now)
+        EmailVerificationToken.objects.create(
+            user=user,
+            token_hash=token_hash,
+            expires_at=now + timedelta(hours=24),
+        )
+    return raw_token
+
+
+def confirm_email_verification(*, token):
+    if not token or not isinstance(token, str):
+        raise InvalidOrExpiredTokenError()
+    token_hash = hashlib.sha256(token.strip().encode("utf-8")).hexdigest()
+    now = timezone.now()
+    with transaction.atomic():
+        record = (
+            EmailVerificationToken.objects.select_related("user")
+            .select_for_update()
+            .filter(token_hash=token_hash, used_at__isnull=True, expires_at__gt=now)
+            .first()
+        )
+        if record is None:
+            raise InvalidOrExpiredTokenError()
+        record.used_at = now
+        record.save(update_fields=["used_at", "updated_at"])
+        user = record.user
+        user.email_verified = True
+        user.save(update_fields=["email_verified", "updated_at"])
+        return user
+
+
+def request_password_reset(*, email):
+    email = canonicalize_email(email)
+    user = User.objects.filter(email__iexact=email, is_active=True).first()
+    if user is None:
+        # Constant-time protection
+        check_password("dummy", _DUMMY_PASSWORD_HASH)
+        return None
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    now = timezone.now()
+    with transaction.atomic():
+        PasswordResetToken.objects.filter(user=user, used_at__isnull=True).update(used_at=now)
+        PasswordResetToken.objects.create(
+            user=user,
+            token_hash=token_hash,
+            expires_at=now + timedelta(hours=1),
+        )
+    return raw_token
+
+
+def confirm_password_reset(*, token, new_password):
+    if not token or not isinstance(token, str):
+        raise InvalidOrExpiredTokenError()
+    token_hash = hashlib.sha256(token.strip().encode("utf-8")).hexdigest()
+    now = timezone.now()
+    with transaction.atomic():
+        record = (
+            PasswordResetToken.objects.select_related("user")
+            .select_for_update()
+            .filter(token_hash=token_hash, used_at__isnull=True, expires_at__gt=now)
+            .first()
+        )
+        if record is None:
+            raise InvalidOrExpiredTokenError()
+        record.used_at = now
+        record.save(update_fields=["used_at", "updated_at"])
+        user = record.user
+        user.set_password(new_password)
+        user.save(update_fields=["password", "updated_at"])
+        # Revoke all active sessions on password change
+        logout_all_sessions(user=user)
+        return user
+
+
+def set_user_password(*, user, password):
+    if user.has_usable_password():
+        raise PasswordAlreadySetError()
+    user.set_password(password)
+    user.save(update_fields=["password", "updated_at"])
+    return user
+
+
+def change_user_password(*, user, old_password, new_password):
+    if not user.check_password(old_password):
+        raise InvalidCurrentPasswordError()
+    user.set_password(new_password)
+    user.save(update_fields=["password", "updated_at"])
+    return user
+
+
+def delete_user_account(*, user):
+    now = timezone.now()
+    with transaction.atomic():
+        # Anonymize user identity
+        user.name = "Former Participant"
+        user.email = f"deleted_{user.id}@deleted.promise.app"
+        user.google_sub = None
+        user.set_unusable_password()
+        user.is_active = False
+        user.save(update_fields=["name", "email", "google_sub", "password", "is_active", "updated_at"])
+
+        # Revoke all sessions and deactive devices
+        logout_all_sessions(user=user)
+
+        # Cancel personal commitments and goals
+        user.created_commitments.filter(status__in=["PENDING", "WAITING", "SNOOZED"]).update(
+            status="CANCELLED",
+            cancelled_at=now,
+            updated_at=now,
+        )
+        user.created_goals.filter(is_shared=False, status__in=["ACTIVE", "PAUSED"]).update(
+            status="CANCELLED",
+            cancelled_at=now,
+            updated_at=now,
+        )
+        # Update participant membership on shared goals to LEFT
+        user.goal_participations.filter(status__in=["ACTIVE", "INVITED"]).update(
+            status="LEFT",
+            left_at=now,
+            updated_at=now,
+        )
 
 
 def register_user(*, email, password, name):
@@ -163,7 +341,7 @@ def logout_all_sessions(*, user):
         deny_access_session(session_id)
 
 
-def _create_session_and_tokens(user):
+def _create_session_and_tokens(user, device_name="", platform="unknown"):
     now = timezone.now()
     refresh_secret = generate_refresh_secret()
     session = AuthSession.objects.create(
@@ -173,6 +351,8 @@ def _create_session_and_tokens(user):
         last_used_at=now,
         expires_at=now + REFRESH_IDLE_LIFETIME,
         absolute_expires_at=now + SESSION_ABSOLUTE_LIFETIME,
+        device_name=device_name or "",
+        platform=platform if platform in ["android", "ios", "web"] else "unknown",
     )
     access_token = issue_access_token(user, session)
     refresh_token = compose_refresh_token(session.id, refresh_secret)

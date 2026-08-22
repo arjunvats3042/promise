@@ -2,10 +2,10 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
-from apps.core.models import BaseModel
+from apps.core.models import BaseModel, UUIDBaseModel
 
 
-class AuthSession(BaseModel):
+class AuthSession(UUIDBaseModel):
     """One authenticated device/session for a user.
 
     Session id is BaseModel.id (UUID). Refresh tokens are opaque
@@ -79,3 +79,55 @@ class AuthSession(BaseModel):
         if self.is_revoked() or self.is_expired(at=at):
             return False
         return self.user.is_active
+
+
+class EmailVerificationToken(UUIDBaseModel):
+    """Secure hashed single-use token for email verification."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="email_verification_tokens",
+    )
+    token_hash = models.CharField(max_length=64, db_index=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "email_verification_tokens"
+        indexes = [
+            models.Index(fields=["user", "expires_at"]),
+        ]
+
+    def __str__(self):
+        return f"EmailVerificationToken(user_id={self.user_id}, used={self.used_at is not None})"
+
+    def is_valid(self, at=None):
+        now = at if at is not None else timezone.now()
+        return self.used_at is None and now < self.expires_at
+
+
+class PasswordResetToken(UUIDBaseModel):
+    """Secure hashed single-use token for password reset."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="password_reset_tokens",
+    )
+    token_hash = models.CharField(max_length=64, db_index=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "password_reset_tokens"
+        indexes = [
+            models.Index(fields=["user", "expires_at"]),
+        ]
+
+    def __str__(self):
+        return f"PasswordResetToken(user_id={self.user_id}, used={self.used_at is not None})"
+
+    def is_valid(self, at=None):
+        now = at if at is not None else timezone.now()
+        return self.used_at is None and now < self.expires_at

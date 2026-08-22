@@ -301,6 +301,9 @@ def test_me_with_valid_token_returns_current_user(client, user, session, access_
             "email": user.email,
             "name": user.name,
             "timezone": user.timezone,
+            "email_verified": False,
+            "has_password": True,
+            "google_linked": False,
             "created_at": user.created_at.isoformat().replace("+00:00", "Z"),
         }
     }

@@ -88,6 +88,25 @@ class RegisterViewModel @Inject constructor(
         }
     }
 
+    fun submitGoogleLogin(idToken: String) {
+        if (_action.value is ActionState.InFlight) return
+        viewModelScope.launch {
+            _action.value = ActionState.InFlight
+            try {
+                authRepository.googleLogin(idToken)
+                _action.value = ActionState.Idle
+                haptics.confirm()
+            } catch (e: ApiException) {
+                val kind = e.toErrorKind()
+                _action.value = ActionState.Failed(kind)
+                haptics.error()
+            } catch (_: Throwable) {
+                _action.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
+
     private fun clearFailed() {
         if (_action.value is ActionState.Failed) {
             _action.value = ActionState.Idle

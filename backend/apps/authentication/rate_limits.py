@@ -16,6 +16,16 @@ REGISTER_IP_WINDOW = 3600
 REGISTER_IP_LIMIT = 5
 REGISTER_EMAIL_WINDOW = 3600
 REGISTER_EMAIL_LIMIT = 10
+GOOGLE_AUTH_IP_WINDOW = 900
+GOOGLE_AUTH_IP_LIMIT = 20
+EMAIL_VERIFY_USER_WINDOW = 3600
+EMAIL_VERIFY_USER_LIMIT = 5
+EMAIL_VERIFY_IP_WINDOW = 3600
+EMAIL_VERIFY_IP_LIMIT = 15
+PASSWORD_RESET_EMAIL_WINDOW = 3600
+PASSWORD_RESET_EMAIL_LIMIT = 5
+PASSWORD_RESET_IP_WINDOW = 3600
+PASSWORD_RESET_IP_LIMIT = 15
 REFRESH_SESSION_WINDOW = 900
 REFRESH_SESSION_LIMIT = 30
 REFRESH_USER_WINDOW = 900
@@ -44,12 +54,32 @@ def login_email_key(email):
     return f"promise:ratelimit:login:email:{email_rate_limit_hash(email)}"
 
 
+def google_auth_ip_key(ip):
+    return f"promise:ratelimit:google:ip:{ip}"
+
+
 def register_ip_key(ip):
     return f"promise:ratelimit:register:ip:{ip}"
 
 
 def register_email_key(email):
     return f"promise:ratelimit:register:email:{email_rate_limit_hash(email)}"
+
+
+def email_verify_user_key(user_id):
+    return f"promise:ratelimit:verify_email:user:{user_id}"
+
+
+def email_verify_ip_key(ip):
+    return f"promise:ratelimit:verify_email:ip:{ip}"
+
+
+def password_reset_email_key(email):
+    return f"promise:ratelimit:password_reset:email:{email_rate_limit_hash(email)}"
+
+
+def password_reset_ip_key(ip):
+    return f"promise:ratelimit:password_reset:ip:{ip}"
 
 
 def refresh_session_key(session_id):
@@ -74,12 +104,37 @@ def enforce_login_rate_limits(request, email):
     )
 
 
+def enforce_google_auth_rate_limits(request):
+    ip = client_ip_identifier(request)
+    _enforce([(google_auth_ip_key(ip), GOOGLE_AUTH_IP_WINDOW, GOOGLE_AUTH_IP_LIMIT)])
+
+
 def enforce_register_rate_limits(request, email):
     ip = client_ip_identifier(request)
     _enforce(
         [
             (register_ip_key(ip), REGISTER_IP_WINDOW, REGISTER_IP_LIMIT),
             (register_email_key(email), REGISTER_EMAIL_WINDOW, REGISTER_EMAIL_LIMIT),
+        ]
+    )
+
+
+def enforce_email_verification_request_rate_limits(request, user_id):
+    ip = client_ip_identifier(request)
+    _enforce(
+        [
+            (email_verify_ip_key(ip), EMAIL_VERIFY_IP_WINDOW, EMAIL_VERIFY_IP_LIMIT),
+            (email_verify_user_key(user_id), EMAIL_VERIFY_USER_WINDOW, EMAIL_VERIFY_USER_LIMIT),
+        ]
+    )
+
+
+def enforce_password_reset_request_rate_limits(request, email):
+    ip = client_ip_identifier(request)
+    _enforce(
+        [
+            (password_reset_ip_key(ip), PASSWORD_RESET_IP_WINDOW, PASSWORD_RESET_IP_LIMIT),
+            (password_reset_email_key(email), PASSWORD_RESET_EMAIL_WINDOW, PASSWORD_RESET_EMAIL_LIMIT),
         ]
     )
 

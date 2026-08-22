@@ -14,10 +14,10 @@ app_name = "commitments"
 
 urlpatterns = [
     path("", commitment_collection, name="collection"),
-    path("<uuid:commitment_id>/", commitment_detail, name="detail"),
-    path("<uuid:commitment_id>/complete/", commitment_complete, name="complete"),
-    path("<uuid:commitment_id>/snooze/", commitment_snooze, name="snooze"),
-    path("<uuid:commitment_id>/unsnooze/", commitment_unsnooze, name="unsnooze"),
-    path("<uuid:commitment_id>/wait/", commitment_wait, name="wait"),
-    path("<uuid:commitment_id>/cancel/", commitment_cancel, name="cancel"),
+    path("<str:commitment_id>/", commitment_detail, name="detail"),
+    path("<str:commitment_id>/complete/", commitment_complete, name="complete"),
+    path("<str:commitment_id>/snooze/", commitment_snooze, name="snooze"),
+    path("<str:commitment_id>/unsnooze/", commitment_unsnooze, name="unsnooze"),
+    path("<str:commitment_id>/wait/", commitment_wait, name="wait"),
+    path("<str:commitment_id>/cancel/", commitment_cancel, name="cancel"),
 ]

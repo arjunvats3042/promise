@@ -43,6 +43,28 @@ internal class FakeAuthRepository(
         )
     }
 
+    override suspend fun googleLogin(idToken: String) {
+        (session as MutableStateFlow).value = SessionState.Authenticated(
+            User("1", "google@example.com", "Google User", "UTC", "2026-01-01T00:00:00Z"),
+        )
+    }
+
+    override suspend fun requestEmailVerification(): String = "Verification email sent."
+
+    override suspend fun confirmEmailVerification(token: String) = Unit
+
+    override suspend fun requestPasswordReset(email: String): String = "Reset email sent."
+
+    override suspend fun confirmPasswordReset(token: String, password: String) = Unit
+
+    override suspend fun setPassword(password: String) = Unit
+
+    override suspend fun changePassword(oldPassword: String, newPassword: String) = Unit
+
+    override suspend fun deleteAccount() {
+        (session as MutableStateFlow).value = SessionState.Unauthenticated
+    }
+
     override suspend fun restoreSession() {
         restoreCalled = true
         (session as MutableStateFlow).value = SessionState.Unauthenticated

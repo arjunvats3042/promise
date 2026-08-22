@@ -163,12 +163,26 @@ def list_active_participants(*, viewer, goal_id):
     )
 
 
+def _lookup_goal(goal_id):
+    if isinstance(goal_id, int) or (isinstance(goal_id, str) and str(goal_id).isdigit()):
+        return (
+            Goal.objects.filter(numeric_id=int(goal_id))
+            .prefetch_related("check_ins", "events", "participants")
+            .first()
+        )
+    try:
+        val = uuid.UUID(str(goal_id))
+        return (
+            Goal.objects.filter(id=val)
+            .prefetch_related("check_ins", "events", "participants")
+            .first()
+        )
+    except (ValueError, AttributeError):
+        return None
+
+
 def get_visible_goal(*, viewer, goal_id):
-    goal = (
-        Goal.objects.filter(id=goal_id)
-        .prefetch_related("check_ins", "events", "participants")
-        .first()
-    )
+    goal = _lookup_goal(goal_id)
     if goal is None or not can_view_goal_for_user(viewer, goal):
         raise GoalNotFoundError()
     return goal
@@ -1230,19 +1244,29 @@ def _active_participant_for_actor(goal, actor):
     return participant
 
 
+def _lookup_goal_for_update(goal_id):
+    if isinstance(goal_id, int) or (isinstance(goal_id, str) and str(goal_id).isdigit()):
+        return Goal.objects.select_for_update().filter(numeric_id=int(goal_id)).first()
+    try:
+        val = uuid.UUID(str(goal_id))
+        return Goal.objects.select_for_update().filter(id=val).first()
+    except (ValueError, AttributeError):
+        return None
+
+
 def _lock_for_owner(actor, goal_id):
     return _lock_for_manager(actor, goal_id)
 
 
 def _lock_for_manager(actor, goal_id):
-    goal = Goal.objects.select_for_update().filter(id=goal_id).first()
+    goal = _lookup_goal_for_update(goal_id)
     if goal is None or not can_manage_goal(actor, goal):
         raise GoalNotFoundError()
     return goal
 
 
 def _lock_for_check_in(actor, goal_id):
-    goal = Goal.objects.select_for_update().filter(id=goal_id).first()
+    goal = _lookup_goal_for_update(goal_id)
     if goal is None:
         raise GoalNotFoundError()
     participant = (

@@ -100,8 +100,21 @@ def create_commitment(
         return commitment
 
 
+import uuid
+
+
+def _lookup_commitment(commitment_id):
+    if isinstance(commitment_id, int) or (isinstance(commitment_id, str) and str(commitment_id).isdigit()):
+        return Commitment.objects.filter(numeric_id=int(commitment_id)).first()
+    try:
+        val = uuid.UUID(str(commitment_id))
+        return Commitment.objects.filter(id=val).first()
+    except (ValueError, AttributeError):
+        return None
+
+
 def get_visible_commitment(*, viewer, commitment_id):
-    commitment = Commitment.objects.filter(id=commitment_id).first()
+    commitment = _lookup_commitment(commitment_id)
     if commitment is None or not can_view(viewer, commitment):
         raise CommitmentNotFoundError()
     return commitment
@@ -334,12 +347,18 @@ def _is_active_responsible(user, commitment):
     ).exists()
 
 
+def _lookup_commitment_for_update(commitment_id):
+    if isinstance(commitment_id, int) or (isinstance(commitment_id, str) and str(commitment_id).isdigit()):
+        return Commitment.objects.select_for_update().filter(numeric_id=int(commitment_id)).first()
+    try:
+        val = uuid.UUID(str(commitment_id))
+        return Commitment.objects.select_for_update().filter(id=val).first()
+    except (ValueError, AttributeError):
+        return None
+
+
 def _lock_for_responsible(actor, commitment_id):
-    commitment = (
-        Commitment.objects.select_for_update()
-        .filter(id=commitment_id)
-        .first()
-    )
+    commitment = _lookup_commitment_for_update(commitment_id)
     if commitment is None or not can_view(actor, commitment):
         raise CommitmentNotFoundError()
     if not _is_active_responsible(actor, commitment):

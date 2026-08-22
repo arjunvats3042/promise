@@ -106,6 +106,9 @@ def test_registration_returns_201_and_creates_one_user_and_session(client):
         "email": "user@example.com",
         "name": "User Name",
         "timezone": "UTC",
+        "email_verified": False,
+        "has_password": True,
+        "google_linked": False,
         "created_at": user.created_at.isoformat().replace("+00:00", "Z"),
     }
 

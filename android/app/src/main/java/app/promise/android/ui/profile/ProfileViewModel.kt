@@ -97,6 +97,58 @@ class ProfileViewModel @Inject constructor(
         haptics.light()
     }
 
+    fun requestEmailVerification(onResult: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val detail = authRepository.requestEmailVerification()
+                haptics.confirm()
+                onResult(detail)
+            } catch (t: Throwable) {
+                _errorMessage.value = "Failed to send verification email: ${t.message}"
+                haptics.error()
+            }
+        }
+    }
+
+    fun changePassword(oldPass: String, newPass: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                authRepository.changePassword(oldPass, newPass)
+                haptics.confirm()
+                onSuccess()
+            } catch (t: Throwable) {
+                haptics.error()
+                onError(t.message ?: "Failed to change password")
+            }
+        }
+    }
+
+    fun setPassword(newPass: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                authRepository.setPassword(newPass)
+                haptics.confirm()
+                onSuccess()
+            } catch (t: Throwable) {
+                haptics.error()
+                onError(t.message ?: "Failed to set password")
+            }
+        }
+    }
+
+    fun deleteAccount(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            _isLoggingOut.value = true
+            try {
+                authRepository.deleteAccount()
+                haptics.confirm()
+                onComplete()
+            } catch (_: Throwable) {
+                _isLoggingOut.value = false
+            }
+        }
+    }
+
     fun logoutAll(onComplete: () -> Unit) {
         viewModelScope.launch {
             _isLoggingOut.value = true

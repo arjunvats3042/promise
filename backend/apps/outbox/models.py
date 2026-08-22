@@ -1,10 +1,10 @@
 from django.db import models
 from django.db.models import Q
 
-from apps.core.models import BaseModel
+from apps.core.models import UUIDBaseModel
 
 
-class OutboxEvent(BaseModel):
+class OutboxEvent(UUIDBaseModel):
     """Transport row for later Kafka publication. Not audit history."""
 
     aggregate_type = models.CharField(max_length=32)
@@ -33,7 +33,7 @@ class OutboxEvent(BaseModel):
         return f"OutboxEvent {self.id}"
 
 
-class ProcessedEvent(BaseModel):
+class ProcessedEvent(UUIDBaseModel):
     """Idempotency record for a consumer group and Kafka event_id."""
 
     consumer_group = models.CharField(max_length=128)

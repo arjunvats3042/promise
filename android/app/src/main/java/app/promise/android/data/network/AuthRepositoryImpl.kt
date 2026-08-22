@@ -52,6 +52,110 @@ class AuthRepositoryImpl(
         }
     }
 
+    override suspend fun googleLogin(idToken: String) {
+        try {
+            val response = publicApi.googleAuth(GoogleAuthRequest(idToken = idToken))
+            AppLog.d(TAG, "google auth HTTP ok; applying session")
+            acceptAuthenticated(response)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            AppLog.d(TAG, "google auth failed: ${t.javaClass.simpleName}/${(t as? ApiException)?.code ?: "n/a"}")
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun requestEmailVerification(): String {
+        return try {
+            val response = authedApi.verifyEmailRequest()
+            response.detail
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun confirmEmailVerification(token: String) {
+        try {
+            val response = publicApi.verifyEmailConfirm(VerifyEmailConfirmRequest(token = token.trim()))
+            val user = response.user.toDomain()
+            memory.setUser(user)
+            _session.value = SessionState.Authenticated(user)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun requestPasswordReset(email: String): String {
+        return try {
+            val response = publicApi.passwordResetRequest(PasswordResetRequest(email = email.trim()))
+            response.detail
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun confirmPasswordReset(token: String, password: String) {
+        try {
+            val response = publicApi.passwordResetConfirm(
+                PasswordResetConfirmRequest(token = token.trim(), password = password)
+            )
+            val user = response.user.toDomain()
+            memory.setUser(user)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun setPassword(password: String) {
+        try {
+            val response = authedApi.setPassword(SetPasswordRequest(password = password))
+            val user = response.user.toDomain()
+            memory.setUser(user)
+            _session.value = SessionState.Authenticated(user)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun changePassword(oldPassword: String, newPassword: String) {
+        try {
+            val response = authedApi.changePassword(
+                ChangePasswordRequest(oldPassword = oldPassword, newPassword = newPassword)
+            )
+            val user = response.user.toDomain()
+            memory.setUser(user)
+            _session.value = SessionState.Authenticated(user)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun deleteAccount() {
+        try {
+            deviceRegistrationRepository?.unregisterDevice()
+            authedApi.deleteAccount()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Throwable) {
+        } finally {
+            tokenStore.clear()
+            memory.clear()
+            _session.value = SessionState.Unauthenticated
+        }
+    }
+
     override suspend fun restoreSession() {
         _session.value = SessionState.Restoring
         val stored = tokenStore.readRefreshToken()

@@ -43,6 +43,7 @@ data class HomeUiModel(
     val practices: List<HomePractice>,
     val commitmentsError: ErrorKind? = null,
     val practicesError: ErrorKind? = null,
+    val emailVerified: Boolean = true,
 )
 
 @OptIn(FlowPreview::class)
@@ -185,6 +186,7 @@ class HomeViewModel @Inject constructor(
                     practices = feed.practices,
                     commitmentsError = feed.commitmentsError,
                     practicesError = feed.practicesError,
+                    emailVerified = authSession.user.value?.emailVerified ?: true,
                 ),
                 isRefreshing = false,
             )
