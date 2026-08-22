@@ -35,6 +35,7 @@ sealed interface AppMutationEvent {
     data class CommitmentCompleted(val commitmentId: String) : AppMutationEvent
     data class CommitmentCancelled(val commitmentId: String) : AppMutationEvent
     data class CommitmentSnoozed(val commitmentId: String) : AppMutationEvent
+    data class CommitmentWaitChanged(val commitmentId: String) : AppMutationEvent
 
     // Profile / Notification preferences
     data object NotificationPreferencesChanged : AppMutationEvent

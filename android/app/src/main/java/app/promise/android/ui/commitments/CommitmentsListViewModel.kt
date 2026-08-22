@@ -73,7 +73,8 @@ class CommitmentsListViewModel @Inject constructor(
                         is AppMutationEvent.CommitmentUpdated,
                         is AppMutationEvent.CommitmentCompleted,
                         is AppMutationEvent.CommitmentCancelled,
-                        is AppMutationEvent.CommitmentSnoozed -> {
+                        is AppMutationEvent.CommitmentSnoozed,
+                        is AppMutationEvent.CommitmentWaitChanged -> {
                             refresh(fromPull = false)
                         }
                         else -> Unit

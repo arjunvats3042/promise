@@ -64,6 +64,7 @@ class CommitmentDetailViewModel @Inject constructor(
                         is AppMutationEvent.CommitmentCompleted -> if (event.commitmentId == commitmentId) reloadQuiet()
                         is AppMutationEvent.CommitmentCancelled -> if (event.commitmentId == commitmentId) reloadQuiet()
                         is AppMutationEvent.CommitmentSnoozed -> if (event.commitmentId == commitmentId) reloadQuiet()
+                        is AppMutationEvent.CommitmentWaitChanged -> if (event.commitmentId == commitmentId) reloadQuiet()
                         else -> Unit
                     }
                 }
@@ -90,12 +91,12 @@ class CommitmentDetailViewModel @Inject constructor(
 
     fun waitOn() = runAction(
         confirmHaptic = false,
-        onSuccess = { appEventBus.emit(AppMutationEvent.CommitmentUpdated(commitmentId)) },
+        onSuccess = { appEventBus.emit(AppMutationEvent.CommitmentWaitChanged(commitmentId)) },
     ) { repository.wait(commitmentId) }
 
     fun unsnooze() = runAction(
         confirmHaptic = false,
-        onSuccess = { appEventBus.emit(AppMutationEvent.CommitmentUpdated(commitmentId)) },
+        onSuccess = { appEventBus.emit(AppMutationEvent.CommitmentWaitChanged(commitmentId)) },
     ) { repository.unsnooze(commitmentId) }
 
     fun cancel() = runAction(

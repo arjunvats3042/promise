@@ -82,7 +82,8 @@ class HomeViewModel @Inject constructor(
                         is AppMutationEvent.CommitmentUpdated,
                         is AppMutationEvent.CommitmentCompleted,
                         is AppMutationEvent.CommitmentCancelled,
-                        is AppMutationEvent.CommitmentSnoozed -> {
+                        is AppMutationEvent.CommitmentSnoozed,
+                        is AppMutationEvent.CommitmentWaitChanged -> {
                             homeFreshness.markDirty()
                             refresh(force = true, fromPull = false)
                         }
