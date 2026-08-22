@@ -437,4 +437,38 @@ def _add_event(commitment, *, actor, event_type, metadata=None):
         payload=_commitment_outbox_payload(commitment, domain_event),
         occurred_at=domain_event.created_at,
     )
+
+    # Server-Side Authoritative Analytics Event Emission
+    try:
+        from apps.analytics.events import (
+            EVENT_COMMITMENT_CANCELLED,
+            EVENT_COMMITMENT_COMPLETED,
+            EVENT_COMMITMENT_CREATED,
+            EVENT_COMMITMENT_SNOOZED,
+            EVENT_COMMITMENT_UNSNOOZED,
+            EVENT_COMMITMENT_WAITED,
+            EVENT_FIRST_COMMITMENT_CREATED,
+        )
+        from apps.analytics.services import record_analytics_event
+
+        analytics_map = {
+            CommitmentEvent.EventType.CREATED: EVENT_COMMITMENT_CREATED,
+            CommitmentEvent.EventType.COMPLETED: EVENT_COMMITMENT_COMPLETED,
+            CommitmentEvent.EventType.CANCELLED: EVENT_COMMITMENT_CANCELLED,
+            CommitmentEvent.EventType.SNOOZED: EVENT_COMMITMENT_SNOOZED,
+            CommitmentEvent.EventType.WAITING: EVENT_COMMITMENT_WAITED,
+            CommitmentEvent.EventType.UNSNOOZED: EVENT_COMMITMENT_UNSNOOZED,
+        }
+        an_event = analytics_map.get(event_type)
+        if an_event:
+            record_analytics_event(event_name=an_event, user=actor)
+
+            if event_type == CommitmentEvent.EventType.CREATED:
+                from apps.commitments.models import Commitment
+                if Commitment.objects.filter(created_by=actor).count() == 1:
+                    record_analytics_event(event_name=EVENT_FIRST_COMMITMENT_CREATED, user=actor)
+    except Exception as exc:  # noqa: BLE001
+        import logging
+        logging.getLogger("promise").warning("Failed to emit analytics event for commitment event %s: %s", event_type, exc)
+
     return domain_event

@@ -2059,6 +2059,52 @@ def _add_event(goal, *, actor, event_type, metadata=None, check_in=None):
         payload=_goal_outbox_payload(goal, domain_event, check_in=check_in),
         occurred_at=domain_event.created_at,
     )
+
+    # Server-Side Authoritative Analytics Event Emission
+    try:
+        from apps.analytics.events import (
+            EVENT_FIRST_CHECKIN_COMPLETED,
+            EVENT_FIRST_GOAL_CREATED,
+            EVENT_FIRST_SHARED_GOAL_CREATED,
+            EVENT_GOAL_CANCELLED,
+            EVENT_GOAL_CHECKED_IN,
+            EVENT_GOAL_COMPLETED,
+            EVENT_GOAL_CREATED,
+            EVENT_GOAL_PAUSED,
+            EVENT_GOAL_RESUMED,
+            EVENT_OWNERSHIP_TRANSFERRED,
+            EVENT_SHARED_GOAL_CREATED,
+        )
+        from apps.analytics.services import record_analytics_event
+
+        analytics_map = {
+            GoalEvent.EventType.CREATED: EVENT_GOAL_CREATED,
+            GoalEvent.EventType.CHECKIN_RECORDED: EVENT_GOAL_CHECKED_IN,
+            GoalEvent.EventType.COMPLETED: EVENT_GOAL_COMPLETED,
+            GoalEvent.EventType.PAUSED: EVENT_GOAL_PAUSED,
+            GoalEvent.EventType.RESUMED: EVENT_GOAL_RESUMED,
+            GoalEvent.EventType.CANCELLED: EVENT_GOAL_CANCELLED,
+            GoalEvent.EventType.GOAL_OWNERSHIP_TRANSFERRED: EVENT_OWNERSHIP_TRANSFERRED,
+        }
+        an_event = analytics_map.get(event_type)
+        if an_event:
+            props = {"is_shared": goal.is_shared, "recurrence_kind": goal.recurrence_kind}
+            record_analytics_event(event_name=an_event, user=actor, properties=props)
+
+            # Milestones & Special Funnels
+            if event_type == GoalEvent.EventType.CREATED:
+                if goal.is_shared:
+                    record_analytics_event(event_name=EVENT_SHARED_GOAL_CREATED, user=actor, properties=props)
+                    if Goal.objects.filter(created_by=actor, is_shared=True).count() == 1:
+                        record_analytics_event(event_name=EVENT_FIRST_SHARED_GOAL_CREATED, user=actor, properties=props)
+                if Goal.objects.filter(created_by=actor).count() == 1:
+                    record_analytics_event(event_name=EVENT_FIRST_GOAL_CREATED, user=actor, properties=props)
+            elif event_type == GoalEvent.EventType.CHECKIN_RECORDED:
+                if GoalCheckIn.objects.filter(created_by=actor).count() == 1:
+                    record_analytics_event(event_name=EVENT_FIRST_CHECKIN_COMPLETED, user=actor)
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("promise").warning("Failed to emit analytics event for goal event %s: %s", event_type, exc)
+
     return domain_event
 
 
@@ -2084,6 +2130,38 @@ def _add_participant_event(goal, *, actor, event_type, participant):
         ),
         occurred_at=domain_event.created_at,
     )
+
+    # Server-Side Authoritative Analytics Event Emission
+    try:
+        from apps.analytics.events import (
+            EVENT_FIRST_INVITATION_ACCEPTED,
+            EVENT_FIRST_INVITATION_SENT,
+            EVENT_PARTICIPANT_INVITED,
+            EVENT_PARTICIPANT_JOINED,
+            EVENT_PARTICIPANT_LEFT,
+            EVENT_PARTICIPANT_REMOVED,
+        )
+        from apps.analytics.services import record_analytics_event
+
+        part_map = {
+            GoalEvent.EventType.PARTICIPANT_INVITED: EVENT_PARTICIPANT_INVITED,
+            GoalEvent.EventType.PARTICIPANT_JOINED: EVENT_PARTICIPANT_JOINED,
+            GoalEvent.EventType.PARTICIPANT_LEFT: EVENT_PARTICIPANT_LEFT,
+            GoalEvent.EventType.PARTICIPANT_REMOVED: EVENT_PARTICIPANT_REMOVED,
+        }
+        an_event = part_map.get(event_type)
+        if an_event:
+            record_analytics_event(event_name=an_event, user=actor, properties={"role": participant.role})
+
+            if event_type == GoalEvent.EventType.PARTICIPANT_INVITED:
+                if GoalEvent.objects.filter(actor=actor, event_type=GoalEvent.EventType.PARTICIPANT_INVITED).count() == 1:
+                    record_analytics_event(event_name=EVENT_FIRST_INVITATION_SENT, user=actor)
+            elif event_type == GoalEvent.EventType.PARTICIPANT_JOINED:
+                if GoalEvent.objects.filter(actor=actor, event_type=GoalEvent.EventType.PARTICIPANT_JOINED).count() == 1:
+                    record_analytics_event(event_name=EVENT_FIRST_INVITATION_ACCEPTED, user=actor)
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("promise").warning("Failed to emit analytics event for participant event %s: %s", event_type, exc)
+
     return domain_event
 
 

@@ -406,6 +406,16 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                 delivery.sent_at = django_timezone.now()
                 delivery.last_error = ""
                 delivery.save(update_fields=["status", "sent_at", "last_error", "updated_at"])
+                try:
+                    from apps.analytics.events import EVENT_NOTIFICATION_DELIVERED
+                    from apps.analytics.services import record_analytics_event
+                    record_analytics_event(
+                        event_name=EVENT_NOTIFICATION_DELIVERED,
+                        user=user,
+                        properties={"channel_id": channel_id, "priority": priority},
+                    )
+                except Exception:
+                    pass
             elif send_res.is_unregistered:
                 device.is_active = False
                 device.save(update_fields=["is_active", "updated_at"])
@@ -419,6 +429,16 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                 if delivery.attempts >= MAX_DELIVERY_ATTEMPTS:
                     delivery.status = NotificationDelivery.DeliveryStatus.FAILED
                     delivery.next_attempt_at = None
+                    try:
+                        from apps.analytics.events import EVENT_NOTIFICATION_FAILED
+                        from apps.analytics.services import record_analytics_event
+                        record_analytics_event(
+                            event_name=EVENT_NOTIFICATION_FAILED,
+                            user=user,
+                            properties={"channel_id": channel_id},
+                        )
+                    except Exception:
+                        pass
                 else:
                     delivery.status = NotificationDelivery.DeliveryStatus.PENDING
                     delivery.next_attempt_at = django_timezone.now() + backoff_for_attempt(delivery.attempts)
@@ -458,5 +478,15 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                 reminder.lease_expires_at = None
                 reminder.save(update_fields=["status", "cancellation_reason", "lease_expires_at", "updated_at"])
                 suppressed += 1
+                try:
+                    from apps.analytics.events import EVENT_NOTIFICATION_SUPPRESSED
+                    from apps.analytics.services import record_analytics_event
+                    record_analytics_event(
+                        event_name=EVENT_NOTIFICATION_SUPPRESSED,
+                        user=user,
+                        properties={"reason": "ALL_DEVICES_UNREGISTERED"},
+                    )
+                except Exception:
+                    pass
 
     return _BatchResult(dispatched, suppressed, cancelled, retried, failed, claimed_count)

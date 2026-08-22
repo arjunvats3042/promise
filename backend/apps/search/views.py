@@ -81,6 +81,27 @@ class GlobalSearchView(APIView):
             shared_goals_ordered = prioritize_matches(shared_goals_qs, "title", q)[:MAX_RESULTS_PER_SECTION]
             shared_goals_res = GoalSearchResultSerializer(shared_goals_ordered, many=True).data
 
+        total_count = len(commitments_res) + len(goals_res) + len(shared_goals_res)
+
+        # Emit privacy-conscious analytics events (NO raw query q stored!)
+        try:
+            from apps.analytics.events import EVENT_SEARCH_STARTED, EVENT_SEARCH_ZERO_RESULTS
+            from apps.analytics.services import record_analytics_event
+
+            record_analytics_event(
+                event_name=EVENT_SEARCH_STARTED,
+                user=request.user,
+                properties={"search_type": search_type, "total_results": total_count},
+            )
+            if total_count == 0:
+                record_analytics_event(
+                    event_name=EVENT_SEARCH_ZERO_RESULTS,
+                    user=request.user,
+                    properties={"search_type": search_type},
+                )
+        except Exception:
+            pass
+
         return Response({
             "commitments": commitments_res,
             "goals": goals_res,

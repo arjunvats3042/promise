@@ -301,6 +301,15 @@ def register_user(*, email, password, name, device_name="", platform="unknown", 
         except IntegrityError:
             raise EmailAlreadyExistsError() from None
 
+        try:
+            from apps.analytics.events import EVENT_ONBOARDING_STARTED, EVENT_REGISTER_SUCCESS
+            from apps.analytics.services import record_analytics_event
+
+            record_analytics_event(event_name=EVENT_REGISTER_SUCCESS, user=user, platform=platform)
+            record_analytics_event(event_name=EVENT_ONBOARDING_STARTED, user=user, platform=platform)
+        except Exception:
+            pass
+
         return _create_session_and_tokens(
             user,
             device_name=device_name,
@@ -593,6 +602,24 @@ def _create_session_and_tokens(user, device_name="", platform="unknown", device_
 
     access_token = issue_access_token(user, session)
     refresh_token = compose_refresh_token(session.id, refresh_secret)
+
+    # Server-Side Authoritative Analytics Event Emission
+    try:
+        from apps.analytics.events import (
+            EVENT_GOOGLE_LOGIN_SUCCESS,
+            EVENT_LOGIN_SUCCESS,
+        )
+        from apps.analytics.services import record_analytics_event
+
+        an_event = EVENT_GOOGLE_LOGIN_SUCCESS if is_google else EVENT_LOGIN_SUCCESS
+        record_analytics_event(
+            event_name=an_event,
+            user=user,
+            platform=platform if platform in ["android", "ios", "web"] else "unknown",
+        )
+    except Exception:
+        pass
+
     return AuthenticationResult(
         user=user,
         session=session,

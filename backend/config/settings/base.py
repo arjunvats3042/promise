@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "apps.notifications.apps.NotificationsConfig",
     "apps.search.apps.SearchConfig",
     "apps.ai.apps.AiConfig",
+    "apps.analytics.apps.AnalyticsConfig",
     "django.contrib.postgres",
     "django.contrib.contenttypes",
     "django.contrib.auth",

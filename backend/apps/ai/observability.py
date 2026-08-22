@@ -37,3 +37,31 @@ def record_ai_metric(
             f"AI [{feature}] failed: {failure_category} in {latency_ms}ms (model={model})",
             extra=extra_data,
         )
+
+    # Emit analytics event safely
+    try:
+        from apps.analytics.events import EVENT_AI_UNAVAILABLE
+        from apps.analytics.services import record_analytics_event
+
+        feature_event_map = {
+            "goal_builder": "ai_goal_builder_used",
+            "commitment_refiner": "ai_commitment_refiner_used",
+            "thought_parser": "ai_thought_parser_used",
+            "insights": "ai_weekly_insights_viewed",
+            "command_parser": "ai_command_used",
+            "planner": "ai_planner_used",
+            "reflection": "ai_reflection_used",
+            "shared_goal_summary": "ai_shared_goal_summary_used",
+            "chat_summary": "ai_chat_summary_used",
+        }
+        an_event = feature_event_map.get(feature, "ai_command_used")
+        props = {
+            "feature": feature,
+            "latency_ms": latency_ms,
+            "success": success,
+        }
+        record_analytics_event(event_name=an_event, properties=props)
+        if not success:
+            record_analytics_event(event_name=EVENT_AI_UNAVAILABLE, properties={"feature": feature})
+    except Exception:
+        pass

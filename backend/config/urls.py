@@ -12,6 +12,7 @@ v1_urlpatterns = [
     path("notifications/", include("apps.notifications.urls")),
     path("search/", include("apps.search.urls")),
     path("ai/", include("apps.ai.urls")),
+    path("analytics/", include("apps.analytics.urls")),
     path("<path:resource>", api_not_found),  # keep last
 ]
 
