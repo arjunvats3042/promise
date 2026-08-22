@@ -99,6 +99,17 @@ class LoginViewModel @Inject constructor(
         }
     }
 
+    fun onGoogleSignInCancelled() {
+        if (_action.value is ActionState.InFlight) {
+            _action.value = ActionState.Idle
+        }
+    }
+
+    fun onGoogleSignInFailed(errorKind: ErrorKind = ErrorKind.Unknown) {
+        _action.value = ActionState.Failed(errorKind)
+        haptics.error()
+    }
+
     fun submitPasswordReset(email: String, onSent: (String) -> Unit) {
         if (email.isBlank()) {
             _action.value = ActionState.Failed(ErrorKind.Validation())

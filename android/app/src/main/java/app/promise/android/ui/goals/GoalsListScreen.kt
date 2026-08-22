@@ -81,6 +81,7 @@ fun GoalsListScreen(
     val createAction by viewModel.createAction.collectAsStateWithLifecycle()
     val inviteAction by viewModel.inviteAction.collectAsStateWithLifecycle()
     var showCreate by remember { mutableStateOf(false) }
+    var showAiBuilder by remember { mutableStateOf(false) }
     var checkInGoal by remember { mutableStateOf<Goal?>(null) }
     val colors = PromiseThemeColors.current
     val inviteBusy = inviteAction is ActionState.InFlight
@@ -120,16 +121,7 @@ fun GoalsListScreen(
             )
             when (val s = state) {
                 is LoadState.Loading -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        CircularProgressIndicator(
-                            color = colors.accent,
-                            strokeWidth = 2.dp,
-                        )
-                    }
+                    app.promise.android.ui.components.PromiseListSkeleton(itemCount = 4)
                 }
                 is LoadState.Error -> {
                     Column(
@@ -234,6 +226,25 @@ fun GoalsListScreen(
             onSubmit = { input ->
                 viewModel.create(input) {
                     showCreate = false
+                }
+            },
+            onOpenAiBuilder = {
+                showCreate = false
+                showAiBuilder = true
+            },
+        )
+    }
+
+    if (showAiBuilder) {
+        app.promise.android.ui.ai.GoalAiBuilderSheet(
+            onDismiss = { showAiBuilder = false },
+            onSuggestGoal = { prompt ->
+                val timeZoneId = (state as? LoadState.Ready)?.value?.timeZoneId ?: "UTC"
+                viewModel.suggestGoal(prompt, timeZoneId)
+            },
+            onConfirmCreate = { input ->
+                viewModel.create(input) {
+                    showAiBuilder = false
                 }
             },
         )

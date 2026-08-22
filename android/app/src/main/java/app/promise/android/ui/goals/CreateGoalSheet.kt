@@ -47,6 +47,13 @@ import app.promise.android.ui.theme.Spacing
 import java.time.LocalDate
 import java.time.ZoneId
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateGoalSheet(
@@ -54,6 +61,7 @@ fun CreateGoalSheet(
     timeZoneId: String,
     onDismiss: () -> Unit,
     onSubmit: (CreateGoalInput) -> Unit,
+    onOpenAiBuilder: (() -> Unit)? = null,
 ) {
     val colors = PromiseThemeColors.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -79,11 +87,40 @@ fun CreateGoalSheet(
                 .padding(horizontal = Spacing.inset, vertical = Spacing.md)
                 .verticalScroll(rememberScrollState()),
         ) {
-            Text(
-                text = "New goal",
-                style = MaterialTheme.typography.headlineMedium,
-                color = colors.textPrimary,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "New goal",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = colors.textPrimary,
+                )
+                if (onOpenAiBuilder != null) {
+                    TextButton(
+                        onClick = onOpenAiBuilder,
+                        enabled = !submitting,
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .semantics { contentDescription = "Create goal with AI" },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Create with AI",
+                            color = colors.accent,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(Spacing.md))
             FieldLabel("Title")
             OutlinedTextField(

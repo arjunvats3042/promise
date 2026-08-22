@@ -30,6 +30,9 @@ import app.promise.android.core.events.MembershipChangeType
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 
+import app.promise.android.domain.AiRepository
+import app.promise.android.domain.GoalSuggestion
+
 data class GoalsListUi(
     val filter: GoalListFilter,
     val items: List<GoalListItem>,
@@ -44,7 +47,12 @@ class GoalsListViewModel @Inject constructor(
     private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
     private val appEventBus: AppEventBus,
+    private val aiRepository: AiRepository,
 ) : ViewModel() {
+
+    suspend fun suggestGoal(prompt: String, timezone: String): GoalSuggestion {
+        return aiRepository.suggestGoal(prompt, timezone)
+    }
     private val _state = MutableStateFlow<LoadState<GoalsListUi>>(LoadState.Loading)
     val state: StateFlow<LoadState<GoalsListUi>> = _state.asStateFlow()
 

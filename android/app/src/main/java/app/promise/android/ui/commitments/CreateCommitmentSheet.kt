@@ -38,6 +38,18 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateCommitmentSheet(
@@ -45,6 +57,7 @@ fun CreateCommitmentSheet(
     timeZoneId: String,
     onDismiss: () -> Unit,
     onSubmit: (title: String, description: String, dueAt: String?, precision: DuePrecision) -> Unit,
+    onOpenRefiner: (() -> Unit)? = null,
 ) {
     val colors = PromiseThemeColors.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -61,11 +74,40 @@ fun CreateCommitmentSheet(
         sheetState = sheetState,
     ) {
         Column(modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.md)) {
-            Text(
-                text = "New commitment",
-                style = MaterialTheme.typography.headlineMedium,
-                color = colors.textPrimary,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "New commitment",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = colors.textPrimary,
+                )
+                if (onOpenRefiner != null) {
+                    TextButton(
+                        onClick = onOpenRefiner,
+                        enabled = !submitting,
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .semantics { contentDescription = "Refine commitment with AI" },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Refine with AI",
+                            color = colors.accent,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(Spacing.md))
             FieldLabel("Title")
             OutlinedTextField(

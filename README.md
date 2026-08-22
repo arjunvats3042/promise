@@ -4,12 +4,12 @@ Personal commitment, goal accountability, and shared achievement platform.
 
 ---
 
-## Current Status (Batch 14B-PRE)
+## Current Status (Batch 14C)
 
-- **Feature Implementation**: **Complete** through Batch 14A (Authentication, Shared Goals, Real-Time WebSocket Chat, Notifications/FCM, Redis Rate Limiting, Kafka Transactional Outbox, Google Gemini AI, Product Analytics, Search & Discovery, Production Hardening).
+- **Feature Implementation**: **Complete** through Batch 14C (Google-Only Credential Manager Auth, AI Sheets & Cards, Shared Goals, Real-Time WebSocket Chat, Notifications/FCM, Redis Rate Limiting, Kafka Transactional Outbox, Google Gemini AI, Product Analytics, Search & Discovery, Production Hardening, Visual Hierarchy, Finger-Synced Horizontal Pager, Layered Dark Mode, Skeleton Loaders).
 - **Deployment Readiness**: **Prepared** for Railway multi-service deployment with Aiven Managed Kafka.
 - **Public Availability**: **Not yet publicly deployed.** Infrastructure preparation and local container validations complete; live cloud provisioning pending.
-- **Multi-Device QA**: Release qualification on physical two-device hardware pending.
+- **Multi-Device QA**: Verified across physical hardware; release builds signed and verified.
 
 ---
 

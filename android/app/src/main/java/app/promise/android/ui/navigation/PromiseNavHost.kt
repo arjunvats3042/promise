@@ -88,27 +88,6 @@ fun PromiseNavHost(
                 }
                 LoginScreen(
                     viewModel = loginViewModel,
-                    onCreateAccount = { navController.navigate(RegisterRoute) },
-                    onAllowLocalNetwork = sessionViewModel::retryLocalNetworkPermission,
-                )
-            }
-            composable<RegisterRoute> {
-                val registerViewModel: RegisterViewModel = hiltViewModel()
-                LaunchedEffect(localNetwork) {
-                    if (localNetwork is LocalNetworkAccessState.Granted ||
-                        localNetwork is LocalNetworkAccessState.NotRequired
-                    ) {
-                        registerViewModel.onLocalNetworkGranted()
-                    }
-                }
-                RegisterScreen(
-                    viewModel = registerViewModel,
-                    onSignIn = {
-                        navController.navigate(LoginRoute) {
-                            popUpTo(RegisterRoute) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
                     onAllowLocalNetwork = sessionViewModel::retryLocalNetworkPermission,
                 )
             }

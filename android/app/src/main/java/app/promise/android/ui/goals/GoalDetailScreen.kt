@@ -104,18 +104,12 @@ fun GoalDetailScreen(
 
     when (val s = state) {
         is LoadState.Loading -> {
-            Box(
+            app.promise.android.ui.components.PromiseDetailSkeleton(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = colors.accent,
-                    strokeWidth = 2.dp,
-                )
-            }
+                    .background(MaterialTheme.colorScheme.background)
+                    .statusBarsPadding(),
+            )
         }
         is LoadState.Error -> {
             Column(

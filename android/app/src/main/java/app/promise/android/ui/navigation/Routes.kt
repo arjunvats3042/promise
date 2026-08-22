@@ -18,6 +18,9 @@ data object RegisterRoute
 data object MainGraphRoute
 
 @Serializable
+data object MainTabsRoute
+
+@Serializable
 data object HomeRoute
 
 @Serializable

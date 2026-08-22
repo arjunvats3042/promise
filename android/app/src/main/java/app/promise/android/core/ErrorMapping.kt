@@ -30,7 +30,7 @@ fun ApiException.toErrorKind(): app.promise.android.core.ErrorKind {
 
 fun ErrorKind.toUserMessage(): String {
     return when (this) {
-        ErrorKind.InvalidCredentials -> "Invalid email or password."
+        ErrorKind.InvalidCredentials -> "Authentication failed. Please try again."
         ErrorKind.EmailAlreadyExists -> "An account with this email already exists."
         is ErrorKind.Validation -> "Check the fields and try again."
         ErrorKind.InvalidCheckIn -> "That check-in isn’t valid for this goal."

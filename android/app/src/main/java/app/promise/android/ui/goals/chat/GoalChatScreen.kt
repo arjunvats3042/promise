@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
@@ -80,6 +81,7 @@ fun GoalChatScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val colors = PromiseThemeColors.current
     var inputText by remember { mutableStateOf("") }
+    var showSummarySheet by remember { mutableStateOf(false) }
     val currentUserId = viewModel.currentUserId()
     val listState = rememberLazyListState()
 
@@ -176,6 +178,18 @@ fun GoalChatScreen(
                             )
                         }
                         IconButton(
+                            onClick = { showSummarySheet = true },
+                            modifier = Modifier
+                                .size(TouchTarget.min)
+                                .semantics { contentDescription = "Summarize chat with AI" },
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AutoAwesome,
+                                contentDescription = null,
+                                tint = colors.accent,
+                            )
+                        }
+                        IconButton(
                             onClick = { viewModel.toggleSearch(true) },
                             modifier = Modifier.size(TouchTarget.min),
                         ) {
@@ -258,9 +272,9 @@ fun GoalChatScreen(
         ) {
             when {
                 state.isLoading && state.messages.isEmpty() -> {
-                    CircularProgressIndicator(
-                        color = colors.accent,
-                        modifier = Modifier.align(Alignment.Center),
+                    app.promise.android.ui.components.PromiseListSkeleton(
+                        itemCount = 4,
+                        modifier = Modifier.align(Alignment.TopCenter),
                     )
                 }
                 state.errorMessage != null && state.messages.isEmpty() -> {
@@ -417,6 +431,14 @@ fun GoalChatScreen(
                 }
             }
         }
+    }
+
+    if (showSummarySheet) {
+        app.promise.android.ui.ai.ChatSummarySheet(
+            goalId = viewModel.goalId,
+            onDismiss = { showSummarySheet = false },
+            onFetchSummary = { id -> viewModel.summarizeChat(id) },
+        )
     }
 }
 

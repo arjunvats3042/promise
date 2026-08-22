@@ -75,6 +75,7 @@ fun CommitmentsListScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val createAction by viewModel.createAction.collectAsStateWithLifecycle()
     var showCreate by remember { mutableStateOf(false) }
+    var showRefiner by remember { mutableStateOf(false) }
     val colors = PromiseThemeColors.current
 
     Scaffold(
@@ -112,16 +113,7 @@ fun CommitmentsListScreen(
             )
             when (val s = state) {
                 is LoadState.Loading -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        CircularProgressIndicator(
-                            color = colors.accent,
-                            strokeWidth = 2.dp,
-                        )
-                    }
+                    app.promise.android.ui.components.PromiseListSkeleton(itemCount = 5)
                 }
                 is LoadState.Error -> {
                     Column(
@@ -194,6 +186,30 @@ fun CommitmentsListScreen(
             onSubmit = { title, description, dueAt, precision ->
                 viewModel.create(title, description, dueAt, precision) {
                     showCreate = false
+                }
+            },
+            onOpenRefiner = {
+                showCreate = false
+                showRefiner = true
+            },
+        )
+    }
+
+    if (showRefiner) {
+        app.promise.android.ui.ai.CommitmentRefinerSheet(
+            onDismiss = { showRefiner = false },
+            onRefineCommitment = { prompt ->
+                val timeZoneId = (state as? LoadState.Ready)?.value?.timeZoneId ?: "UTC"
+                viewModel.refineCommitment(prompt, timeZoneId)
+            },
+            onConfirmCreate = { input ->
+                viewModel.create(
+                    title = input.title,
+                    description = input.description,
+                    dueAt = input.dueAt,
+                    duePrecision = input.duePrecision,
+                ) {
+                    showRefiner = false
                 }
             },
         )

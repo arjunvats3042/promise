@@ -28,6 +28,9 @@ import app.promise.android.core.events.AppMutationEvent
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 
+import app.promise.android.domain.AiRepository
+import app.promise.android.domain.CommitmentRefinement
+
 data class CommitmentsListUi(
     val filter: CommitmentListFilter,
     val items: List<Commitment>,
@@ -42,7 +45,12 @@ class CommitmentsListViewModel @Inject constructor(
     private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
     private val appEventBus: AppEventBus,
+    private val aiRepository: AiRepository,
 ) : ViewModel() {
+
+    suspend fun refineCommitment(prompt: String, timezone: String): CommitmentRefinement {
+        return aiRepository.refineCommitment(prompt, timezone)
+    }
     private val _state = MutableStateFlow<LoadState<CommitmentsListUi>>(LoadState.Loading)
     val state: StateFlow<LoadState<CommitmentsListUi>> = _state.asStateFlow()
 

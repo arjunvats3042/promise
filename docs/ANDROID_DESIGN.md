@@ -1,24 +1,24 @@
 # Promise — Android Foundation Design
 
-**Status:** Design complete. Phases 9.2–9.8 exist under `android/` (bootstrap, auth/networking, shell + Home, Commitments product UI, Goals product UI, Home real data, Register UI, logout-all, production config, deep links). Shared Goals / FCM / Room are **not** implemented. Backend Phases 4–7 remain the API source of truth.
+**Status:** Implementation complete through Batch 14C under `android/` (Google-Only Credential Manager Auth, AI Sheets & Cards, Shared Goals, Real-Time WebSocket Chat, FCM Push, 4-Tab Shell with Finger-Synced Horizontal Pager, Layered Dark Theme, Reusable Skeleton Loaders, Release Signing). Backend Phases 4–7 and Live Production Railway endpoint remain the API source of truth.
 
 | Label | Meaning |
 |---|---|
-| **DECIDED** | Locked for the first Android slice. Do not silently change. |
-| **DEFERRED** | Designed enough to avoid a rewrite; not part of Android foundation implementation. |
+| **DECIDED** | Locked for the Android app. Do not silently change. |
+| **DEFERRED** | Designed enough to avoid a rewrite. |
 | **OPEN** | Needs a choice before that later slice is built. |
-| **IMPLEMENTED** | Already running on the backend. Android must consume it, not reinvent it. |
+| **IMPLEMENTED** | Running and verified across backend and Android clients. |
 
-This document is the source of truth for the first Android app: stack, architecture, auth storage, API client, navigation shell, design system, and MVP UX.
+This document is the source of truth for the Promise Android application: stack, architecture, auth storage, API client, navigation shell, design system, and UX patterns.
 
-It fills in `docs/DEVELOPMENT.md` Phase 9 (Android Foundation) and `docs/ARCHITECTURE.md` §16–17. It does **not** replace:
+It fills in `docs/DEVELOPMENT.md` Phase 9 (Android Foundation) and `docs/ARCHITECTURE.md` §16–17. It operates in synergy with:
 
-- `docs/AUTHENTICATION_DESIGN.md` — Option B tokens, Keystore refresh, memory-only access
+- `docs/AUTHENTICATION_DESIGN.md` — Option B tokens, Keystore refresh, Google ID Token authentication via Android Credential Manager
 - `docs/COMMITMENT_DESIGN.md` — stored statuses, derived overdue, action APIs
-- `docs/GOAL_DESIGN.md` — recurrence, check-ins, derived progress/streaks
+- `docs/GOAL_DESIGN.md` — recurrence, check-ins, derived progress/streaks, shared goals
 - `docs/REDIS_DESIGN.md` — 429 `RATE_LIMITED` + `Retry-After` (client must honor, not re-tune)
 
-Phase 9.2 added the single `:app` Gradle module, theme tokens, navigation graphs, and `LoadState` / `ActionState`. Phase 9.3 added Retrofit/OkHttp, Keystore refresh storage, login, and session restore. Phase 9.4 added the four-tab Main shell, Home with local preview data, and Light/Dark themes. Phase 9.5 added Commitments list/create/detail against backend APIs. Phase 9.6 added Goals list/create/detail/check-in/lifecycle against backend APIs. Phase 9.7 added Home real data integration. Phase 9.8 added real Register UI, Profile logout-all, production API configuration, and deep links. Shared Goals screens and push notifications do not exist yet.
+Phase 9–14 added the `:app` module, theme tokens with curated session accents and layered dark mode, `HorizontalPager` finger-synced navigation, `PromiseSkeleton` loaders, Google Credential Manager login, AI Assistant entry points, Shared Goals with live WebSocket chat, and FCM push notifications.
 
 Do not modify backend APIs, Docker, Redis, or Kafka to ship this design.
 

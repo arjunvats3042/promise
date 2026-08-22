@@ -37,6 +37,9 @@ import kotlinx.coroutines.launch
 import app.promise.android.core.events.AppEventBus
 import app.promise.android.core.events.AppMutationEvent
 
+import app.promise.android.domain.AiRepository
+import app.promise.android.domain.GoalChatAiSummary
+
 data class GoalChatUiState(
     val goal: Goal? = null,
     val messages: List<ChatMessage> = emptyList(),
@@ -59,9 +62,14 @@ class GoalChatViewModel @Inject constructor(
     private val haptics: PromiseHaptics,
     private val realtimeClient: GoalChatRealtimeClient,
     private val appEventBus: AppEventBus,
+    private val aiRepository: AiRepository,
 ) : ViewModel() {
     val goalId: String = savedStateHandle.get<String>("goalId")
         ?: savedStateHandle.toRoute<GoalChatRoute>().goalId
+
+    suspend fun summarizeChat(goalId: String, limit: Int = 50): GoalChatAiSummary {
+        return aiRepository.summarizeChat(goalId, limit)
+    }
 
     private val _state = MutableStateFlow(GoalChatUiState())
     val state: StateFlow<GoalChatUiState> = _state.asStateFlow()

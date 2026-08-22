@@ -34,6 +34,19 @@ import app.promise.android.core.events.AppMutationEvent
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 
+import app.promise.android.domain.AiRepository
+import app.promise.android.domain.CreateCommitmentInput
+import app.promise.android.domain.CreateGoalInput
+import app.promise.android.domain.DuePrecision
+import app.promise.android.domain.ParsedThoughtItem
+import app.promise.android.domain.WeeklyAiInsights
+
+sealed class WeeklyInsightsUiState {
+    data object Loading : WeeklyInsightsUiState()
+    data class Success(val insights: WeeklyAiInsights) : WeeklyInsightsUiState()
+    data class Error(val message: String? = null) : WeeklyInsightsUiState()
+}
+
 data class HomeUiModel(
     val greeting: String,
     val userName: String,
@@ -54,11 +67,47 @@ class HomeViewModel @Inject constructor(
     private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
     private val appEventBus: AppEventBus,
+    private val aiRepository: AiRepository,
+    private val goalRepository: app.promise.android.domain.GoalRepository,
+    private val commitmentRepository: app.promise.android.domain.CommitmentRepository,
 ) : ViewModel() {
     private val _state = MutableStateFlow<LoadState<HomeUiModel>>(LoadState.Loading)
     val state: StateFlow<LoadState<HomeUiModel>> = _state.asStateFlow()
 
+    private val _weeklyInsightsState = MutableStateFlow<WeeklyInsightsUiState>(WeeklyInsightsUiState.Loading)
+    val weeklyInsightsState: StateFlow<WeeklyInsightsUiState> = _weeklyInsightsState.asStateFlow()
+
     private val loadMutex = Mutex()
+
+    suspend fun parseThought(thought: String, timezone: String = "UTC"): List<ParsedThoughtItem> {
+        return aiRepository.parseThought(thought, timezone)
+    }
+
+    fun createCommitmentFromThought(input: CreateCommitmentInput) {
+        viewModelScope.launch {
+            try {
+                commitmentRepository.create(input)
+                haptics.confirm()
+                homeFreshness.markDirty()
+                refresh(force = true)
+            } catch (_: Throwable) {
+                haptics.error()
+            }
+        }
+    }
+
+    fun createGoalFromThought(input: CreateGoalInput) {
+        viewModelScope.launch {
+            try {
+                goalRepository.create(input)
+                haptics.confirm()
+                homeFreshness.markDirty()
+                refresh(force = true)
+            } catch (_: Throwable) {
+                haptics.error()
+            }
+        }
+    }
 
     init {
         refresh(force = true)
@@ -174,6 +223,17 @@ class HomeViewModel @Inject constructor(
         val name = user?.name?.takeIf { it.isNotBlank() } ?: "there"
         val zone = CommitmentTime.zone(timeZoneId)
         val now = ZonedDateTime.now(zone)
+
+        // Asynchronously load AI weekly insights; failures never break home screen
+        viewModelScope.launch {
+            try {
+                val insights = aiRepository.getWeeklyInsights()
+                _weeklyInsightsState.value = WeeklyInsightsUiState.Success(insights)
+            } catch (_: Throwable) {
+                _weeklyInsightsState.value = WeeklyInsightsUiState.Error("AI insights unavailable.")
+            }
+        }
+
         try {
             val feed = homeRepository.loadFeed(timeZoneId)
             _state.value = LoadState.Ready(

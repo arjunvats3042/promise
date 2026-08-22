@@ -22,18 +22,19 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -49,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -63,11 +65,12 @@ import app.promise.android.domain.GoalCheckInStatus
 import app.promise.android.domain.GoalTrackingKind
 import app.promise.android.domain.HomeCommitment
 import app.promise.android.domain.HomePractice
+import app.promise.android.ui.ai.ThoughtParserSheet
+import app.promise.android.ui.ai.WeeklyInsightsCard
+import app.promise.android.ui.components.PromiseFeedSkeleton
 import app.promise.android.ui.components.PromiseGreetingText
 import app.promise.android.ui.components.PromiseHairlineDivider
 import app.promise.android.ui.components.PromiseModalSheet
-import app.promise.android.ui.components.TabSwipeContainer
-import app.promise.android.ui.navigation.LocalTabSwipeHost
 import app.promise.android.ui.theme.Alpha
 import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseThemeColors
@@ -86,8 +89,9 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val swipeHost = LocalTabSwipeHost.current
+    val weeklyInsightsState by viewModel.weeklyInsightsState.collectAsStateWithLifecycle()
     var countPractice by remember { mutableStateOf<HomePractice?>(null) }
+    var showThoughtParser by remember { mutableStateOf(false) }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -102,40 +106,38 @@ fun HomeScreen(
 
     when (val s = state) {
         is LoadState.Loading -> {
-            HomeLoading()
+            PromiseFeedSkeleton(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .statusBarsPadding(),
+            )
         }
         is LoadState.Ready -> {
-            TabSwipeContainer(
-                currentIndex = swipeHost?.currentIndex ?: 0,
-                tabCount = swipeHost?.tabCount ?: 4,
-                enabled = swipeHost?.enabled == true,
-                modalBlocking = countPractice != null,
-                onSwipe = { direction -> swipeHost?.onSwipe(direction) },
+            PullToRefreshBox(
+                isRefreshing = s.isRefreshing,
+                onRefresh = { viewModel.refresh(fromPull = true, force = true) },
                 modifier = Modifier.fillMaxSize(),
             ) {
-                PullToRefreshBox(
-                    isRefreshing = s.isRefreshing,
-                    onRefresh = { viewModel.refresh(fromPull = true, force = true) },
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    HomeContent(
-                        model = s.value,
-                        onOpenProfile = onOpenProfile,
-                        onOpenCommitment = onOpenCommitment,
-                        onOpenPractice = onOpenPractice,
-                        onOpenSearch = onOpenSearch,
-                        onComplete = viewModel::completeCommitment,
-                        onCheckIn = { practice ->
-                            if (practice.trackingKind == GoalTrackingKind.COUNT && !practice.checkedInToday) {
-                                countPractice = practice
-                            } else {
-                                viewModel.checkInPractice(practice.id)
-                            }
-                        },
-                        onRetryCommitments = viewModel::retryCommitments,
-                        onRetryPractices = viewModel::retryPractices,
-                    )
-                }
+                HomeContent(
+                    model = s.value,
+                    weeklyInsightsState = weeklyInsightsState,
+                    onOpenProfile = onOpenProfile,
+                    onOpenCommitment = onOpenCommitment,
+                    onOpenPractice = onOpenPractice,
+                    onOpenSearch = onOpenSearch,
+                    onOpenThoughtParser = { showThoughtParser = true },
+                    onComplete = viewModel::completeCommitment,
+                    onCheckIn = { practice ->
+                        if (practice.trackingKind == GoalTrackingKind.COUNT && !practice.checkedInToday) {
+                            countPractice = practice
+                        } else {
+                            viewModel.checkInPractice(practice.id)
+                        }
+                    },
+                    onRetryCommitments = viewModel::retryCommitments,
+                    onRetryPractices = viewModel::retryPractices,
+                )
             }
         }
         is LoadState.Error -> {
@@ -146,7 +148,12 @@ fun HomeScreen(
             )
         }
         else -> {
-            HomeLoading()
+            PromiseFeedSkeleton(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .statusBarsPadding(),
+            )
         }
     }
 
@@ -160,29 +167,13 @@ fun HomeScreen(
             },
         )
     }
-}
 
-@Composable
-private fun HomeLoading() {
-    val colors = PromiseThemeColors.current
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
-            .padding(horizontal = Spacing.inset),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        CircularProgressIndicator(
-            color = colors.accent,
-            strokeWidth = 2.dp,
-        )
-        Spacer(modifier = Modifier.height(Spacing.md))
-        Text(
-            text = "Loading today…",
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textSecondary,
+    if (showThoughtParser) {
+        ThoughtParserSheet(
+            onDismiss = { showThoughtParser = false },
+            onParseThought = { thought -> viewModel.parseThought(thought) },
+            onCreateCommitment = { input -> viewModel.createCommitmentFromThought(input) },
+            onCreateGoal = { input -> viewModel.createGoalFromThought(input) },
         )
     }
 }
@@ -222,10 +213,12 @@ private fun HomeError(
 @Composable
 private fun HomeContent(
     model: HomeUiModel,
+    weeklyInsightsState: WeeklyInsightsUiState,
     onOpenProfile: () -> Unit,
     onOpenCommitment: (String) -> Unit,
     onOpenPractice: (String) -> Unit,
     onOpenSearch: () -> Unit = {},
+    onOpenThoughtParser: () -> Unit = {},
     onComplete: (String) -> Unit,
     onCheckIn: (HomePractice) -> Unit,
     onRetryCommitments: () -> Unit,
@@ -233,6 +226,14 @@ private fun HomeContent(
 ) {
     val colors = PromiseThemeColors.current
     val reduceMotion = rememberReduceMotion()
+
+    val personalPractices = remember(model.practices) {
+        model.practices.filter { !it.isShared }
+    }
+    val sharedPractices = remember(model.practices) {
+        model.practices.filter { it.isShared }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -241,6 +242,7 @@ private fun HomeContent(
             .padding(horizontal = Spacing.inset),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
+        // 1. HEADER
         item {
             Spacer(modifier = Modifier.height(Spacing.lg))
             HomeHeader(
@@ -251,10 +253,12 @@ private fun HomeContent(
                 onOpenProfile = onOpenProfile,
                 onOpenSearch = onOpenSearch,
             )
-            Spacer(modifier = Modifier.height(Spacing.md + Spacing.xxs))
+            Spacer(modifier = Modifier.height(Spacing.md))
             PromiseHairlineDivider()
             Spacer(modifier = Modifier.height(Spacing.lg))
         }
+
+        // Email Verification notice if needed
         if (!model.emailVerified) {
             item {
                 Box(
@@ -283,14 +287,17 @@ private fun HomeContent(
                 Spacer(modifier = Modifier.height(Spacing.md))
             }
         }
+
+        // 2. TODAY (Today's Commitments)
         item {
             Text(
-                text = "Today’s commitments",
-                style = MaterialTheme.typography.titleLarge,
+                text = "Today",
+                style = MaterialTheme.typography.headlineMedium,
                 color = colors.textPrimary,
             )
             Spacer(modifier = Modifier.height(Spacing.xs))
         }
+
         when {
             model.commitmentsError != null -> {
                 item {
@@ -307,12 +314,12 @@ private fun HomeContent(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(Radius.md))
-                            .background(colors.surfaceMuted.copy(alpha = 0.5f))
+                            .background(colors.surfaceMuted)
                             .padding(Spacing.md),
                     ) {
                         Text(
                             text = "Nothing due today.",
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.titleSmall,
                             color = colors.textPrimary,
                         )
                         Spacer(modifier = Modifier.height(Spacing.xxs))
@@ -337,14 +344,17 @@ private fun HomeContent(
                 item { Spacer(modifier = Modifier.height(Spacing.section)) }
             }
         }
+
+        // 3. YOUR PRACTICE (Personal Practices)
         item {
             Text(
-                text = "Practices",
-                style = MaterialTheme.typography.titleLarge,
+                text = "Your Practice",
+                style = MaterialTheme.typography.headlineMedium,
                 color = colors.textPrimary,
             )
             Spacer(modifier = Modifier.height(Spacing.xs))
         }
+
         when {
             model.practicesError != null -> {
                 item {
@@ -352,35 +362,35 @@ private fun HomeContent(
                         message = model.practicesError.toUserMessage(),
                         onRetry = onRetryPractices,
                     )
-                    Spacer(modifier = Modifier.height(Spacing.xxl))
+                    Spacer(modifier = Modifier.height(Spacing.section))
                 }
             }
-            model.practices.isEmpty() -> {
+            personalPractices.isEmpty() -> {
                 item {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(Radius.md))
-                            .background(colors.surfaceMuted.copy(alpha = 0.5f))
+                            .background(colors.surfaceMuted)
                             .padding(Spacing.md),
                     ) {
                         Text(
-                            text = "No active practices yet.",
-                            style = MaterialTheme.typography.bodyLarge,
+                            text = "No active personal practices yet.",
+                            style = MaterialTheme.typography.titleSmall,
                             color = colors.textPrimary,
                         )
                         Spacer(modifier = Modifier.height(Spacing.xxs))
                         Text(
-                            text = "Add goals in the Goals tab to track recurring consistency.",
+                            text = "Create goals in the Goals tab to build daily consistency.",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
                         )
                     }
-                    Spacer(modifier = Modifier.height(Spacing.xxl))
+                    Spacer(modifier = Modifier.height(Spacing.section))
                 }
             }
             else -> {
-                items(model.practices, key = { it.id }) { practice ->
+                items(personalPractices, key = { it.id }) { practice ->
                     PracticeRow(
                         practice = practice,
                         reduceMotion = reduceMotion,
@@ -388,8 +398,80 @@ private fun HomeContent(
                         onCheckIn = { onCheckIn(practice) },
                     )
                 }
-                item { Spacer(modifier = Modifier.height(Spacing.xxl)) }
+                item { Spacer(modifier = Modifier.height(Spacing.section)) }
             }
+        }
+
+        // 4. SHARED (Shared Goals / Practices)
+        if (sharedPractices.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Shared Practice",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = colors.textPrimary,
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+            }
+            items(sharedPractices, key = { it.id }) { practice ->
+                PracticeRow(
+                    practice = practice,
+                    reduceMotion = reduceMotion,
+                    onOpen = { onOpenPractice(practice.id) },
+                    onCheckIn = { onCheckIn(practice) },
+                )
+            }
+            item { Spacer(modifier = Modifier.height(Spacing.section)) }
+        }
+
+        // 5. AI ASSISTANTS
+        item {
+            Text(
+                text = "AI Assistant",
+                style = MaterialTheme.typography.headlineMedium,
+                color = colors.textPrimary,
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            Surface(
+                onClick = onOpenThoughtParser,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.md))
+                    .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(Radius.md))
+                    .semantics { contentDescription = "Turn thought into promises" },
+                color = colors.surfaceMuted,
+            ) {
+                Row(
+                    modifier = Modifier.padding(Spacing.md),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.AutoAwesome,
+                        contentDescription = null,
+                        tint = colors.accent,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Thought → Promise",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textPrimary,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Turn a brain dump into commitments & goals using AI",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            WeeklyInsightsCard(state = weeklyInsightsState)
+            Spacer(modifier = Modifier.height(Spacing.xxl))
         }
     }
 }
@@ -604,6 +686,7 @@ fun CommitmentTodayRow(
             Text(
                 text = commitment.title,
                 style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
                 color = colors.textPrimary.copy(
                     alpha = if (commitment.isCompleted) Alpha.CompletedTitle else 1f,
                 ),
@@ -675,7 +758,7 @@ fun PracticeRow(
             ) {
                 Text(
                     text = practice.title,
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.titleMedium,
                     color = colors.textPrimary,
                 )
                 Spacer(modifier = Modifier.height(Spacing.xxs))

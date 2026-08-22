@@ -71,14 +71,12 @@ fun CommitmentDetailScreen(
 
     when (val s = state) {
         is LoadState.Loading -> {
-            Box(
+            app.promise.android.ui.components.PromiseDetailSkeleton(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp)
-            }
+                    .background(MaterialTheme.colorScheme.background)
+                    .statusBarsPadding(),
+            )
         }
         is LoadState.Error -> {
             Column(

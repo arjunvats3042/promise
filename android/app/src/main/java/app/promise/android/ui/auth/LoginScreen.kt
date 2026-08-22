@@ -43,19 +43,25 @@ import app.promise.android.ui.theme.rememberReduceMotion
 import java.util.Calendar
 import kotlinx.coroutines.delay
 
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.launch
+
 @Composable
 fun LoginScreen(
     viewModel: LoginViewModel,
-    onCreateAccount: () -> Unit,
+    onGoogleSignIn: (() -> Unit)? = null,
     onAllowLocalNetwork: (() -> Unit)? = null,
 ) {
-    val email by viewModel.email.collectAsStateWithLifecycle()
-    val password by viewModel.password.collectAsStateWithLifecycle()
     val action by viewModel.action.collectAsStateWithLifecycle()
     val submitting = action is ActionState.InFlight
     val error = (action as? ActionState.Failed)?.kind
     val localNetworkDenied = error == ErrorKind.LocalNetworkDenied
     val colors = PromiseThemeColors.current
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -82,38 +88,59 @@ fun LoginScreen(
                     style = MaterialTheme.typography.displayLarge,
                     color = colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.height(Spacing.lg))
-                AnimatedLoginGreeting()
                 Spacer(modifier = Modifier.height(Spacing.xs))
                 Text(
-                    text = "Welcome back",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = colors.textPrimary,
-                )
-                Spacer(modifier = Modifier.height(Spacing.xxs))
-                Text(
-                    text = "Sign in to continue.",
+                    text = "Keep your promises, simply.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.textSecondary,
                 )
                 Spacer(modifier = Modifier.height(Spacing.lg))
+                AnimatedLoginGreeting()
+                Spacer(modifier = Modifier.height(Spacing.xl))
+
                 PromiseQuietFormSurface {
-                    PromiseFieldLabel("EMAIL")
-                    PromiseTextField(
-                        value = email,
-                        onValueChange = viewModel::onEmailChange,
-                        enabled = !submitting,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    Text(
+                        text = "Sign In",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = colors.textPrimary,
                     )
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    PromiseFieldLabel("PASSWORD")
-                    PromiseTextField(
-                        value = password,
-                        onValueChange = viewModel::onPasswordChange,
-                        enabled = !submitting,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Text(
+                        text = "Use your Google account to continue.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
                     )
+                    Spacer(modifier = Modifier.height(Spacing.lg))
+
+                    PromisePrimaryButton(
+                        text = if (submitting) "Signing in…" else "Continue with Google",
+                        loading = submitting,
+                        onClick = {
+                            if (onGoogleSignIn != null) {
+                                onGoogleSignIn()
+                            } else {
+                                coroutineScope.launch {
+                                    launchGoogleSignIn(
+                                        context = context,
+                                        onSuccess = { idToken ->
+                                            viewModel.submitGoogleLogin(idToken)
+                                        },
+                                        onError = {
+                                            viewModel.onGoogleSignInFailed(ErrorKind.Unknown)
+                                        },
+                                        onCancelled = {
+                                            viewModel.onGoogleSignInCancelled()
+                                        },
+                                    )
+                                }
+                            }
+                        },
+                        enabled = !submitting,
+                        modifier = Modifier
+                            .heightIn(min = TouchTarget.min)
+                            .semantics { contentDescription = "Continue with Google" },
+                    )
+
                     if (error != null) {
                         Spacer(modifier = Modifier.height(Spacing.sm))
                         Text(
@@ -131,26 +158,6 @@ fun LoginScreen(
                             Text("Allow local network", color = colors.accent)
                         }
                     }
-                    Spacer(modifier = Modifier.height(Spacing.lg))
-                    PromisePrimaryButton(
-                        text = if (submitting) "Signing in…" else "Sign in",
-                        onClick = viewModel::submit,
-                        enabled = !submitting && email.isNotBlank() && password.isNotEmpty(),
-                    )
-                }
-                Spacer(modifier = Modifier.height(Spacing.md))
-                TextButton(
-                    onClick = onCreateAccount,
-                    enabled = !submitting,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = TouchTarget.min),
-                ) {
-                    Text(
-                        text = "Don’t have an account? Create one",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colors.accent,
-                    )
                 }
             }
         }

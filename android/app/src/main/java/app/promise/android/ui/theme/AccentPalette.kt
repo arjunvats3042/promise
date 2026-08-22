@@ -18,16 +18,15 @@ data class SessionAccent(
 }
 
 object AccentPalette {
-    /** Quiet, paper-friendly accents — not neon. */
+    /** Curated high-contrast accent palette for Promise sessions. */
     val options: List<SessionAccent> = listOf(
-        SessionAccent("forest", Color(0xFF2F6A4A), Color(0xFF4A9B6E)),
-        SessionAccent("slate", Color(0xFF3D5A80), Color(0xFF6B9AC4)),
-        SessionAccent("terracotta", Color(0xFF8B5A3C), Color(0xFFC4896A)),
-        SessionAccent("plum", Color(0xFF5C4A6E), Color(0xFFA089B8)),
-        SessionAccent("ocean", Color(0xFF2F5F6A), Color(0xFF5FA8B5)),
-        SessionAccent("olive", Color(0xFF5A6A3A), Color(0xFFA3B56F)),
-        SessionAccent("brick", Color(0xFF7A3E3E), Color(0xFFC47A7A)),
-        SessionAccent("ink-blue", Color(0xFF3A4A6A), Color(0xFF8A9BC4)),
+        SessionAccent("blue", Color(0xFF2563EB), Color(0xFF60A5FA)),
+        SessionAccent("indigo", Color(0xFF4F46E5), Color(0xFF818CF8)),
+        SessionAccent("purple", Color(0xFF7C3AED), Color(0xFFA78BFA)),
+        SessionAccent("teal", Color(0xFF0D9488), Color(0xFF2DD4BF)),
+        SessionAccent("green", Color(0xFF16A34A), Color(0xFF4ADE80)),
+        SessionAccent("amber", Color(0xFFD97706), Color(0xFFFBBF24)),
+        SessionAccent("coral", Color(0xFFE11D48), Color(0xFFFB7185)),
     )
 
     fun pick(random: Random = Random.Default): SessionAccent {

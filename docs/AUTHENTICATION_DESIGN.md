@@ -1,14 +1,13 @@
 # Promise — Authentication Design
 
-**Status:** Design complete. Implementation has not started.
+**Status:** Implementation complete. Phase 4 (JWT, PostgreSQL sessions, refresh token rotation, Redis denylist), Batch 2.5 (Google ID Token verification backend), Batch 13 (Android Google-only authentication UI), and Batch 14C (Android Credential Manager `GetGoogleIdOption` native bottom sheet account picker integration) are fully implemented and verified.
 
 | Label | Meaning |
 |---|---|
-| **DECIDED** | Locked for future implementation. Do not silently change. |
-| **DEFERRED** | Designed enough to avoid a rewrite, not part of the first auth implementation. |
-| **NOT IMPLEMENTED** | No code, packages, models, migrations, or APIs exist yet. |
+| **DECIDED** | Locked architecture. |
+| **IMPLEMENTED** | Built, verified, and running across backend and Android clients. |
 
-This document is the source of truth for authentication. It supersedes the placeholder in `docs/ARCHITECTURE.md` §18 (“the exact token strategy can be selected during backend implementation”).
+This document is the source of truth for authentication. It supersedes the placeholder in `docs/ARCHITECTURE.md` §18.
 
 Do not treat this file as an implementation checklist that has already been built. Every mechanism below is **NOT IMPLEMENTED** until a later Phase 4 task says otherwise.
 
