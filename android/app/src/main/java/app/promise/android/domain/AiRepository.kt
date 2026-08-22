@@ -1,0 +1,12 @@
+package app.promise.android.domain
+
+interface AiRepository {
+    suspend fun suggestGoal(prompt: String, timezone: String = "UTC"): GoalSuggestion
+    suspend fun refineCommitment(prompt: String, timezone: String = "UTC"): CommitmentRefinement
+    suspend fun parseThought(thought: String, timezone: String = "UTC"): List<ParsedThoughtItem>
+    suspend fun getWeeklyInsights(): WeeklyAiInsights
+    suspend fun planCommitments(prompt: String? = null, commitmentIds: List<String> = emptyList()): PlanningSuggestion
+    suspend fun reflectOnItem(itemType: String, itemId: String? = null, notes: String? = null): ReflectionCoaching
+    suspend fun getSharedGoalSummary(goalId: String): SharedGoalAiSummary
+    suspend fun summarizeChat(goalId: String, limit: Int = 50): GoalChatAiSummary
+}
