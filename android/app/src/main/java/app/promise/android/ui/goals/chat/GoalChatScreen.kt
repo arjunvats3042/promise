@@ -341,15 +341,15 @@ private fun ChatMessageBubble(
     }
 
     val bubbleColor = if (isMe) {
-        MaterialTheme.colorScheme.primaryContainer
+        colors.primaryControl
     } else {
-        MaterialTheme.colorScheme.surfaceVariant
+        colors.surfaceMuted
     }
 
     val textColor = if (isMe) {
-        MaterialTheme.colorScheme.onPrimaryContainer
+        colors.onPrimaryControl
     } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
+        colors.textPrimary
     }
 
     Column(

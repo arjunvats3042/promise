@@ -251,6 +251,37 @@ fun PromiseCardSurface(
 }
 
 @Composable
+fun PromiseSecondaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val colors = PromiseThemeColors.current
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = TouchTarget.buttonMin),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = Elevation.none),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = colors.surfaceMuted,
+            contentColor = colors.textPrimary,
+            disabledContainerColor = colors.surfaceMuted.copy(alpha = Alpha.DisabledContainer),
+            disabledContentColor = colors.textSecondary.copy(alpha = Alpha.DisabledContent),
+        ),
+        shape = RoundedCornerShape(Radius.button),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
 fun PromiseStreakBadge(
     streakText: String,
     modifier: Modifier = Modifier,
@@ -276,5 +307,100 @@ fun PromiseStreakBadge(
             fontWeight = FontWeight.SemiBold,
             color = colors.accent,
         )
+    }
+}
+
+@Composable
+fun PromiseEmptyState(
+    title: String,
+    description: String,
+    modifier: Modifier = Modifier,
+    actionLabel: String? = null,
+    onActionClick: (() -> Unit)? = null,
+) {
+    val colors = PromiseThemeColors.current
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.xxl, horizontal = Spacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.textPrimary,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(modifier = Modifier.height(Spacing.xs))
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textSecondary,
+            lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified,
+        )
+        if (!actionLabel.isNullOrBlank() && onActionClick != null) {
+            Spacer(modifier = Modifier.height(Spacing.lg))
+            PromisePrimaryButton(
+                text = actionLabel,
+                onClick = onActionClick,
+                modifier = Modifier.fillMaxWidth(0.6f),
+            )
+        }
+    }
+}
+
+@Composable
+fun PromiseErrorBanner(
+    message: String,
+    modifier: Modifier = Modifier,
+    onRetry: (() -> Unit)? = null,
+) {
+    val colors = PromiseThemeColors.current
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(
+                width = Elevation.hairline,
+                color = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(Radius.md),
+            ),
+        color = MaterialTheme.colorScheme.error.copy(alpha = 0.08f),
+        shape = RoundedCornerShape(Radius.md),
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            if (onRetry != null) {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Button(
+                    onClick = onRetry,
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.primaryControl,
+                        contentColor = colors.onPrimaryControl,
+                    ),
+                    shape = RoundedCornerShape(Radius.sm),
+                ) {
+                    Text(
+                        text = "Retry",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+        }
     }
 }

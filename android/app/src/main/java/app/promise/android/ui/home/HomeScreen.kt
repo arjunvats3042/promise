@@ -565,7 +565,11 @@ fun CommitmentTodayRow(
                     Spacer(modifier = Modifier.width(Spacing.xs))
                 }
                 Text(
-                    text = commitment.dueLabel,
+                    text = if (commitment.isOverdue && !commitment.dueLabel.startsWith("Overdue", ignoreCase = true)) {
+                        "Overdue · ${commitment.dueLabel}"
+                    } else {
+                        commitment.dueLabel
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = if (commitment.isOverdue) colors.warning else colors.textSecondary,
                 )
@@ -629,6 +633,13 @@ fun PracticeRow(
                             color = colors.textSecondary,
                         )
                     }
+                }
+                if (practice.progressFraction > 0f) {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    app.promise.android.ui.components.PromiseLinearProgressBar(
+                        progress = practice.progressFraction,
+                        modifier = Modifier.fillMaxWidth(0.9f),
+                    )
                 }
             }
             TextButton(

@@ -65,6 +65,7 @@ import app.promise.android.domain.GoalTrackingKind
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
+import app.promise.android.ui.theme.TouchTarget
 
 private enum class ConfirmKind { Pause, Resume, Complete, Cancel, Leave }
 
@@ -410,10 +411,10 @@ private fun DetailContent(
         }
         if (actionError != null) {
             Spacer(modifier = Modifier.height(Spacing.md))
-            Text(actionError.toUserMessage(), color = MaterialTheme.colorScheme.error)
-            TextButton(onClick = onClearError) {
-                Text("Dismiss", color = colors.textSecondary)
-            }
+            app.promise.android.ui.components.PromiseErrorBanner(
+                message = actionError.toUserMessage(),
+                onRetry = onClearError,
+            )
         }
         if (ui.canCheckInToday()) {
             Spacer(modifier = Modifier.height(Spacing.lg))
@@ -431,7 +432,7 @@ private fun DetailContent(
                     TextButton(
                         onClick = onManageParticipants,
                         modifier = Modifier
-                            .heightIn(min = 48.dp)
+                            .heightIn(min = TouchTarget.min)
                             .semantics { contentDescription = "View participants" },
                     ) {
                         Text("Participants", color = colors.accent)
@@ -440,7 +441,7 @@ private fun DetailContent(
                         onClick = onInviteParticipant,
                         enabled = !inviteBusy,
                         modifier = Modifier
-                            .heightIn(min = 48.dp)
+                            .heightIn(min = TouchTarget.min)
                             .semantics { contentDescription = "Invite someone" },
                     ) {
                         Text("Invite", color = colors.accent)
@@ -450,7 +451,7 @@ private fun DetailContent(
                 TextButton(
                     onClick = onManageParticipants,
                     modifier = Modifier
-                        .heightIn(min = 48.dp)
+                        .heightIn(min = TouchTarget.min)
                         .semantics { contentDescription = "View participants" },
                 ) {
                     Text("Participants", color = colors.accent)
@@ -531,43 +532,30 @@ private fun DetailContent(
         }
         Spacer(modifier = Modifier.height(Spacing.section))
         if (goal.canPause) {
-            TextButton(
+            app.promise.android.ui.components.PromiseSecondaryButton(
+                text = "Pause",
                 onClick = onPause,
                 enabled = !busy,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .semantics { contentDescription = "Pause goal" },
-            ) {
-                Text("Pause", color = colors.accent)
-            }
+                modifier = Modifier.semantics { contentDescription = "Pause goal" },
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
         }
         if (goal.canResume) {
-            TextButton(
+            app.promise.android.ui.components.PromiseSecondaryButton(
+                text = "Resume",
                 onClick = onResume,
                 enabled = !busy,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .semantics { contentDescription = "Resume goal" },
-            ) {
-                Text("Resume", color = colors.accent)
-            }
+                modifier = Modifier.semantics { contentDescription = "Resume goal" },
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
         }
         if (goal.canCompleteGoal) {
-            Button(
+            app.promise.android.ui.components.PromisePrimaryButton(
+                text = if (busy) "Working…" else "Complete",
                 onClick = onComplete,
                 enabled = !busy,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .semantics { contentDescription = "Complete goal" },
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-                shape = RoundedCornerShape(Radius.sm),
-            ) {
-                Text(if (busy) "Working…" else "Complete")
-            }
+                modifier = Modifier.semantics { contentDescription = "Complete goal" },
+            )
             Spacer(modifier = Modifier.height(Spacing.sm))
         }
         if (goal.canCancel) {
@@ -576,7 +564,7 @@ private fun DetailContent(
                 enabled = !busy,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp)
+                    .heightIn(min = TouchTarget.buttonMin)
                     .semantics { contentDescription = "Cancel goal" },
             ) {
                 Text("Cancel goal", color = MaterialTheme.colorScheme.error)
@@ -588,7 +576,7 @@ private fun DetailContent(
                 enabled = !busy,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp)
+                    .heightIn(min = TouchTarget.buttonMin)
                     .semantics { contentDescription = "Leave goal" },
             ) {
                 Text("Leave goal", color = MaterialTheme.colorScheme.error)
@@ -768,51 +756,37 @@ private fun InlineCheckIn(
             ),
         )
         Spacer(modifier = Modifier.height(Spacing.sm))
-        Button(
+        app.promise.android.ui.components.PromisePrimaryButton(
+            text = if (busy) "Saving…" else "Done",
             onClick = {
-                val value = valueText.toIntOrNull() ?: return@Button
+                val value = valueText.toIntOrNull() ?: return@PromisePrimaryButton
                 onSubmit(CheckInInput(status = GoalCheckInStatus.COMPLETED, value = value))
             },
             enabled = !busy && valueText.toIntOrNull() != null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .semantics { contentDescription = "Save check-in" },
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-            shape = RoundedCornerShape(Radius.sm),
-        ) {
-            Text(if (busy) "Saving…" else "Done")
-        }
+            modifier = Modifier.semantics { contentDescription = "Save check-in" },
+        )
         TextButton(
             onClick = { onSubmit(CheckInInput(status = GoalCheckInStatus.SKIPPED)) },
             enabled = !busy,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp),
+                .heightIn(min = TouchTarget.min),
         ) {
             Text("Skip today", color = colors.textSecondary)
         }
     } else {
-        Button(
+        app.promise.android.ui.components.PromisePrimaryButton(
+            text = if (busy) "Saving…" else "Done",
             onClick = { onSubmit(CheckInInput(status = GoalCheckInStatus.COMPLETED)) },
             enabled = !busy,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .semantics { contentDescription = "Mark done" },
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-            shape = RoundedCornerShape(Radius.sm),
-        ) {
-            Text(if (busy) "Saving…" else "Done")
-        }
+            modifier = Modifier.semantics { contentDescription = "Mark done" },
+        )
         TextButton(
             onClick = { onSubmit(CheckInInput(status = GoalCheckInStatus.SKIPPED)) },
             enabled = !busy,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp),
+                .heightIn(min = TouchTarget.min),
         ) {
             Text("Skip today", color = colors.textSecondary)
         }

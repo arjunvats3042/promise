@@ -46,6 +46,7 @@ import app.promise.android.domain.Commitment
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
+import app.promise.android.ui.theme.TouchTarget
 
 @Composable
 fun CommitmentDetailScreen(
@@ -175,7 +176,10 @@ private fun DetailContent(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = Spacing.inset),
     ) {
-        TextButton(onClick = onBack) {
+        TextButton(
+            onClick = onBack,
+            modifier = Modifier.heightIn(min = TouchTarget.min),
+        ) {
             Text("Back", style = MaterialTheme.typography.labelLarge, color = colors.textSecondary)
         }
         Spacer(modifier = Modifier.height(Spacing.xs))
@@ -184,88 +188,78 @@ private fun DetailContent(
             style = MaterialTheme.typography.displayLarge,
             color = colors.textPrimary,
         )
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (commitment.isOverdue) {
-                Box(
-                    modifier = Modifier
-                        .size(Spacing.statusMark)
-                        .clip(CircleShape)
-                        .background(colors.warning)
-                        .semantics { contentDescription = "Overdue" },
+        Spacer(modifier = Modifier.height(Spacing.md))
+        app.promise.android.ui.components.PromiseCardSurface {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (commitment.isOverdue) {
+                    Box(
+                        modifier = Modifier
+                            .size(Spacing.statusMark)
+                            .clip(CircleShape)
+                            .background(colors.warning)
+                            .semantics { contentDescription = "Overdue" },
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                }
+                Text(
+                    text = if (commitment.isOverdue && !commitment.metaLine(timeZoneId).startsWith("Overdue", ignoreCase = true)) {
+                        "Overdue · ${commitment.metaLine(timeZoneId)}"
+                    } else {
+                        commitment.metaLine(timeZoneId)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (commitment.isOverdue) colors.warning else colors.textSecondary,
                 )
-                Spacer(modifier = Modifier.width(Spacing.xs))
             }
-            Text(
-                text = commitment.metaLine(timeZoneId),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (commitment.isOverdue) colors.warning else colors.textSecondary,
-            )
-        }
-        if (commitment.description.isNotBlank()) {
-            Spacer(modifier = Modifier.height(Spacing.lg))
-            Text(
-                text = commitment.description,
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.textPrimary,
-            )
+            if (commitment.description.isNotBlank()) {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text(
+                    text = commitment.description,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.textPrimary,
+                )
+            }
         }
         if (actionError != null) {
             Spacer(modifier = Modifier.height(Spacing.md))
-            Text(actionError.toUserMessage(), color = MaterialTheme.colorScheme.error)
-            TextButton(onClick = onClearError) {
-                Text("Dismiss", color = colors.textSecondary)
-            }
+            app.promise.android.ui.components.PromiseErrorBanner(
+                message = actionError.toUserMessage(),
+                onRetry = onClearError,
+            )
         }
         Spacer(modifier = Modifier.height(Spacing.xl))
         if (commitment.canComplete) {
-            Button(
+            app.promise.android.ui.components.PromisePrimaryButton(
+                text = if (busy) "Working…" else "Complete",
                 onClick = onComplete,
                 enabled = !busy,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .semantics { contentDescription = "Complete commitment" },
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-                shape = RoundedCornerShape(Radius.sm),
-            ) {
-                Text(if (busy) "Working…" else "Complete")
-            }
+                modifier = Modifier.semantics { contentDescription = "Complete commitment" },
+            )
             Spacer(modifier = Modifier.height(Spacing.sm))
         }
         if (commitment.canSnooze) {
-            TextButton(
+            app.promise.android.ui.components.PromiseSecondaryButton(
+                text = "Snooze",
                 onClick = onSnooze,
                 enabled = !busy,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-            ) {
-                Text("Snooze", color = colors.accent)
-            }
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
         }
         if (commitment.canWait) {
-            TextButton(
+            app.promise.android.ui.components.PromiseSecondaryButton(
+                text = "Mark waiting",
                 onClick = onWait,
                 enabled = !busy,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-            ) {
-                Text("Mark waiting", color = colors.accent)
-            }
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
         }
         if (commitment.canUnsnooze) {
-            TextButton(
+            app.promise.android.ui.components.PromiseSecondaryButton(
+                text = "Unsnooze",
                 onClick = onUnsnooze,
                 enabled = !busy,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp),
-            ) {
-                Text("Unsnooze", color = colors.accent)
-            }
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
         }
         if (commitment.canCancel) {
             TextButton(
@@ -273,7 +267,7 @@ private fun DetailContent(
                 enabled = !busy,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp)
+                    .heightIn(min = TouchTarget.buttonMin)
                     .semantics { contentDescription = "Cancel commitment" },
             ) {
                 Text("Cancel commitment", color = MaterialTheme.colorScheme.error)
