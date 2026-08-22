@@ -157,6 +157,12 @@ data class Goal(
 
     val canCancel: Boolean
         get() = (status == GoalStatus.ACTIVE || status == GoalStatus.PAUSED) && isOwnerViewer
+
+    val canViewChat: Boolean
+        get() = isShared && (membershipStatus == GoalParticipantStatus.ACTIVE || isOwnerViewer)
+
+    val canSendChat: Boolean
+        get() = canViewChat && !isTerminal
 }
 
 data class GoalCheckIn(
@@ -168,6 +174,35 @@ data class GoalCheckIn(
     val checkedAt: String,
     val createdAt: String,
     val updatedAt: String,
+)
+
+enum class ChatMessageDeliveryStatus {
+    SENDING,
+    SENT,
+    FAILED,
+}
+
+data class ChatMessageSender(
+    val id: String,
+    val name: String,
+)
+
+data class ChatMessage(
+    val id: String,
+    val sender: ChatMessageSender,
+    val body: String,
+    val createdAt: String,
+    val deliveryStatus: ChatMessageDeliveryStatus = ChatMessageDeliveryStatus.SENT,
+)
+
+data class GoalChatSummary(
+    val unreadCount: Int,
+    val latestMessage: ChatMessage?,
+)
+
+data class GoalChatReadState(
+    val lastReadMessageId: String?,
+    val lastReadAt: String,
 )
 
 enum class GoalListFilter {
@@ -189,6 +224,7 @@ data class CreateGoalInput(
     val trackingKind: GoalTrackingKind = GoalTrackingKind.BINARY,
     val targetValue: Int? = null,
     val targetUnit: String = "",
+    val isShared: Boolean = false,
 )
 
 data class CheckInInput(
@@ -222,4 +258,19 @@ data class LookupUser(
     val id: String,
     val name: String,
     val email: String,
+)
+
+data class GoalActivityActor(
+    val id: String,
+    val name: String,
+)
+
+data class GoalActivityItem(
+    val id: String,
+    val eventType: String,
+    val actor: GoalActivityActor?,
+    val targetUser: GoalActivityActor?,
+    val summary: String,
+    val periodDate: String?,
+    val createdAt: String,
 )

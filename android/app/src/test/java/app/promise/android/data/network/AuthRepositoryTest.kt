@@ -241,12 +241,29 @@ class AuthRetryInterceptorTest {
     }
 
     @Test
+    fun logoutAllSendsPostAndClearsSession() = runBlocking {
+        stack.session.setAccessToken("active-access")
+        stack.tokenStore.saveRefreshToken("active-refresh")
+        server.enqueue(MockResponse().setResponseCode(204))
+
+        stack.repository.logoutAll()
+
+        assertNull(stack.tokenStore.readRefreshToken())
+        assertNull(stack.session.accessToken)
+        assertTrue(stack.repository.session.value is SessionState.Unauthenticated)
+        val request = server.takeRequest()
+        assertEquals("/api/v1/auth/logout-all/", request.path)
+        assertEquals("POST", request.method)
+    }
+
+    @Test
     fun concurrent401ShareOneRefresh() = runBlocking {
         val refreshes = AtomicInteger(0)
         val api = object : AuthApi {
             override suspend fun login(body: LoginRequest) = error("unused")
             override suspend fun register(body: RegisterRequest) = error("unused")
             override suspend fun logout(body: RefreshRequest) = error("unused")
+            override suspend fun logoutAll(): retrofit2.Response<Unit> = error("unused")
             override suspend fun me() = error("unused")
             override suspend fun refresh(body: RefreshRequest): TokensResponse {
                 refreshes.incrementAndGet()

@@ -547,6 +547,8 @@ feat: add kafka event pipeline
 
 Create the Android application.
 
+Status: **IN PROGRESS** (Phases 9.1–9.8 COMPLETE: bootstrap, auth/networking, shell + Home, Commitments UI, Goals UI, Home real data integration, Register UI, logout-all, production configuration, deep links).
+
 Use:
 
 - Kotlin
@@ -555,8 +557,7 @@ Use:
 - ViewModel
 - Retrofit
 - Coroutines
-- Room where useful
-- dependency injection
+- Hilt dependency injection
 
 Target structure:
 
@@ -574,20 +575,16 @@ android/
 
 Tasks:
 
-1. Create Gradle Android project.
-2. Configure package/application ID.
-3. Create Compose theme.
-4. Create navigation.
-5. Create API client.
-6. Add backend environment configuration.
-7. Create authentication flow.
-8. Build Home shell.
-
-Commit:
-
-```text
-feat: bootstrap android app
-```
+1. Create Gradle Android project. (COMPLETE)
+2. Configure package/application ID. (COMPLETE)
+3. Create Compose theme. (COMPLETE)
+4. Create navigation. (COMPLETE)
+5. Create API client. (COMPLETE)
+6. Add backend environment configuration. (COMPLETE)
+7. Create authentication flow. (COMPLETE)
+8. Build Home shell & real data feed. (COMPLETE)
+9. Add Commitments and Goals product UIs. (COMPLETE)
+10. Add Register UI, logout-all, production release config, and deep links. (COMPLETE)
 
 ---
 

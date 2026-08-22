@@ -15,6 +15,7 @@ class AuthRepositoryImpl(
     private val tokenStore: TokenStore,
     private val memory: AuthSession,
     private val refresher: SessionRefresher,
+    private val deviceRegistrationRepository: app.promise.android.domain.DeviceRegistrationRepository? = null,
 ) : AuthRepository {
     private val _session = MutableStateFlow<SessionState>(SessionState.Restoring)
     override val session: StateFlow<SessionState> = _session.asStateFlow()
@@ -78,6 +79,9 @@ class AuthRepositoryImpl(
             val user = me.user.toDomain()
             memory.setUser(user)
             _session.value = SessionState.Authenticated(user)
+            deviceRegistrationRepository?.getStoredFcmToken()?.let { token ->
+                try { deviceRegistrationRepository.registerDevice(token) } catch (_: Throwable) {}
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
@@ -93,9 +97,24 @@ class AuthRepositoryImpl(
     override suspend fun logout() {
         val refresh = tokenStore.readRefreshToken()
         try {
+            deviceRegistrationRepository?.unregisterDevice()
             if (refresh != null) {
                 authedApi.logout(RefreshRequest(refresh))
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Throwable) {
+        } finally {
+            tokenStore.clear()
+            memory.clear()
+            _session.value = SessionState.Unauthenticated
+        }
+    }
+
+    override suspend fun logoutAll() {
+        try {
+            deviceRegistrationRepository?.unregisterDevice()
+            authedApi.logoutAll()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Throwable) {
@@ -119,6 +138,9 @@ class AuthRepositoryImpl(
         memory.setUser(user)
         _session.value = SessionState.Authenticated(user)
         AppLog.d(TAG, "session authenticated")
+        deviceRegistrationRepository?.getStoredFcmToken()?.let { token ->
+            try { deviceRegistrationRepository.registerDevice(token) } catch (_: Throwable) {}
+        }
     }
 
     private suspend fun persistTokens(tokens: TokensDto) {

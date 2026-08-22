@@ -34,3 +34,6 @@ data class CommitmentRoute(val commitmentId: String)
 
 @Serializable
 data class GoalRoute(val goalId: String)
+
+@Serializable
+data class GoalChatRoute(val goalId: String)

@@ -29,6 +29,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+
 data class HomeUiModel(
     val greeting: String,
     val userName: String,
@@ -40,12 +45,14 @@ data class HomeUiModel(
     val practicesError: ErrorKind? = null,
 )
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val homeRepository: HomeRepository,
     private val authSession: AuthSession,
     private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
+    private val appEventBus: AppEventBus,
 ) : ViewModel() {
     private val _state = MutableStateFlow<LoadState<HomeUiModel>>(LoadState.Loading)
     val state: StateFlow<LoadState<HomeUiModel>> = _state.asStateFlow()
@@ -54,6 +61,35 @@ class HomeViewModel @Inject constructor(
 
     init {
         refresh(force = true)
+        observeEvents()
+    }
+
+    private fun observeEvents() {
+        viewModelScope.launch {
+            appEventBus.events
+                .debounce(50L)
+                .collect { event ->
+                    when (event) {
+                        is AppMutationEvent.GoalCreated,
+                        is AppMutationEvent.GoalUpdated,
+                        is AppMutationEvent.GoalCheckedIn,
+                        is AppMutationEvent.GoalPaused,
+                        is AppMutationEvent.GoalResumed,
+                        is AppMutationEvent.GoalCompleted,
+                        is AppMutationEvent.GoalCancelled,
+                        is AppMutationEvent.SharedGoalMembershipChanged,
+                        is AppMutationEvent.CommitmentCreated,
+                        is AppMutationEvent.CommitmentUpdated,
+                        is AppMutationEvent.CommitmentCompleted,
+                        is AppMutationEvent.CommitmentCancelled,
+                        is AppMutationEvent.CommitmentSnoozed -> {
+                            homeFreshness.markDirty()
+                            refresh(force = true, fromPull = false)
+                        }
+                        else -> Unit
+                    }
+                }
+        }
     }
 
     fun onVisible() {
@@ -103,6 +139,7 @@ class HomeViewModel @Inject constructor(
                 haptics.confirm()
                 homeFreshness.markDirty()
                 loadMutex.withLock { loadFeed() }
+                appEventBus.emit(AppMutationEvent.CommitmentCompleted(id))
             } catch (_: ApiException) {
                 haptics.error()
                 loadMutex.withLock { loadFeed() }
@@ -119,6 +156,7 @@ class HomeViewModel @Inject constructor(
                 haptics.confirm()
                 homeFreshness.markDirty()
                 loadMutex.withLock { loadFeed() }
+                appEventBus.emit(AppMutationEvent.GoalCheckedIn(id))
             } catch (_: ApiException) {
                 haptics.error()
                 loadMutex.withLock { loadFeed() }

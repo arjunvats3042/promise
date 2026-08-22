@@ -71,4 +71,37 @@ interface GoalApi {
 
     @POST("goals/{id}/leave/")
     suspend fun leave(@Path("id") id: String): GoalParticipantDto
+
+    @GET("goals/{id}/chat/messages/")
+    suspend fun listChatMessages(
+        @Path("id") id: String,
+        @Query("limit") limit: Int = 50,
+        @Query("before_created_at") beforeCreatedAt: String? = null,
+        @Query("before_id") beforeId: String? = null,
+    ): List<ChatMessageDto>
+
+    @POST("goals/{id}/chat/messages/")
+    suspend fun sendChatMessage(
+        @Path("id") id: String,
+        @Body body: SendChatMessageRequest,
+    ): ChatMessageDto
+
+    @POST("goals/{id}/chat/read/")
+    suspend fun markChatRead(
+        @Path("id") id: String,
+        @Body body: MarkChatReadRequest,
+    ): GoalChatReadStateDto
+
+    @GET("goals/{id}/chat/summary/")
+    suspend fun getChatSummary(
+        @Path("id") id: String,
+    ): GoalChatSummaryDto
+
+    @GET("goals/{id}/activity/")
+    suspend fun listActivity(
+        @Path("id") id: String,
+        @Query("limit") limit: Int = 20,
+        @Query("before_created_at") beforeCreatedAt: String? = null,
+        @Query("before_id") beforeId: String? = null,
+    ): List<GoalActivityItemDto>
 }

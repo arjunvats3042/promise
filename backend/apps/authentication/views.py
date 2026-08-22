@@ -82,7 +82,8 @@ def refresh(request):
 def logout(request):
     serializer = RefreshSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    logout_session(user=request.user, **serializer.validated_data)
+    device_id = request.headers.get("X-Device-Id") or request.data.get("device_id")
+    logout_session(user=request.user, device_id=device_id, **serializer.validated_data)
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 

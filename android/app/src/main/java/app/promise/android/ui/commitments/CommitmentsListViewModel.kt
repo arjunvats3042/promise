@@ -23,18 +23,25 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+
 data class CommitmentsListUi(
     val filter: CommitmentListFilter,
     val items: List<Commitment>,
     val timeZoneId: String,
 )
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class CommitmentsListViewModel @Inject constructor(
     private val repository: CommitmentRepository,
     private val authSession: AuthSession,
     private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
+    private val appEventBus: AppEventBus,
 ) : ViewModel() {
     private val _state = MutableStateFlow<LoadState<CommitmentsListUi>>(LoadState.Loading)
     val state: StateFlow<LoadState<CommitmentsListUi>> = _state.asStateFlow()
@@ -47,6 +54,32 @@ class CommitmentsListViewModel @Inject constructor(
 
     init {
         refresh()
+        observeEvents()
+    }
+
+    private fun observeEvents() {
+        viewModelScope.launch {
+            appEventBus.events
+                .debounce(50L)
+                .collect { event ->
+                    when (event) {
+                        is AppMutationEvent.CommitmentCreated -> {
+                            val current = _state.value
+                            if (current is LoadState.Ready && current.value.items.any { it.id == event.commitmentId }) {
+                                return@collect
+                            }
+                            refresh(fromPull = false)
+                        }
+                        is AppMutationEvent.CommitmentUpdated,
+                        is AppMutationEvent.CommitmentCompleted,
+                        is AppMutationEvent.CommitmentCancelled,
+                        is AppMutationEvent.CommitmentSnoozed -> {
+                            refresh(fromPull = false)
+                        }
+                        else -> Unit
+                    }
+                }
+        }
     }
 
     fun selectFilter(value: CommitmentListFilter) {
@@ -106,6 +139,7 @@ class CommitmentsListViewModel @Inject constructor(
                 homeFreshness.markDirty()
                 haptics.confirm()
                 prependOrRefresh(created)
+                appEventBus.emit(AppMutationEvent.CommitmentCreated(created.id))
                 onSuccess(created)
             } catch (e: ApiException) {
                 _createAction.value = ActionState.Failed(e.toErrorKind())

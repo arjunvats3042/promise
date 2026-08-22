@@ -1,3 +1,4 @@
+import uuid
 from zoneinfo import ZoneInfo
 
 from django.utils import timezone
@@ -12,6 +13,11 @@ from apps.goals.rate_limits import (
     enforce_goal_write_rate_limit,
 )
 from apps.goals.serializers import (
+    ChatMessageSerializer,
+    ChatMessageWriteSerializer,
+    ChatReadWriteSerializer,
+    ChatSummarySerializer,
+    GoalActivityItemSerializer,
     GoalCheckInListQuerySerializer,
     GoalCheckInSerializer,
     GoalCheckInWriteSerializer,
@@ -30,6 +36,8 @@ from apps.goals.services import (
     complete_goal,
     create_goal,
     decline_invitation,
+    get_chat_summary,
+    get_goal_activity,
     get_participant,
     get_visible_goal,
     invite_participant,
@@ -37,12 +45,15 @@ from apps.goals.services import (
     is_shared_goal,
     leave_goal,
     list_active_participants,
+    list_chat_messages,
     list_goal_check_ins,
     list_visible_goals,
+    mark_chat_read,
     pause_goal,
     record_check_in,
     remove_participant,
     resume_goal,
+    send_chat_message,
     update_goal,
 )
 
@@ -217,12 +228,13 @@ def goal_participants(request, goal_id):
 
 
 @api_view(["DELETE"])
-def goal_participant_detail(request, goal_id, user_id):
+def goal_participant_detail(request, goal_id, user_id=None, participant_id=None):
     enforce_goal_write_rate_limit(request.user)
+    target = participant_id or user_id
     participant = remove_participant(
         actor=request.user,
         goal_id=goal_id,
-        user_id=user_id,
+        participant_id=target,
     )
     return Response(
         GoalParticipantSerializer(participant).data,
@@ -256,3 +268,95 @@ def goal_leave(request, goal_id):
         GoalParticipantSerializer(participant).data,
         status=status.HTTP_200_OK,
     )
+
+
+@api_view(["GET", "POST"])
+def goal_chat_messages(request, goal_id):
+    if request.method == "GET":
+        limit = int(request.query_params.get("limit", 50))
+        before_id = request.query_params.get("before_id")
+        before_created_at = request.query_params.get("before_created_at")
+        messages = list_chat_messages(
+            viewer=request.user,
+            goal_id=goal_id,
+            limit=limit,
+            before_id=before_id,
+            before_created_at=before_created_at,
+        )
+        return Response(ChatMessageSerializer(messages, many=True).data)
+
+    enforce_goal_write_rate_limit(request.user)
+    serializer = ChatMessageWriteSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    msg = send_chat_message(
+        sender=request.user,
+        goal_id=goal_id,
+        body=serializer.validated_data["body"],
+    )
+    return Response(ChatMessageSerializer(msg).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+def goal_chat_read(request, goal_id):
+    enforce_goal_write_rate_limit(request.user)
+    serializer = ChatReadWriteSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    read_state = mark_chat_read(
+        viewer=request.user,
+        goal_id=goal_id,
+        last_read_message_id=serializer.validated_data["last_read_message_id"],
+    )
+    return Response(
+        {
+            "last_read_message_id": (
+                str(read_state.last_read_message_id)
+                if read_state.last_read_message_id
+                else None
+            ),
+            "last_read_at": read_state.last_read_at.isoformat(),
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(["GET"])
+def goal_chat_summary(request, goal_id):
+    summary = get_chat_summary(viewer=request.user, goal_id=goal_id)
+    return Response(ChatSummarySerializer(summary).data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+def goal_activity(request, goal_id):
+    limit_param = request.query_params.get("limit", 20)
+    try:
+        limit = int(limit_param)
+    except (ValueError, TypeError):
+        limit = 20
+
+    before_created_at = request.query_params.get("before_created_at")
+    before_id = request.query_params.get("before_id")
+
+    parsed_before_created_at = None
+    if before_created_at:
+        try:
+            parsed_before_created_at = timezone.datetime.fromisoformat(
+                before_created_at.replace("Z", "+00:00")
+            )
+        except Exception:
+            pass
+
+    parsed_before_id = None
+    if before_id:
+        try:
+            parsed_before_id = uuid.UUID(str(before_id))
+        except Exception:
+            pass
+
+    items = get_goal_activity(
+        viewer=request.user,
+        goal_id=goal_id,
+        limit=limit,
+        before_created_at=parsed_before_created_at,
+        before_id=parsed_before_id,
+    )
+    return Response(GoalActivityItemSerializer(items, many=True).data, status=status.HTTP_200_OK)

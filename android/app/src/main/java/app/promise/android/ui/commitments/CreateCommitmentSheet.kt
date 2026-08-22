@@ -63,7 +63,7 @@ fun CreateCommitmentSheet(
         Column(modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.md)) {
             Text(
                 text = "New commitment",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineMedium,
                 color = colors.textPrimary,
             )
             Spacer(modifier = Modifier.height(Spacing.md))

@@ -7,12 +7,16 @@ import androidx.navigation.toRoute
 import app.promise.android.core.ActionState
 import app.promise.android.core.ErrorKind
 import app.promise.android.core.LoadState
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+import app.promise.android.core.events.MembershipChangeType
 import app.promise.android.core.toErrorKind
 import app.promise.android.data.home.HomeFreshness
 import app.promise.android.data.network.ApiException
 import app.promise.android.data.network.AuthSession
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.Goal
+import app.promise.android.domain.GoalActivityItem
 import app.promise.android.domain.GoalCheckIn
 import app.promise.android.domain.GoalCheckInStatus
 import app.promise.android.domain.GoalDetail
@@ -28,9 +32,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 
 sealed class GoalDetailUi {
@@ -39,10 +45,17 @@ sealed class GoalDetailUi {
         val checkIns: List<GoalCheckIn>,
         val todayCheckIn: GoalCheckIn?,
         val roster: List<GoalParticipant> = emptyList(),
+        val recentActivity: List<GoalActivityItem> = emptyList(),
     ) : GoalDetailUi()
 
     data class Invite(val preview: GoalInvitePreview) : GoalDetailUi()
 }
+
+data class GoalActivityState(
+    val items: List<GoalActivityItem> = emptyList(),
+    val isLoading: Boolean = false,
+    val hasMore: Boolean = false,
+)
 
 sealed interface UserLookupUi {
     data object Idle : UserLookupUi
@@ -52,6 +65,7 @@ sealed interface UserLookupUi {
     data class Failed(val kind: ErrorKind) : UserLookupUi
 }
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class GoalDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -60,12 +74,16 @@ class GoalDetailViewModel @Inject constructor(
     private val authSession: AuthSession,
     private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
+    private val appEventBus: AppEventBus,
 ) : ViewModel() {
     private val goalId: String = savedStateHandle.get<String>("goalId")
         ?: savedStateHandle.toRoute<GoalRoute>().goalId
 
     private val _state = MutableStateFlow<LoadState<GoalDetailUi>>(LoadState.Loading)
     val state: StateFlow<LoadState<GoalDetailUi>> = _state.asStateFlow()
+
+    private val _activityState = MutableStateFlow(GoalActivityState())
+    val activityState: StateFlow<GoalActivityState> = _activityState.asStateFlow()
 
     private val _action = MutableStateFlow<ActionState>(ActionState.Idle)
     val action: StateFlow<ActionState> = _action.asStateFlow()
@@ -84,6 +102,66 @@ class GoalDetailViewModel @Inject constructor(
 
     init {
         reload()
+        observeEvents()
+    }
+
+    private fun observeEvents() {
+        viewModelScope.launch {
+            appEventBus.events
+                .debounce(50L)
+                .collect { event ->
+                    when (event) {
+                        is AppMutationEvent.GoalCheckedIn -> if (event.goalId == goalId) reloadQuiet()
+                        is AppMutationEvent.SharedGoalMembershipChanged -> if (event.goalId == goalId) reloadQuiet()
+                        is AppMutationEvent.GoalUpdated -> if (event.goalId == goalId) reloadQuiet()
+                        is AppMutationEvent.GoalPaused -> if (event.goalId == goalId) reloadQuiet()
+                        is AppMutationEvent.GoalResumed -> if (event.goalId == goalId) reloadQuiet()
+                        is AppMutationEvent.GoalCompleted -> if (event.goalId == goalId) reloadQuiet()
+                        is AppMutationEvent.GoalCancelled -> if (event.goalId == goalId) reloadQuiet()
+                        else -> Unit
+                    }
+                }
+        }
+    }
+
+    fun loadFullActivity() {
+        viewModelScope.launch {
+            _activityState.value = GoalActivityState(isLoading = true)
+            try {
+                val items = repository.listActivity(goalId, limit = 20)
+                _activityState.value = GoalActivityState(
+                    items = items,
+                    isLoading = false,
+                    hasMore = items.size >= 20,
+                )
+            } catch (_: Throwable) {
+                _activityState.value = GoalActivityState(isLoading = false)
+            }
+        }
+    }
+
+    fun loadMoreActivity() {
+        val current = _activityState.value
+        if (current.isLoading || !current.hasMore) return
+        val oldest = current.items.lastOrNull() ?: return
+        viewModelScope.launch {
+            _activityState.value = current.copy(isLoading = true)
+            try {
+                val older = repository.listActivity(
+                    goalId = goalId,
+                    limit = 20,
+                    beforeCreatedAt = oldest.createdAt,
+                    beforeId = oldest.id,
+                )
+                _activityState.value = current.copy(
+                    items = current.items + older,
+                    isLoading = false,
+                    hasMore = older.size >= 20,
+                )
+            } catch (_: Throwable) {
+                _activityState.value = current.copy(isLoading = false)
+            }
+        }
     }
 
     fun reload() {
@@ -103,6 +181,7 @@ class GoalDetailViewModel @Inject constructor(
                 reloadQuiet()
                 _action.value = ActionState.Idle
                 haptics.confirm()
+                appEventBus.emit(AppMutationEvent.GoalCheckedIn(goalId))
             } catch (e: ApiException) {
                 val kind = e.toErrorKind()
                 _action.value = ActionState.Failed(kind)
@@ -138,6 +217,12 @@ class GoalDetailViewModel @Inject constructor(
                 _action.value = ActionState.Idle
                 homeFreshness.markDirty()
                 haptics.light()
+                appEventBus.emit(
+                    AppMutationEvent.SharedGoalMembershipChanged(
+                        goalId,
+                        MembershipChangeType.LEFT,
+                    ),
+                )
                 onLeft()
             } catch (e: ApiException) {
                 _action.value = ActionState.Failed(e.toErrorKind())
@@ -159,6 +244,12 @@ class GoalDetailViewModel @Inject constructor(
                 homeFreshness.markDirty()
                 haptics.confirm()
                 loadDetail()
+                appEventBus.emit(
+                    AppMutationEvent.SharedGoalMembershipChanged(
+                        goalId,
+                        MembershipChangeType.ACCEPTED,
+                    ),
+                )
                 onAccepted()
             } catch (e: ApiException) {
                 _inviteAction.value = ActionState.Failed(e.toErrorKind())
@@ -179,6 +270,12 @@ class GoalDetailViewModel @Inject constructor(
                 _inviteAction.value = ActionState.Idle
                 homeFreshness.markDirty()
                 haptics.light()
+                appEventBus.emit(
+                    AppMutationEvent.SharedGoalMembershipChanged(
+                        goalId,
+                        MembershipChangeType.DECLINED,
+                    ),
+                )
                 onLeft()
             } catch (e: ApiException) {
                 _inviteAction.value = ActionState.Failed(e.toErrorKind())
@@ -197,9 +294,16 @@ class GoalDetailViewModel @Inject constructor(
             try {
                 repository.inviteParticipant(goalId, userId)
                 _inviteSheetAction.value = ActionState.Idle
+                homeFreshness.markDirty()
                 haptics.confirm()
                 _lookupState.value = UserLookupUi.Idle
                 refreshRoster()
+                appEventBus.emit(
+                    AppMutationEvent.SharedGoalMembershipChanged(
+                        goalId,
+                        MembershipChangeType.INVITED,
+                    ),
+                )
             } catch (e: ApiException) {
                 _inviteSheetAction.value = ActionState.Failed(e.toErrorKind())
                 haptics.error()
@@ -217,8 +321,21 @@ class GoalDetailViewModel @Inject constructor(
             try {
                 repository.removeParticipant(goalId, userId)
                 _inviteSheetAction.value = ActionState.Idle
-                haptics.confirm()
+                homeFreshness.markDirty()
+                val current = (_state.value as? LoadState.Ready)?.value as? GoalDetailUi.Full
+                if (current != null) {
+                    _state.value = LoadState.Ready(
+                        current.copy(roster = current.roster.filterNot { it.userId == userId || it.id == userId }),
+                    )
+                }
+                haptics.light()
                 refreshRoster()
+                appEventBus.emit(
+                    AppMutationEvent.SharedGoalMembershipChanged(
+                        goalId,
+                        MembershipChangeType.REMOVED,
+                    ),
+                )
             } catch (e: ApiException) {
                 _inviteSheetAction.value = ActionState.Failed(e.toErrorKind())
                 haptics.error()
@@ -296,6 +413,7 @@ class GoalDetailViewModel @Inject constructor(
                 _action.value = ActionState.Idle
                 homeFreshness.markDirty()
                 if (confirmHaptic) haptics.confirm() else haptics.light()
+                appEventBus.emit(AppMutationEvent.GoalUpdated(goalId))
             } catch (e: ApiException) {
                 val kind = e.toErrorKind()
                 _action.value = ActionState.Failed(kind)
@@ -325,12 +443,18 @@ class GoalDetailViewModel @Inject constructor(
                     )
                     val today = end.toString()
                     val todayCheckIn = history.items.firstOrNull { it.periodDate == today }
+                    val activity = if (goal.isShared) {
+                        runCatching { repository.listActivity(goalId, limit = 4) }.getOrDefault(emptyList())
+                    } else {
+                        emptyList()
+                    }
                     _state.value = LoadState.Ready(
                         GoalDetailUi.Full(
                             goal = goal,
                             checkIns = history.items.sortedByDescending { it.periodDate },
                             todayCheckIn = todayCheckIn,
                             roster = goal.participants,
+                            recentActivity = activity,
                         ),
                     )
                 }

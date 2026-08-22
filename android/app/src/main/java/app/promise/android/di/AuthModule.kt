@@ -38,6 +38,7 @@ object AuthModule {
         tokenStore: TokenStore,
         session: AuthSession,
         refresher: SessionRefresher,
+        deviceRegistrationRepository: app.promise.android.domain.DeviceRegistrationRepository,
     ): AuthRepository {
         return AuthRepositoryImpl(
             publicApi = publicApi,
@@ -45,6 +46,7 @@ object AuthModule {
             tokenStore = tokenStore,
             memory = session,
             refresher = refresher,
+            deviceRegistrationRepository = deviceRegistrationRepository,
         )
     }
 }

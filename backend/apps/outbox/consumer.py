@@ -27,11 +27,12 @@ from django.utils import timezone
 
 from apps.outbox.envelope import EnvelopeError, parse_envelope
 from apps.outbox.models import ProcessedEvent
-from apps.outbox.publisher import COMMITMENT_TOPIC
+from apps.outbox.publisher import COMMITMENT_TOPIC, GOAL_TOPIC
 
 logger = logging.getLogger("promise")
 
 COMMITMENT_CONSUMER_GROUP = "promise-commitment-events"
+GOAL_CONSUMER_GROUP = "promise-goal-events"
 SUPPORTED_EVENT_VERSION = 1
 SUPPORTED_EVENT_TYPES = (
     "commitment.created",
@@ -54,16 +55,29 @@ SUPPORTED_EVENT_TYPES = (
     "goal.participant.declined",
     "goal.participant.left",
     "goal.participant.removed",
+    "goal.chat.message_created",
 )
 
 
 def process_commitment_event(envelope):
     logger.info(
-        "Consumed event_id=%s event_type=%s aggregate_id=%s",
+        "Consumed commitment event_id=%s event_type=%s aggregate_id=%s",
         envelope["event_id"],
         envelope["event_type"],
         envelope["aggregate_id"],
     )
+
+
+def process_goal_event(envelope):
+    logger.info(
+        "Consumed goal event_id=%s event_type=%s aggregate_id=%s",
+        envelope["event_id"],
+        envelope["event_type"],
+        envelope["aggregate_id"],
+    )
+    from apps.notifications.services import handle_goal_event
+
+    handle_goal_event(envelope)
 
 
 def process_and_record(*, consumer_group, envelope, processor):
@@ -133,6 +147,17 @@ def run_commitment_consumer(*, max_messages=None, timeout_seconds=None, consumer
         topic=COMMITMENT_TOPIC,
         group_id=COMMITMENT_CONSUMER_GROUP,
         processor=process_commitment_event,
+        max_messages=max_messages,
+        timeout_seconds=timeout_seconds,
+        consumer=consumer,
+    )
+
+
+def run_goal_consumer(*, max_messages=None, timeout_seconds=None, consumer=None):
+    return run_consumer(
+        topic=GOAL_TOPIC,
+        group_id=GOAL_CONSUMER_GROUP,
+        processor=process_goal_event,
         max_messages=max_messages,
         timeout_seconds=timeout_seconds,
         consumer=consumer,

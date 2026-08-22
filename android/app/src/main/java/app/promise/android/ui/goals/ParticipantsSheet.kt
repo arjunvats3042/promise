@@ -1,5 +1,8 @@
 package app.promise.android.ui.goals
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -7,6 +10,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -15,8 +24,10 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import app.promise.android.core.ActionState
 import app.promise.android.core.toUserMessage
@@ -24,8 +35,10 @@ import app.promise.android.domain.Goal
 import app.promise.android.domain.GoalParticipant
 import app.promise.android.domain.GoalParticipantRole
 import app.promise.android.domain.GoalParticipantStatus
+import app.promise.android.ui.components.PromiseMicroLabel
 import app.promise.android.ui.components.PromiseModalSheet
 import app.promise.android.ui.theme.PromiseThemeColors
+import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -35,7 +48,7 @@ fun ParticipantsSheet(
     roster: List<GoalParticipant>,
     inviteSheetAction: ActionState,
     onDismiss: () -> Unit,
-    onRemove: (userId: String) -> Unit,
+    onRemove: (GoalParticipant) -> Unit,
     onLeave: () -> Unit,
 ) {
     val colors = PromiseThemeColors.current
@@ -43,11 +56,18 @@ fun ParticipantsSheet(
     val busy = inviteSheetAction is ActionState.InFlight
     val actionError = (inviteSheetAction as? ActionState.Failed)?.kind
 
+    val activeMembers = roster.filter { it.status == GoalParticipantStatus.ACTIVE }
+    val pendingInvites = roster.filter { it.status == GoalParticipantStatus.INVITED }
+
     PromiseModalSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
-        Column(modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.md)) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = Spacing.inset, vertical = Spacing.md)
+                .verticalScroll(rememberScrollState()),
+        ) {
             Text(
                 text = "Participants",
                 style = MaterialTheme.typography.titleLarge,
@@ -55,20 +75,37 @@ fun ParticipantsSheet(
             )
             Spacer(modifier = Modifier.height(Spacing.md))
 
-            if (roster.isEmpty()) {
-                Text(
-                    text = "No participants yet.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary,
-                )
-            } else {
-                roster.forEach { participant ->
+            if (activeMembers.isNotEmpty()) {
+                PromiseMicroLabel("ACTIVE MEMBERS (${activeMembers.size})")
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                activeMembers.forEach { participant ->
                     ParticipantRow(
                         participant = participant,
                         canRemove = goal.canManageParticipants &&
                             participant.role != GoalParticipantRole.OWNER,
                         busy = busy,
-                        onRemove = { onRemove(participant.userId) },
+                        onRemove = { onRemove(participant) },
+                    )
+                }
+            } else {
+                Text(
+                    text = "No active participants.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            }
+
+            if (goal.canManageParticipants && pendingInvites.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                PromiseMicroLabel("PENDING INVITATIONS (${pendingInvites.size})")
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                pendingInvites.forEach { participant ->
+                    ParticipantRow(
+                        participant = participant,
+                        canRemove = true,
+                        busy = busy,
+                        onRemove = { onRemove(participant) },
+                        actionLabel = "Revoke",
                     )
                 }
             }
@@ -107,36 +144,64 @@ private fun ParticipantRow(
     canRemove: Boolean,
     busy: Boolean,
     onRemove: () -> Unit,
+    actionLabel: String = "Remove",
 ) {
     val colors = PromiseThemeColors.current
-    val roleLabel = when (participant.role) {
-        GoalParticipantRole.OWNER -> "Owner"
-        GoalParticipantRole.PARTICIPANT -> "Member"
-    }
-    val statusLabel = when (participant.status) {
-        GoalParticipantStatus.INVITED -> " · Invited"
-        GoalParticipantStatus.ACTIVE -> ""
-        GoalParticipantStatus.DECLINED -> " · Declined"
-        GoalParticipantStatus.LEFT -> " · Left"
-        GoalParticipantStatus.REMOVED -> " · Removed"
-    }
+    val initial = participant.userName.firstOrNull()?.uppercase() ?: "?"
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textPrimary,
+            )
+        }
+        Spacer(modifier = Modifier.width(Spacing.sm))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = participant.userName,
                 style = MaterialTheme.typography.bodyLarge,
                 color = colors.textPrimary,
             )
-            Text(
-                text = roleLabel + statusLabel,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                if (participant.role == GoalParticipantRole.OWNER) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.sm))
+                            .background(colors.accent.copy(alpha = 0.12f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = "Owner",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.accent,
+                        )
+                    }
+                } else {
+                    Text(
+                        text = if (participant.status == GoalParticipantStatus.INVITED) "Invited" else "Member",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
+            }
         }
         if (canRemove) {
             TextButton(
@@ -144,9 +209,9 @@ private fun ParticipantRow(
                 enabled = !busy,
                 modifier = Modifier
                     .heightIn(min = 48.dp)
-                    .semantics { contentDescription = "Remove ${participant.userName}" },
+                    .semantics { contentDescription = "$actionLabel ${participant.userName}" },
             ) {
-                Text("Remove", color = MaterialTheme.colorScheme.error)
+                Text(actionLabel, color = MaterialTheme.colorScheme.error)
             }
         }
     }

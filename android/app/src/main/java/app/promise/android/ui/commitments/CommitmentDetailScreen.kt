@@ -176,20 +176,20 @@ private fun DetailContent(
             .padding(horizontal = Spacing.inset),
     ) {
         TextButton(onClick = onBack) {
-            Text("Back", color = colors.textSecondary)
+            Text("Back", style = MaterialTheme.typography.labelLarge, color = colors.textSecondary)
         }
-        Spacer(modifier = Modifier.height(Spacing.sm))
+        Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
             text = commitment.title,
             style = MaterialTheme.typography.displayLarge,
             color = colors.textPrimary,
         )
-        Spacer(modifier = Modifier.height(Spacing.sm))
+        Spacer(modifier = Modifier.height(Spacing.xs))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (commitment.isOverdue) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(Spacing.statusMark)
                         .clip(CircleShape)
                         .background(colors.warning)
                         .semantics { contentDescription = "Overdue" },
@@ -198,12 +198,12 @@ private fun DetailContent(
             }
             Text(
                 text = commitment.metaLine(timeZoneId),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (commitment.isOverdue) colors.warning else colors.textSecondary,
             )
         }
         if (commitment.description.isNotBlank()) {
-            Spacer(modifier = Modifier.height(Spacing.section))
+            Spacer(modifier = Modifier.height(Spacing.lg))
             Text(
                 text = commitment.description,
                 style = MaterialTheme.typography.bodyLarge,
@@ -217,7 +217,7 @@ private fun DetailContent(
                 Text("Dismiss", color = colors.textSecondary)
             }
         }
-        Spacer(modifier = Modifier.height(Spacing.section))
+        Spacer(modifier = Modifier.height(Spacing.xl))
         if (commitment.canComplete) {
             Button(
                 onClick = onComplete,

@@ -82,23 +82,23 @@ fun LoginScreen(
                     style = MaterialTheme.typography.displayLarge,
                     color = colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.height(Spacing.xl))
+                Spacer(modifier = Modifier.height(Spacing.lg))
                 AnimatedLoginGreeting()
-                Spacer(modifier = Modifier.height(Spacing.xxs))
-                Text(
-                    text = "Welcome back",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.textPrimary,
-                )
                 Spacer(modifier = Modifier.height(Spacing.xs))
                 Text(
+                    text = "Welcome back",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = colors.textPrimary,
+                )
+                Spacer(modifier = Modifier.height(Spacing.xxs))
+                Text(
                     text = "Sign in to continue.",
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = colors.textSecondary,
                 )
                 Spacer(modifier = Modifier.height(Spacing.lg))
                 PromiseQuietFormSurface {
-                    PromiseFieldLabel("Email")
+                    PromiseFieldLabel("EMAIL")
                     PromiseTextField(
                         value = email,
                         onValueChange = viewModel::onEmailChange,
@@ -106,7 +106,7 @@ fun LoginScreen(
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     )
                     Spacer(modifier = Modifier.height(Spacing.md))
-                    PromiseFieldLabel("Password")
+                    PromiseFieldLabel("PASSWORD")
                     PromiseTextField(
                         value = password,
                         onValueChange = viewModel::onPasswordChange,
@@ -138,7 +138,7 @@ fun LoginScreen(
                         enabled = !submitting && email.isNotBlank() && password.isNotEmpty(),
                     )
                 }
-                Spacer(modifier = Modifier.height(Spacing.sm))
+                Spacer(modifier = Modifier.height(Spacing.md))
                 TextButton(
                     onClick = onCreateAccount,
                     enabled = !submitting,
@@ -146,7 +146,11 @@ fun LoginScreen(
                         .fillMaxWidth()
                         .heightIn(min = TouchTarget.min),
                 ) {
-                    Text("Create an account", color = colors.accent)
+                    Text(
+                        text = "Don’t have an account? Create one",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.accent,
+                    )
                 }
             }
         }

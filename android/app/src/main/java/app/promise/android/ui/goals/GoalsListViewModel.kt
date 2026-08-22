@@ -24,18 +24,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+import app.promise.android.core.events.MembershipChangeType
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+
 data class GoalsListUi(
     val filter: GoalListFilter,
     val items: List<GoalListItem>,
     val timeZoneId: String,
 )
 
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class GoalsListViewModel @Inject constructor(
     private val repository: GoalRepository,
     private val authSession: AuthSession,
     private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
+    private val appEventBus: AppEventBus,
 ) : ViewModel() {
     private val _state = MutableStateFlow<LoadState<GoalsListUi>>(LoadState.Loading)
     val state: StateFlow<LoadState<GoalsListUi>> = _state.asStateFlow()
@@ -51,6 +59,35 @@ class GoalsListViewModel @Inject constructor(
 
     init {
         refresh()
+        observeEvents()
+    }
+
+    private fun observeEvents() {
+        viewModelScope.launch {
+            appEventBus.events
+                .debounce(50L)
+                .collect { event ->
+                    when (event) {
+                        is AppMutationEvent.GoalCreated -> {
+                            val current = _state.value
+                            if (current is LoadState.Ready && current.value.items.any { itemKey(it) == event.goalId }) {
+                                return@collect
+                            }
+                            refresh(fromPull = false)
+                        }
+                        is AppMutationEvent.GoalUpdated,
+                        is AppMutationEvent.GoalCheckedIn,
+                        is AppMutationEvent.GoalPaused,
+                        is AppMutationEvent.GoalResumed,
+                        is AppMutationEvent.GoalCompleted,
+                        is AppMutationEvent.GoalCancelled,
+                        is AppMutationEvent.SharedGoalMembershipChanged -> {
+                            refresh(fromPull = false)
+                        }
+                        else -> Unit
+                    }
+                }
+        }
     }
 
     fun selectFilter(value: GoalListFilter) {
@@ -97,6 +134,7 @@ class GoalsListViewModel @Inject constructor(
                 haptics.confirm()
                 filter = GoalListFilter.ACTIVE
                 prependOrRefresh(created)
+                appEventBus.emit(AppMutationEvent.GoalCreated(created.id))
                 onSuccess(created)
             } catch (e: ApiException) {
                 _createAction.value = ActionState.Failed(e.toErrorKind())
@@ -115,6 +153,7 @@ class GoalsListViewModel @Inject constructor(
                 homeFreshness.markDirty()
                 haptics.confirm()
                 refresh()
+                appEventBus.emit(AppMutationEvent.GoalCheckedIn(goalId))
             } catch (_: ApiException) {
                 haptics.error()
             } catch (_: Throwable) {
@@ -133,6 +172,12 @@ class GoalsListViewModel @Inject constructor(
                 homeFreshness.markDirty()
                 haptics.confirm()
                 refresh()
+                appEventBus.emit(
+                    AppMutationEvent.SharedGoalMembershipChanged(
+                        goalId,
+                        MembershipChangeType.ACCEPTED,
+                    ),
+                )
                 onSuccess()
             } catch (e: ApiException) {
                 _inviteAction.value = ActionState.Failed(e.toErrorKind())
@@ -154,6 +199,12 @@ class GoalsListViewModel @Inject constructor(
                 homeFreshness.markDirty()
                 haptics.light()
                 refresh()
+                appEventBus.emit(
+                    AppMutationEvent.SharedGoalMembershipChanged(
+                        goalId,
+                        MembershipChangeType.DECLINED,
+                    ),
+                )
             } catch (e: ApiException) {
                 _inviteAction.value = ActionState.Failed(e.toErrorKind())
                 haptics.error()

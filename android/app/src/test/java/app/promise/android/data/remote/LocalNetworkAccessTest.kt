@@ -9,6 +9,12 @@ class LocalNetworkAccessTest {
     fun lanAndEmulatorHostsRequirePermissionOnApi37() {
         assertTrue(
             LocalNetworkAccess.requiresRuntimePermission(
+                "http://192.168.29.239:8000/api/v1/",
+                sdkInt = 37,
+            ),
+        )
+        assertTrue(
+            LocalNetworkAccess.requiresRuntimePermission(
                 "http://192.168.1.29:8000/api/v1/",
                 sdkInt = 37,
             ),
@@ -37,6 +43,12 @@ class LocalNetworkAccessTest {
     fun olderSdkDoesNotRequirePermissionEvenForLan() {
         assertFalse(
             LocalNetworkAccess.requiresRuntimePermission(
+                "http://192.168.29.239:8000/api/v1/",
+                sdkInt = 36,
+            ),
+        )
+        assertFalse(
+            LocalNetworkAccess.requiresRuntimePermission(
                 "http://192.168.1.29:8000/api/v1/",
                 sdkInt = 36,
             ),
@@ -56,6 +68,7 @@ class LocalNetworkAccessTest {
 
     @Test
     fun hostClassification() {
+        assertTrue(LocalNetworkAccess.isLocalNetworkHost("192.168.29.239"))
         assertTrue(LocalNetworkAccess.isLocalNetworkHost("192.168.1.29"))
         assertTrue(LocalNetworkAccess.isLocalNetworkHost("10.0.2.2"))
         assertTrue(LocalNetworkAccess.isLocalNetworkHost("localhost"))

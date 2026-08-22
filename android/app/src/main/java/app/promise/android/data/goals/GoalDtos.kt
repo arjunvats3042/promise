@@ -116,6 +116,8 @@ data class GoalDto(
     val invitationStatus: String? = null,
     @SerialName("invitation_expires_at")
     val invitationExpiresAt: String? = null,
+    @SerialName("is_shared")
+    val isShared: Boolean = false,
 )
 
 @Serializable
@@ -148,6 +150,8 @@ data class CreateGoalRequest(
     val targetValue: Int? = null,
     @SerialName("target_unit")
     val targetUnit: String = "",
+    @SerialName("is_shared")
+    val isShared: Boolean = false,
 )
 
 @Serializable
@@ -187,4 +191,67 @@ data class CheckInRequest(
 data class InviteParticipantRequest(
     @SerialName("user_id")
     val userId: String,
+)
+
+@Serializable
+data class ChatMessageSenderDto(
+    val id: String,
+    val name: String,
+)
+
+@Serializable
+data class ChatMessageDto(
+    val id: String,
+    val sender: ChatMessageSenderDto,
+    val body: String,
+    @SerialName("created_at")
+    val createdAt: String,
+)
+
+@Serializable
+data class SendChatMessageRequest(
+    val body: String,
+)
+
+@Serializable
+data class MarkChatReadRequest(
+    @SerialName("last_read_message_id")
+    val lastReadMessageId: String,
+)
+
+@Serializable
+data class GoalChatReadStateDto(
+    @SerialName("last_read_message_id")
+    val lastReadMessageId: String? = null,
+    @SerialName("last_read_at")
+    val lastReadAt: String,
+)
+
+@Serializable
+data class GoalChatSummaryDto(
+    @SerialName("unread_count")
+    val unreadCount: Int = 0,
+    @SerialName("latest_message")
+    val latestMessage: ChatMessageDto? = null,
+)
+
+@Serializable
+data class GoalActivityActorDto(
+    val id: String,
+    val name: String,
+)
+
+@Serializable
+data class GoalActivityItemDto(
+    val id: String,
+    @SerialName("event_type")
+    val eventType: String,
+    val actor: GoalActivityActorDto? = null,
+    @SerialName("target_user")
+    val targetUser: GoalActivityActorDto? = null,
+    val summary: String,
+    @SerialName("period_date")
+    val periodDate: String? = null,
+    @SerialName("created_at")
+    val createdAt: String,
 )

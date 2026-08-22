@@ -79,6 +79,18 @@ object NetworkModule {
         return createRetrofit(authedClient, json).create(AuthApi::class.java)
     }
 
+    @Provides
+    @Singleton
+    fun provideDeviceApi(authedClient: OkHttpClient, json: Json): app.promise.android.data.network.DeviceApi {
+        return createRetrofit(authedClient, json).create(app.promise.android.data.network.DeviceApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideNotificationPreferencesApi(authedClient: OkHttpClient, json: Json): app.promise.android.data.network.NotificationPreferencesApi {
+        return createRetrofit(authedClient, json).create(app.promise.android.data.network.NotificationPreferencesApi::class.java)
+    }
+
     private fun createRetrofit(client: OkHttpClient, json: Json): Retrofit {
         val baseUrl = ApiConfig.baseUrl.ifBlank { "https://invalid.local/api/v1/" }
         return Retrofit.Builder()

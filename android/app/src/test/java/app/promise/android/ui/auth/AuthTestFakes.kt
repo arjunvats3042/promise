@@ -49,4 +49,10 @@ internal class FakeAuthRepository(
     }
 
     override suspend fun logout() = Unit
+
+    var logoutAllCalled: Boolean = false
+    override suspend fun logoutAll() {
+        logoutAllCalled = true
+        (session as MutableStateFlow).value = SessionState.Unauthenticated
+    }
 }

@@ -79,6 +79,8 @@ import app.promise.android.ui.theme.rememberReduceMotion
 @Composable
 fun HomeScreen(
     onOpenProfile: () -> Unit,
+    onOpenCommitment: (String) -> Unit = {},
+    onOpenPractice: (String) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -117,6 +119,8 @@ fun HomeScreen(
                     HomeContent(
                         model = s.value,
                         onOpenProfile = onOpenProfile,
+                        onOpenCommitment = onOpenCommitment,
+                        onOpenPractice = onOpenPractice,
                         onComplete = viewModel::completeCommitment,
                         onCheckIn = { practice ->
                             if (practice.trackingKind == GoalTrackingKind.COUNT && !practice.checkedInToday) {
@@ -216,6 +220,8 @@ private fun HomeError(
 private fun HomeContent(
     model: HomeUiModel,
     onOpenProfile: () -> Unit,
+    onOpenCommitment: (String) -> Unit,
+    onOpenPractice: (String) -> Unit,
     onComplete: (String) -> Unit,
     onCheckIn: (HomePractice) -> Unit,
     onRetryCommitments: () -> Unit,
@@ -247,10 +253,10 @@ private fun HomeContent(
         item {
             Text(
                 text = "Today’s commitments",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 color = colors.textPrimary,
             )
-            Spacer(modifier = Modifier.height(Spacing.sm))
+            Spacer(modifier = Modifier.height(Spacing.xs))
         }
         when {
             model.commitmentsError != null -> {
@@ -264,17 +270,25 @@ private fun HomeContent(
             }
             model.commitments.isEmpty() -> {
                 item {
-                    Text(
-                        text = "Nothing due today.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.textPrimary,
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.xxs))
-                    Text(
-                        text = "Open Commitments when you’re ready.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textSecondary,
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Radius.md))
+                            .background(colors.surfaceMuted.copy(alpha = 0.5f))
+                            .padding(Spacing.md),
+                    ) {
+                        Text(
+                            text = "Nothing due today.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.textPrimary,
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        Text(
+                            text = "Open Commitments when you’re ready to schedule.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
                     Spacer(modifier = Modifier.height(Spacing.section))
                 }
             }
@@ -283,6 +297,7 @@ private fun HomeContent(
                     CommitmentTodayRow(
                         commitment = commitment,
                         reduceMotion = reduceMotion,
+                        onOpen = { onOpenCommitment(commitment.id) },
                         onComplete = { onComplete(commitment.id) },
                     )
                 }
@@ -292,10 +307,10 @@ private fun HomeContent(
         item {
             Text(
                 text = "Practices",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleLarge,
                 color = colors.textPrimary,
             )
-            Spacer(modifier = Modifier.height(Spacing.sm))
+            Spacer(modifier = Modifier.height(Spacing.xs))
         }
         when {
             model.practicesError != null -> {
@@ -309,11 +324,25 @@ private fun HomeContent(
             }
             model.practices.isEmpty() -> {
                 item {
-                    Text(
-                        text = "No active practices yet.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = colors.textPrimary,
-                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Radius.md))
+                            .background(colors.surfaceMuted.copy(alpha = 0.5f))
+                            .padding(Spacing.md),
+                    ) {
+                        Text(
+                            text = "No active practices yet.",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.textPrimary,
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        Text(
+                            text = "Add goals in the Goals tab to track recurring consistency.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
                     Spacer(modifier = Modifier.height(Spacing.xxl))
                 }
             }
@@ -322,6 +351,7 @@ private fun HomeContent(
                     PracticeRow(
                         practice = practice,
                         reduceMotion = reduceMotion,
+                        onOpen = { onOpenPractice(practice.id) },
                         onCheckIn = { onCheckIn(practice) },
                     )
                 }
@@ -370,7 +400,7 @@ private fun HomeCountCheckInSheet(
         Column(modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.md)) {
             Text(
                 text = practice.title,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineMedium,
                 color = colors.textPrimary,
             )
             Spacer(modifier = Modifier.height(Spacing.xs))
@@ -476,6 +506,7 @@ fun HomeHeader(
 fun CommitmentTodayRow(
     commitment: HomeCommitment,
     onComplete: () -> Unit,
+    onOpen: () -> Unit = {},
     reduceMotion: Boolean = false,
 ) {
     val colors = PromiseThemeColors.current
@@ -508,7 +539,11 @@ fun CommitmentTodayRow(
                 tint = if (commitment.isCompleted) colors.success else colors.textSecondary,
             )
         }
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onOpen),
+        ) {
             Text(
                 text = commitment.title,
                 style = MaterialTheme.typography.bodyLarge,
@@ -532,7 +567,7 @@ fun CommitmentTodayRow(
                 Text(
                     text = commitment.dueLabel,
                     style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary,
+                    color = if (commitment.isOverdue) colors.warning else colors.textSecondary,
                 )
             }
         }
@@ -544,6 +579,7 @@ fun CommitmentTodayRow(
 fun PracticeRow(
     practice: HomePractice,
     onCheckIn: () -> Unit,
+    onOpen: () -> Unit = {},
     reduceMotion: Boolean = false,
 ) {
     val colors = PromiseThemeColors.current
@@ -561,24 +597,39 @@ fun PracticeRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onOpen),
+            ) {
                 Text(
                     text = practice.title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.headlineMedium,
                     color = colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.height(Spacing.hairlineGap))
-                val streak = if (practice.streakDays > 0) {
-                    " · ${practice.streakDays}-day streak"
-                } else {
-                    ""
+                Spacer(modifier = Modifier.height(Spacing.xxs))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    Text(
+                        text = practice.progressLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                    if (practice.streakDays > 0) {
+                        app.promise.android.ui.components.PromiseStreakBadge(
+                            streakText = "${practice.streakDays}d",
+                        )
+                    }
+                    if (practice.isShared) {
+                        Text(
+                            text = "· Shared",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
                 }
-                val sharedSuffix = if (practice.isShared) " · Shared" else ""
-                Text(
-                    text = practice.progressLabel + streak + sharedSuffix,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary,
-                )
             }
             TextButton(
                 onClick = onCheckIn,
@@ -595,9 +646,11 @@ fun PracticeRow(
             ) {
                 Text(
                     text = if (practice.checkedInToday) "Done" else "Check in",
+                    style = MaterialTheme.typography.labelLarge,
                     color = if (practice.checkedInToday) colors.success else colors.accent,
                 )
             }
         }
     }
+    PromiseHairlineDivider()
 }

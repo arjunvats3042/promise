@@ -2,9 +2,13 @@ package app.promise.android.data.goals
 
 import app.promise.android.data.network.ApiException
 import app.promise.android.data.network.toApiException
+import app.promise.android.domain.ChatMessage
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.CreateGoalInput
 import app.promise.android.domain.Goal
+import app.promise.android.domain.GoalActivityItem
+import app.promise.android.domain.GoalChatReadState
+import app.promise.android.domain.GoalChatSummary
 import app.promise.android.domain.GoalCheckIn
 import app.promise.android.domain.GoalCheckInPage
 import app.promise.android.domain.GoalDetail
@@ -100,6 +104,7 @@ class GoalRepositoryImpl @Inject constructor(
                     trackingKind = input.trackingKind.name,
                     targetValue = input.targetValue,
                     targetUnit = input.targetUnit,
+                    isShared = input.isShared,
                 ),
             ).toDomain()
         } catch (t: Throwable) {
@@ -196,6 +201,66 @@ class GoalRepositoryImpl @Inject constructor(
     override suspend fun leave(goalId: String): GoalParticipant {
         return try {
             api.leave(goalId).toDomain()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun listChatMessages(
+        goalId: String,
+        limit: Int,
+        beforeCreatedAt: String?,
+        beforeId: String?,
+    ): List<ChatMessage> {
+        return try {
+            api.listChatMessages(
+                id = goalId,
+                limit = limit,
+                beforeCreatedAt = beforeCreatedAt,
+                beforeId = beforeId,
+            ).map { it.toDomain() }
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun sendChatMessage(goalId: String, body: String): ChatMessage {
+        return try {
+            api.sendChatMessage(goalId, SendChatMessageRequest(body = body)).toDomain()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun markChatRead(goalId: String, lastReadMessageId: String): GoalChatReadState {
+        return try {
+            api.markChatRead(goalId, MarkChatReadRequest(lastReadMessageId = lastReadMessageId)).toDomain()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun getChatSummary(goalId: String): GoalChatSummary {
+        return try {
+            api.getChatSummary(goalId).toDomain()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun listActivity(
+        goalId: String,
+        limit: Int,
+        beforeCreatedAt: String?,
+        beforeId: String?,
+    ): List<GoalActivityItem> {
+        return try {
+            api.listActivity(
+                id = goalId,
+                limit = limit,
+                beforeCreatedAt = beforeCreatedAt,
+                beforeId = beforeId,
+            ).map { it.toDomain() }
         } catch (t: Throwable) {
             throw t.toApiException()
         }

@@ -98,6 +98,10 @@ class Goal(BaseModel):
     paused_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
+    is_shared = models.BooleanField(
+        default=False,
+        help_text="True if goal is a shared group goal, False if personal.",
+    )
 
     class Meta:
         db_table = "goals"
@@ -312,3 +316,66 @@ class GoalEvent(BaseModel):
 
     def __str__(self):
         return f"GoalEvent {self.id}"
+
+
+class ChatMessage(BaseModel):
+    """Scoped text/emoji chat message for a Shared Goal."""
+
+    goal = models.ForeignKey(
+        Goal,
+        on_delete=models.CASCADE,
+        related_name="chat_messages",
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="sent_goal_messages",
+    )
+    body = models.TextField(max_length=2000)
+
+    class Meta:
+        db_table = "goal_chat_messages"
+        indexes = [
+            models.Index(
+                fields=["goal", "created_at", "id"],
+                name="goal_chat_msg_order_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"ChatMessage {self.id} on Goal {self.goal_id}"
+
+
+class GoalChatReadState(BaseModel):
+    """Monotonically forward read cursor for a participant on a Shared Goal chat."""
+
+    goal = models.ForeignKey(
+        Goal,
+        on_delete=models.CASCADE,
+        related_name="chat_read_states",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="goal_chat_read_states",
+    )
+    last_read_message = models.ForeignKey(
+        ChatMessage,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    last_read_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "goal_chat_read_states"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["goal", "user"],
+                name="uniq_goal_chat_user_read",
+            ),
+        ]
+
+    def __str__(self):
+        return f"GoalChatReadState for User {self.user_id} on Goal {self.goal_id}"

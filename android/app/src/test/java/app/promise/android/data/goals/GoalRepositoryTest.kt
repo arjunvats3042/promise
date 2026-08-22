@@ -342,6 +342,34 @@ class GoalRepositoryTest {
         }
     }
 
+    @Test
+    fun listActivity_parsesGoalActivityItems() = runTest {
+        val json = """
+        [
+          {
+            "id": "act-1",
+            "event_type": "CHECKIN_RECORDED",
+            "actor": {
+              "id": "u1",
+              "name": "Arjun"
+            },
+            "target_user": null,
+            "summary": "Arjun completed today's practice",
+            "period_date": "2026-08-22",
+            "created_at": "2026-08-22T10:00:00Z"
+          }
+        ]
+        """.trimIndent()
+        server.enqueue(MockResponse().setResponseCode(200).setBody(json))
+
+        val items = repo.listActivity("g1", limit = 10)
+        assertEquals(1, items.size)
+        assertEquals("act-1", items[0].id)
+        assertEquals("CHECKIN_RECORDED", items[0].eventType)
+        assertEquals("Arjun", items[0].actor?.name)
+        assertEquals("Arjun completed today's practice", items[0].summary)
+    }
+
     private fun retrofit(client: OkHttpClient): Retrofit {
         return Retrofit.Builder()
             .baseUrl(server.url("/api/v1/"))

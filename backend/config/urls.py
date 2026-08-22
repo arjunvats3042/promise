@@ -8,6 +8,7 @@ v1_urlpatterns = [
     path("users/", include("apps.users.urls")),
     path("commitments/", include("apps.commitments.urls")),
     path("goals/", include("apps.goals.urls")),
+    path("notifications/", include("apps.notifications.urls")),
     path("<path:resource>", api_not_found),  # keep last
 ]
 

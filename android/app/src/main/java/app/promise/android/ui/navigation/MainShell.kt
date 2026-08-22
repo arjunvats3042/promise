@@ -75,7 +75,9 @@ fun MainShell(
             it.hasRoute(ProfileRoute::class)
     } == true &&
         currentDestination.hierarchy.none {
-            it.hasRoute(CommitmentRoute::class) || it.hasRoute(GoalRoute::class)
+            it.hasRoute(CommitmentRoute::class) ||
+                it.hasRoute(GoalRoute::class) ||
+                it.hasRoute(GoalChatRoute::class)
         }
 
     val currentTabIndex = remember(currentDestination) {
@@ -199,6 +201,12 @@ fun MainShell(
                         onOpenProfile = {
                             navigateToTab(3, haptic = false)
                         },
+                        onOpenCommitment = { id ->
+                            navController.navigate(CommitmentRoute(id))
+                        },
+                        onOpenPractice = { id ->
+                            navController.navigate(GoalRoute(id))
+                        },
                     )
                 }
                 composable<CommitmentsRoute> {
@@ -244,6 +252,20 @@ fun MainShell(
                     GoalDetailScreen(
                         onBack = { navController.popBackStack() },
                         onNotFound = { navController.popBackStack() },
+                        onOpenChat = { goalId -> navController.navigate(GoalChatRoute(goalId)) },
+                    )
+                }
+                composable<GoalChatRoute>(
+                    deepLinks = listOf(
+                        navDeepLink { uriPattern = "promise://goal/{goalId}/chat" },
+                    ),
+                    enterTransition = { detailEnter(reduceMotion, detailSlidePx) },
+                    exitTransition = { detailExit(reduceMotion, detailSlidePx) },
+                    popEnterTransition = { detailEnter(reduceMotion, detailSlidePx) },
+                    popExitTransition = { detailExit(reduceMotion, detailSlidePx) },
+                ) {
+                    app.promise.android.ui.goals.chat.GoalChatScreen(
+                        onBack = { navController.popBackStack() },
                     )
                 }
             }

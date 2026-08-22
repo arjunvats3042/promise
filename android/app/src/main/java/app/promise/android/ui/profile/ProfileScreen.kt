@@ -3,6 +3,7 @@ package app.promise.android.ui.profile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,9 @@ import app.promise.android.ui.theme.PromiseThemeMode
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import java.util.Calendar
 
 @Composable
@@ -51,8 +55,11 @@ fun ProfileScreen(
 ) {
     val mode by viewModel.mode.collectAsStateWithLifecycle()
     val user by viewModel.user.collectAsStateWithLifecycle()
+    val preferences by viewModel.preferences.collectAsStateWithLifecycle()
+    var showLogoutAllDialog by remember { mutableStateOf(false) }
     val colors = PromiseThemeColors.current
     val swipeHost = LocalTabSwipeHost.current
+    val scrollState = androidx.compose.foundation.rememberScrollState()
     val name = user?.name?.takeIf { it.isNotBlank() } ?: "—"
     val email = user?.email.orEmpty()
     val initials = HomeViewModel.initialsFor(if (name == "—") "there" else name)
@@ -77,8 +84,9 @@ fun ProfileScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
+                    .verticalScroll(scrollState)
                     .padding(horizontal = Spacing.inset)
-                    .padding(top = Spacing.lg),
+                    .padding(top = Spacing.lg, bottom = Spacing.xxl),
             ) {
                 Column(
                     modifier = Modifier
@@ -123,9 +131,16 @@ fun ProfileScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(Spacing.section))
+
+                NotificationPreferencesSection(
+                    preferences = preferences,
+                    onUpdate = { patch -> viewModel.updatePreferences(patch) },
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.section))
                 Text(
                     text = "Appearance",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
@@ -133,8 +148,8 @@ fun ProfileScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = TouchTarget.min)
-                        .clip(RoundedCornerShape(Radius.sm))
-                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(Radius.sm))
+                        .clip(RoundedCornerShape(Radius.md))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(Radius.md))
                         .background(colors.surfaceMuted),
                 ) {
                     ThemeSegment(
@@ -154,13 +169,69 @@ fun ProfileScreen(
                 TextButton(
                     onClick = onSignOut,
                     modifier = Modifier
+                        .fillMaxWidth()
                         .heightIn(min = TouchTarget.min)
                         .semantics { contentDescription = "Sign out" },
                 ) {
-                    Text("Sign out", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = "Sign out",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                TextButton(
+                    onClick = { showLogoutAllDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = TouchTarget.min)
+                        .semantics { contentDescription = "Sign out of all devices" },
+                ) {
+                    Text(
+                        text = "Sign out of all devices",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.textSecondary,
+                    )
                 }
             }
         }
+    }
+
+    if (showLogoutAllDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showLogoutAllDialog = false },
+            title = {
+                Text(
+                    text = "Sign out of all devices?",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.textPrimary,
+                )
+            },
+            text = {
+                Text(
+                    text = "This will revoke all active sessions on other devices and sign you out here.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textSecondary,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutAllDialog = false
+                        viewModel.logoutAll(onSignOut)
+                    },
+                ) {
+                    Text("Sign out all", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutAllDialog = false }) {
+                    Text("Cancel", color = colors.textSecondary)
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(Radius.md),
+        )
     }
 }
 

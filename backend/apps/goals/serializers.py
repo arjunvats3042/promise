@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 from django.utils import timezone
 from rest_framework import serializers
 
-from apps.goals.models import Goal, GoalCheckIn, GoalParticipant
+from apps.goals.models import ChatMessage, Goal, GoalCheckIn, GoalParticipant
 from apps.goals.services import (
     collective_progress,
     get_participant,
@@ -134,6 +134,7 @@ class SharedGoalSerializer(GoalSerializer):
 
     class Meta(GoalSerializer.Meta):
         fields = GoalSerializer.Meta.fields + (
+            "is_shared",
             "collective_progress",
             "participants",
             "membership_role",
@@ -194,6 +195,7 @@ class GoalCreateSerializer(serializers.Serializer):
     target_unit = serializers.CharField(
         max_length=32, required=False, allow_blank=True, default=""
     )
+    is_shared = serializers.BooleanField(required=False, default=False)
 
 
 class GoalUpdateSerializer(serializers.Serializer):
@@ -253,6 +255,15 @@ class GoalCheckInSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if request and getattr(request, "user", None):
+            # Redact note if the viewer is not the author of this check-in and not the owner
+            if instance.created_by_id != request.user.id and instance.goal.created_by_id != request.user.id:
+                data["note"] = ""
+        return data
+
 
 class GoalCheckInWriteSerializer(serializers.Serializer):
     period_date = serializers.DateField(required=False, allow_null=True, default=None)
@@ -271,3 +282,50 @@ class GoalCheckInListQuerySerializer(serializers.Serializer):
 
 class GoalInviteCreateSerializer(serializers.Serializer):
     user_id = serializers.UUIDField()
+
+
+class ChatMessageSenderSerializer(serializers.Serializer):
+    id = serializers.UUIDField(source="sender_id", read_only=True)
+    name = serializers.CharField(source="sender.name", read_only=True)
+
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    sender = ChatMessageSenderSerializer(source="*", read_only=True)
+
+    class Meta:
+        model = ChatMessage
+        fields = (
+            "id",
+            "sender",
+            "body",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+class ChatMessageWriteSerializer(serializers.Serializer):
+    body = serializers.CharField(max_length=2000, allow_blank=False, trim_whitespace=True)
+
+
+class ChatReadWriteSerializer(serializers.Serializer):
+    last_read_message_id = serializers.UUIDField(required=True)
+
+
+class ChatSummarySerializer(serializers.Serializer):
+    unread_count = serializers.IntegerField()
+    latest_message = ChatMessageSerializer(allow_null=True)
+
+
+class GoalActivityActorSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+
+
+class GoalActivityItemSerializer(serializers.Serializer):
+    id = serializers.UUIDField(read_only=True)
+    event_type = serializers.CharField(read_only=True)
+    actor = GoalActivityActorSerializer(read_only=True, allow_null=True)
+    target_user = GoalActivityActorSerializer(read_only=True, allow_null=True)
+    summary = serializers.CharField(read_only=True)
+    period_date = serializers.DateField(read_only=True, allow_null=True)
+    created_at = serializers.DateTimeField(read_only=True)

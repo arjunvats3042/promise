@@ -1,14 +1,18 @@
+import uuid
 from datetime import timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.contrib.auth import get_user_model
-from django.db import IntegrityError, transaction
-from django.db.models import Exists, Max, OuterRef
+from django.db import IntegrityError, models, transaction
+from django.db.models import Exists, Max, OuterRef, Q
 from django.utils import timezone
 
 from apps.goals.exceptions import (
     GoalAlreadyParticipantError,
     GoalCannotRemoveOwnerError,
+    GoalChatForbiddenError,
+    GoalChatInvalidCursorError,
+    GoalChatInvalidMessageError,
     GoalInvalidCheckInError,
     GoalInvalidParticipantStateError,
     GoalInvalidTransitionError,
@@ -16,11 +20,19 @@ from apps.goals.exceptions import (
     GoalInviteRevokedError,
     GoalNotFoundError,
     GoalOwnerCannotLeaveError,
+    GoalOwnerRequiredError,
     GoalScheduleLockedError,
     GoalTimezoneLockedError,
     GoalValidationError,
 )
-from apps.goals.models import Goal, GoalCheckIn, GoalEvent, GoalParticipant
+from apps.goals.models import (
+    ChatMessage,
+    Goal,
+    GoalCheckIn,
+    GoalChatReadState,
+    GoalEvent,
+    GoalParticipant,
+)
 from apps.outbox.services import record_outbox_event
 
 _UNSET = object()
@@ -42,11 +54,19 @@ def get_participant(goal, user):
     return GoalParticipant.objects.filter(goal=goal, user=user).first()
 
 
+def get_goal_membership(user, goal):
+    return get_participant(goal, user)
+
+
 def can_view_goal_for_user(user, goal):
     participant = get_participant(goal, user)
     if participant is None:
         return False
     return participant.status in _VIEWABLE_PARTICIPANT_STATUSES
+
+
+def can_view_goal(user, goal):
+    return can_view_goal_for_user(user, goal)
 
 
 def can_view(user, goal):
@@ -61,6 +81,14 @@ def can_manage_goal(user, goal):
         and participant.status == GoalParticipant.Status.ACTIVE
         and goal.created_by_id == user.id
     )
+
+
+def can_edit_goal(user, goal):
+    return can_manage_goal(user, goal)
+
+
+def can_manage_members(user, goal):
+    return can_manage_goal(user, goal)
 
 
 def can_check_in(user, goal):
@@ -98,7 +126,23 @@ def is_invite_preview(user, goal):
 
 
 def is_shared_goal(goal):
-    return goal.participants.exclude(role=GoalParticipant.Role.OWNER).exists()
+    return goal.is_shared or goal.participants.exclude(role=GoalParticipant.Role.OWNER).exists()
+
+
+def can_view_chat(user, goal):
+    if goal is None or not is_shared_goal(goal):
+        return False
+    return can_check_in(user, goal)
+
+
+def can_send_chat(user, goal):
+    if goal is None or goal.status in _TERMINAL_STATUSES:
+        return False
+    return can_view_chat(user, goal)
+
+
+def can_update_read_state(user, goal):
+    return can_view_chat(user, goal)
 
 
 def invite_expires_at(participant):
@@ -194,6 +238,7 @@ def create_goal(
     target_value=None,
     target_unit="",
     source=Goal.Source.MANUAL,
+    is_shared=False,
 ):
     title = title.strip() if title else title
     if not title:
@@ -231,6 +276,7 @@ def create_goal(
             target_value=target_value,
             target_unit=target_unit,
             source=source,
+            is_shared=is_shared,
         )
         GoalParticipant.objects.create(
             goal=goal,
@@ -247,11 +293,19 @@ def create_goal(
         return goal
 
 
+def create_shared_goal(**kwargs):
+    kwargs["is_shared"] = True
+    return create_goal(**kwargs)
+
+
 def invite_participant(*, actor, goal_id, user_id):
     with transaction.atomic():
         goal = _lock_for_manager(actor, goal_id)
         if goal.status in _TERMINAL_STATUSES:
             raise GoalInvalidTransitionError()
+        if not goal.is_shared:
+            goal.is_shared = True
+            goal.save(update_fields=["is_shared", "updated_at"])
         target = get_user_model().objects.filter(id=user_id).first()
         if target is None:
             raise GoalValidationError()
@@ -421,16 +475,18 @@ def revoke_invitation(*, actor, goal_id, user_id):
         return participant
 
 
-def remove_participant(*, actor, goal_id, user_id):
+def remove_participant(*, actor, goal_id, user_id=None, participant_id=None):
     with transaction.atomic():
         goal = _lock_for_manager(actor, goal_id)
         if goal.status in _TERMINAL_STATUSES:
             raise GoalInvalidTransitionError()
-        participant = (
-            GoalParticipant.objects.select_for_update()
-            .filter(goal=goal, user_id=user_id)
-            .first()
-        )
+        query = GoalParticipant.objects.select_for_update().filter(goal=goal)
+        if participant_id is not None:
+            participant = query.filter(Q(id=participant_id) | Q(user_id=participant_id)).first()
+        elif user_id is not None:
+            participant = query.filter(Q(id=user_id) | Q(user_id=user_id)).first()
+        else:
+            raise GoalNotFoundError()
         if participant is None:
             raise GoalNotFoundError()
         if participant.role == GoalParticipant.Role.OWNER:
@@ -452,6 +508,28 @@ def remove_participant(*, actor, goal_id, user_id):
             event_type=GoalEvent.EventType.PARTICIPANT_REMOVED,
             participant=participant,
         )
+
+        revoked_user_id = str(participant.user_id)
+        goal_id_str = str(goal.id)
+
+        def broadcast_revocation():
+            try:
+                from asgiref.sync import async_to_sync
+                from channels.layers import get_channel_layer
+
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    async_to_sync(channel_layer.group_send)(
+                        f"goal_chat_{goal_id_str}",
+                        {
+                            "type": "chat_participant_revoked",
+                            "user_id": revoked_user_id,
+                        },
+                    )
+            except Exception as e:
+                logger.warning("Failed to broadcast revocation via channel layer: %s", e)
+
+        transaction.on_commit(broadcast_revocation)
         return participant
 
 
@@ -485,6 +563,28 @@ def leave_goal(*, actor, goal_id):
             event_type=GoalEvent.EventType.PARTICIPANT_LEFT,
             participant=participant,
         )
+
+        left_user_id = str(participant.user_id)
+        goal_id_str = str(goal.id)
+
+        def broadcast_leave():
+            try:
+                from asgiref.sync import async_to_sync
+                from channels.layers import get_channel_layer
+
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    async_to_sync(channel_layer.group_send)(
+                        f"goal_chat_{goal_id_str}",
+                        {
+                            "type": "chat_participant_revoked",
+                            "user_id": left_user_id,
+                        },
+                    )
+            except Exception as e:
+                logger.warning("Failed to broadcast leave revocation via channel layer: %s", e)
+
+        transaction.on_commit(broadcast_leave)
         return participant
 
 
@@ -937,6 +1037,8 @@ def _upsert_check_in(
                     "checkin_id": str(check_in.id),
                     "period_date": period_date.isoformat(),
                     "participant_id": str(participant.id),
+                    "status": check_in.status,
+                    "value": check_in.value,
                 },
                 check_in=check_in,
             )
@@ -974,6 +1076,8 @@ def _apply_check_in_update(goal, *, actor, check_in, status, value, note):
             "checkin_id": str(check_in.id),
             "period_date": check_in.period_date.isoformat(),
             "participant_id": str(check_in.participant_id),
+            "status": check_in.status,
+            "value": check_in.value,
         },
         check_in=check_in,
     )
@@ -1772,3 +1876,302 @@ def _add_participant_event(goal, *, actor, event_type, participant):
         occurred_at=domain_event.created_at,
     )
     return domain_event
+
+
+def calculate_collective_progress(goal, *, as_of_date=None):
+    today = as_of_date or timezone.now().astimezone(ZoneInfo(goal.timezone)).date()
+    paused_ranges = _paused_date_ranges(goal)
+    members = list(goal.participants.filter(status=GoalParticipant.Status.ACTIVE))
+    return {
+        "current_period": _collective_current_period(
+            goal,
+            today=today,
+            paused_ranges=paused_ranges,
+            members=members,
+        ),
+        "week_progress": _collective_week_progress(
+            goal,
+            today=today,
+            paused_ranges=paused_ranges,
+            members=members,
+        ),
+    }
+
+
+def send_chat_message(*, sender, goal_id, body):
+    goal = Goal.objects.filter(id=goal_id).first()
+    if goal is None or not can_send_chat(sender, goal):
+        raise GoalNotFoundError()
+
+    clean_body = body.strip() if body else ""
+    if not clean_body or len(clean_body) > 2000:
+        raise GoalChatInvalidMessageError()
+
+    with transaction.atomic():
+        msg = ChatMessage.objects.create(
+            goal=goal,
+            sender=sender,
+            body=clean_body,
+        )
+        now = msg.created_at
+        read_state, created = GoalChatReadState.objects.select_for_update().get_or_create(
+            goal=goal,
+            user=sender,
+            defaults={
+                "last_read_message": msg,
+                "last_read_at": now,
+            },
+        )
+        if not created:
+            read_state.last_read_message = msg
+            read_state.last_read_at = now
+            read_state.save(update_fields=["last_read_message", "last_read_at", "updated_at"])
+
+        record_outbox_event(
+            aggregate_type="goal",
+            aggregate_id=goal.id,
+            event_type="goal.chat.message_created",
+            payload={
+                "message_id": str(msg.id),
+                "goal_id": str(goal.id),
+                "sender_id": str(sender.id),
+                "created_at": msg.created_at.isoformat(),
+            },
+            occurred_at=msg.created_at,
+        )
+
+        msg_payload = {
+            "id": str(msg.id),
+            "sender": {
+                "id": str(sender.id),
+                "name": sender.name or sender.email.split("@")[0],
+            },
+            "body": msg.body,
+            "created_at": msg.created_at.isoformat(),
+        }
+        goal_id_str = str(goal.id)
+
+        def broadcast_message():
+            try:
+                from asgiref.sync import async_to_sync
+                from channels.layers import get_channel_layer
+
+                channel_layer = get_channel_layer()
+                if channel_layer:
+                    async_to_sync(channel_layer.group_send)(
+                        f"goal_chat_{goal_id_str}",
+                        {
+                            "type": "chat_message_created",
+                            "message": msg_payload,
+                        },
+                    )
+            except Exception as e:
+                logger.warning("Failed to broadcast chat message via channel layer: %s", e)
+
+        transaction.on_commit(broadcast_message)
+        return msg
+
+
+def list_chat_messages(*, viewer, goal_id, limit=50, before_id=None, before_created_at=None):
+    goal = Goal.objects.filter(id=goal_id).first()
+    if goal is None or not can_view_chat(viewer, goal):
+        raise GoalNotFoundError()
+
+    queryset = goal.chat_messages.select_related("sender").order_by("created_at", "id")
+    if before_created_at is not None and before_id is not None:
+        queryset = queryset.filter(
+            models.Q(created_at__lt=before_created_at)
+            | models.Q(created_at=before_created_at, id__lt=before_id)
+        )
+    return list(queryset[:limit])
+
+
+def mark_chat_read(*, viewer, goal_id, last_read_message_id):
+    goal = Goal.objects.filter(id=goal_id).first()
+    if goal is None or not can_update_read_state(viewer, goal):
+        raise GoalNotFoundError()
+
+    target_message = ChatMessage.objects.filter(id=last_read_message_id, goal=goal).first()
+    if target_message is None:
+        raise GoalChatInvalidCursorError()
+
+    with transaction.atomic():
+        now = timezone.now()
+        read_state = (
+            GoalChatReadState.objects.select_for_update()
+            .filter(goal=goal, user=viewer)
+            .first()
+        )
+        if read_state is not None and read_state.last_read_message is not None:
+            existing_msg = read_state.last_read_message
+            if (target_message.created_at, target_message.id) < (existing_msg.created_at, existing_msg.id):
+                return read_state
+        if read_state is None:
+            read_state = GoalChatReadState.objects.create(
+                goal=goal,
+                user=viewer,
+                last_read_message=target_message,
+                last_read_at=now,
+            )
+        else:
+            read_state.last_read_message = target_message
+            read_state.last_read_at = now
+            read_state.save(update_fields=["last_read_message", "last_read_at", "updated_at"])
+        return read_state
+
+
+def get_chat_summary(*, viewer, goal_id):
+    goal = Goal.objects.filter(id=goal_id).first()
+    if goal is None or not can_view_chat(viewer, goal):
+        raise GoalNotFoundError()
+
+    read_state = GoalChatReadState.objects.filter(goal=goal, user=viewer).first()
+    messages_query = goal.chat_messages.exclude(sender=viewer)
+    if read_state is not None and read_state.last_read_message is not None:
+        last_msg = read_state.last_read_message
+        unread_count = messages_query.filter(
+            models.Q(created_at__gt=last_msg.created_at)
+            | models.Q(created_at=last_msg.created_at, id__gt=last_msg.id)
+        ).count()
+    else:
+        unread_count = messages_query.count()
+
+    latest_message = (
+        goal.chat_messages.select_related("sender").order_by("-created_at", "-id").first()
+    )
+    return {
+        "unread_count": unread_count,
+        "latest_message": latest_message,
+    }
+
+
+ACTIVITY_EVENT_TYPES = [
+    GoalEvent.EventType.CREATED,
+    GoalEvent.EventType.PAUSED,
+    GoalEvent.EventType.RESUMED,
+    GoalEvent.EventType.COMPLETED,
+    GoalEvent.EventType.CANCELLED,
+    GoalEvent.EventType.CHECKIN_RECORDED,
+    GoalEvent.EventType.CHECKIN_UPDATED,
+    GoalEvent.EventType.PARTICIPANT_JOINED,
+    GoalEvent.EventType.PARTICIPANT_LEFT,
+    GoalEvent.EventType.PARTICIPANT_REMOVED,
+]
+
+
+def can_view_activity(user, goal):
+    if goal is None or not is_shared_goal(goal):
+        return False
+    membership = get_participant(goal, user)
+    return membership is not None and membership.status == GoalParticipant.Status.ACTIVE
+
+
+def _format_activity_summary(goal, event, target_users_by_id):
+    actor_name = event.actor.name if event.actor else "A participant"
+    ev_type = event.event_type
+    meta = event.metadata or {}
+
+    if ev_type in (GoalEvent.EventType.CHECKIN_RECORDED, GoalEvent.EventType.CHECKIN_UPDATED):
+        status = meta.get("status") or meta.get("checkin_status")
+        if status == "SKIPPED":
+            return f"{actor_name} skipped today's practice"
+        if goal.tracking_kind == Goal.TrackingKind.COUNT:
+            value = meta.get("value")
+            unit = goal.target_unit or "units"
+            if value is not None:
+                return f"{actor_name} checked in with {value} {unit}"
+            return f"{actor_name} recorded progress"
+        return f"{actor_name} completed today's practice"
+
+    if ev_type == GoalEvent.EventType.PARTICIPANT_JOINED:
+        return f"{actor_name} joined the goal"
+
+    if ev_type == GoalEvent.EventType.PARTICIPANT_LEFT:
+        return f"{actor_name} left the goal"
+
+    if ev_type == GoalEvent.EventType.PARTICIPANT_REMOVED:
+        target_id = str(meta.get("target_user_id") or "")
+        target_user = target_users_by_id.get(target_id)
+        target_name = target_user.name if target_user else "A participant"
+        return f"{target_name} was removed by {actor_name}"
+
+    if ev_type == GoalEvent.EventType.COMPLETED:
+        return f"{actor_name} marked the goal as completed"
+
+    if ev_type == GoalEvent.EventType.PAUSED:
+        return f"{actor_name} paused the goal"
+
+    if ev_type == GoalEvent.EventType.RESUMED:
+        return f"{actor_name} resumed the goal"
+
+    if ev_type == GoalEvent.EventType.CANCELLED:
+        return f"{actor_name} cancelled the goal"
+
+    if ev_type == GoalEvent.EventType.CREATED:
+        return f"{actor_name} created the goal"
+
+    return f"Activity recorded by {actor_name}"
+
+
+def get_goal_activity(*, viewer, goal_id, limit=20, before_created_at=None, before_id=None):
+    goal = Goal.objects.filter(id=goal_id).first()
+    if goal is None or not can_view_activity(viewer, goal):
+        raise GoalNotFoundError()
+
+    limit = max(1, min(limit, 100))
+    queryset = (
+        GoalEvent.objects.filter(
+            goal=goal,
+            event_type__in=ACTIVITY_EVENT_TYPES,
+        )
+        .select_related("actor")
+        .order_by("-created_at", "-id")
+    )
+
+    if before_created_at and before_id:
+        queryset = queryset.filter(
+            models.Q(created_at__lt=before_created_at)
+            | models.Q(created_at=before_created_at, id__lt=before_id)
+        )
+    elif before_created_at:
+        queryset = queryset.filter(created_at__lt=before_created_at)
+
+    events = list(queryset[:limit])
+
+    # Collect any target_user_ids to resolve names in a single batch query
+    target_user_ids = set()
+    for ev in events:
+        if ev.metadata and "target_user_id" in ev.metadata and ev.metadata["target_user_id"]:
+            try:
+                target_user_ids.add(uuid.UUID(str(ev.metadata["target_user_id"])))
+            except Exception:
+                pass
+
+    target_users_by_id = {}
+    if target_user_ids:
+        User = get_user_model()
+        for u in User.objects.filter(id__in=target_user_ids):
+            target_users_by_id[str(u.id)] = u
+
+    # Build activity items
+    items = []
+    for ev in events:
+        summary = _format_activity_summary(goal, ev, target_users_by_id)
+        target_user = None
+        if ev.metadata and "target_user_id" in ev.metadata:
+            target_user = target_users_by_id.get(str(ev.metadata["target_user_id"]))
+
+        period_date = None
+        if ev.metadata and "period_date" in ev.metadata and ev.metadata["period_date"]:
+            period_date = ev.metadata["period_date"]
+
+        items.append({
+            "id": ev.id,
+            "event_type": ev.event_type,
+            "actor": ev.actor,
+            "target_user": target_user,
+            "summary": summary,
+            "period_date": period_date,
+            "created_at": ev.created_at,
+        })
+    return items

@@ -73,3 +73,27 @@ class GoalInvalidParticipantStateError(ApplicationAPIError):
     status_code = status.HTTP_409_CONFLICT
     error_code = "GOAL_INVALID_PARTICIPANT_STATE"
     public_message = "Participant state does not allow this action."
+
+
+class GoalChatForbiddenError(ApplicationAPIError):
+    status_code = status.HTTP_404_NOT_FOUND
+    error_code = "GOAL_CHAT_FORBIDDEN"
+    public_message = "Chat is not available for this goal."
+
+
+class GoalChatInvalidMessageError(ApplicationAPIError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    error_code = "GOAL_CHAT_INVALID_MESSAGE"
+    public_message = "Chat message is invalid."
+
+
+class GoalChatInvalidCursorError(ApplicationAPIError):
+    status_code = status.HTTP_400_BAD_REQUEST
+    error_code = "GOAL_CHAT_INVALID_CURSOR"
+    public_message = "Chat cursor is invalid."
+
+
+class GoalOwnerRequiredError(ApplicationAPIError):
+    status_code = status.HTTP_409_CONFLICT
+    error_code = "GOAL_OWNER_REQUIRED"
+    public_message = "Only the goal owner can perform this action."

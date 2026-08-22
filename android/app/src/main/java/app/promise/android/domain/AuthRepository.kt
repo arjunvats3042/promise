@@ -12,4 +12,6 @@ interface AuthRepository {
     suspend fun restoreSession()
 
     suspend fun logout()
+
+    suspend fun logoutAll()
 }

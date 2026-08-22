@@ -17,12 +17,19 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 
+import app.promise.android.data.realtime.GoalChatRealtimeClient
+import app.promise.android.data.realtime.GoalChatRealtimeClientImpl
+
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class GoalBindModule {
     @Binds
     @Singleton
     abstract fun bindGoalRepository(impl: GoalRepositoryImpl): GoalRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindGoalChatRealtimeClient(impl: GoalChatRealtimeClientImpl): GoalChatRealtimeClient
 }
 
 @Module

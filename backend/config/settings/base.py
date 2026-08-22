@@ -16,18 +16,32 @@ DEBUG = env.bool("DJANGO_DEBUG", default=False)
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "192.168.1.29"])
 
 INSTALLED_APPS = [
+    "daphne",
+    "channels",
     "apps.core.apps.CoreConfig",
     "apps.users.apps.UsersConfig",
     "apps.authentication.apps.AuthenticationConfig",
     "apps.outbox.apps.OutboxConfig",
     "apps.commitments.apps.CommitmentsConfig",
     "apps.goals.apps.GoalsConfig",
+    "apps.notifications.apps.NotificationsConfig",
     "django.contrib.postgres",
     "django.contrib.contenttypes",
     "django.contrib.auth",
     "django.contrib.staticfiles",
     "rest_framework",
 ]
+
+ASGI_APPLICATION = "config.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [env("REDIS_URL", default="redis://localhost:6379/0")],
+        },
+    },
+}
 
 AUTH_USER_MODEL = "users.User"
 

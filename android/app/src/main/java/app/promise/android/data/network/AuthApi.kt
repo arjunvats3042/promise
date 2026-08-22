@@ -19,6 +19,9 @@ interface AuthApi {
     @POST("auth/logout/")
     suspend fun logout(@Body body: RefreshRequest): Response<Unit>
 
+    @POST("auth/logout-all/")
+    suspend fun logoutAll(): Response<Unit>
+
     @GET("auth/me/")
     suspend fun me(): MeResponse
 }

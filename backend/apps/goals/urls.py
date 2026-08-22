@@ -1,7 +1,11 @@
 from django.urls import path
 
 from apps.goals.views import (
+    goal_activity,
     goal_cancel,
+    goal_chat_messages,
+    goal_chat_read,
+    goal_chat_summary,
     goal_check_ins,
     goal_collection,
     goal_complete,
@@ -42,8 +46,28 @@ urlpatterns = [
         name="participants-decline",
     ),
     path(
-        "<uuid:goal_id>/participants/<uuid:user_id>/",
+        "<uuid:goal_id>/participants/<uuid:participant_id>/",
         goal_participant_detail,
         name="participant-detail",
+    ),
+    path(
+        "<uuid:goal_id>/chat/messages/",
+        goal_chat_messages,
+        name="chat-messages",
+    ),
+    path(
+        "<uuid:goal_id>/chat/read/",
+        goal_chat_read,
+        name="chat-read",
+    ),
+    path(
+        "<uuid:goal_id>/chat/summary/",
+        goal_chat_summary,
+        name="chat-summary",
+    ),
+    path(
+        "<uuid:goal_id>/activity/",
+        goal_activity,
+        name="activity",
     ),
 ]

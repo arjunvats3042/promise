@@ -790,3 +790,160 @@ No `goal_schedules` table. No `check_ins` name (too generic; application tables 
 | Notifications / AI / Android / challenges | **DEFERRED** |
 | Models and services | **IMPLEMENTED** (6.2–6.3) |
 | HTTP APIs | **IMPLEMENTED** (6.4) |
+| Shared Goals & Chat Design | **DECIDED / LOCKED** (Phase 11.1) |
+
+---
+
+## 20. Shared Goals & Chat Architecture (Phase 11.1 Locked Design)
+
+### 20.1. Canonical Membership Model: `GoalParticipant`
+A single canonical membership model governs authorization, check-ins, shared progress aggregation, chat access, and notifications:
+
+```python
+class GoalParticipant(BaseModel):
+    class Role(models.TextChoices):
+        OWNER = "OWNER", "Owner"
+        PARTICIPANT = "PARTICIPANT", "Participant"
+
+    class Status(models.TextChoices):
+        INVITED = "INVITED", "Invited"
+        ACTIVE = "ACTIVE", "Active"
+        DECLINED = "DECLINED", "Declined"
+        LEFT = "LEFT", "Left"
+        REMOVED = "REMOVED", "Removed"
+
+    goal = models.ForeignKey("Goal", on_delete=models.CASCADE, related_name="participants")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="goal_participations")
+    role = models.CharField(max_length=16, choices=Role.choices)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE)
+    invited_at = models.DateTimeField(null=True, blank=True)
+    joined_at = models.DateTimeField(null=True, blank=True)
+    left_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "goal_participants"
+        constraints = [
+            models.UniqueConstraint(fields=["goal", "user"], name="uniq_goal_participant_user"),
+        ]
+```
+
+- **Check-in Attribution**: `GoalCheckIn.participant` is the canonical reference linking the check-in to membership. `GoalCheckIn.created_by` remains the user author (`participant.user`).
+- **Personal Goals**: When a personal goal is created, the creator is automatically assigned a `GoalParticipant` record (`role=OWNER`, `status=ACTIVE`).
+
+### 20.2. Shared Progress & Streak Semantics (Non-Gamified)
+Shared goal progress clearly separates individual accountability from collective group progress:
+
+1. **Individual Participant Progress**:
+   - Evaluated exactly as personal goals using that participant's own check-ins (`current_period`, `week_progress`, `consistency_percent`, `current_streak`).
+2. **Collective Shared Goal Progress (`collective_progress`)**:
+   - `BINARY`:
+     - `DAILY` / `WEEKLY_DAYS`:
+       - `current_period`: `{ "required": N_active, "completed": N_active_completed }`
+       - `week_progress`: `{ "required": total_required_for_active_members, "completed": total_completed_by_active_members }`
+     - `N_PER_PERIOD`:
+       - `current_period`: `{ "required": times_per_period * N_active, "completed": sum_of_active_member_successful_days }`
+       - `week_progress`: identical to `current_period` for weekly recurrence.
+   - `COUNT`:
+     - `DAILY` / `WEEKLY_DAYS`:
+       - `current_period`: `{ "required": target_value * N_active, "completed": sum_of_successful_participant_values, "value_sum": sum_of_successful_participant_values, "target_sum": target_value * N_active }`
+       - `week_progress`: `{ "required": target_value * total_expected_occurrences, "completed": sum_of_successful_values_for_week, "target_sum": target_value * total_expected_occurrences }`
+     - `N_PER_PERIOD`:
+       - `current_period`: `{ "required": target_value * times_per_period * N_active, "completed": sum_of_successful_values_for_period }`
+3. **Streak Semantics**:
+   - **Individual Streak**: Canonical per participant (encourages personal consistency without penalizing individual users for others' missed days).
+   - **Group Consistency**: In MVP, collective progress is represented by period completion rates without artificial gamification.
+
+### 20.3. Scoped Shared Goal Chat
+Chat is private text-only messaging strictly scoped to an active Shared Goal.
+
+```python
+class ChatMessage(BaseModel):
+    goal = models.ForeignKey("Goal", on_delete=models.CASCADE, related_name="chat_messages")
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="sent_goal_messages")
+    body = models.TextField(max_length=2000)
+
+    class Meta:
+        db_table = "goal_chat_messages"
+        indexes = [
+            models.Index(fields=["goal", "created_at", "id"], name="goal_chat_msg_order_idx"),
+        ]
+
+class GoalChatReadState(BaseModel):
+    goal = models.ForeignKey("Goal", on_delete=models.CASCADE, related_name="chat_read_states")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="goal_chat_read_states")
+    last_read_message = models.ForeignKey("ChatMessage", on_delete=models.SET_NULL, null=True, blank=True)
+    last_read_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "goal_chat_read_states"
+        constraints = [
+            models.UniqueConstraint(fields=["goal", "user"], name="uniq_goal_chat_user_read"),
+        ]
+```
+
+- **Scope**: Plain text and Unicode emojis only. No media, voice notes, files, GIFs, or social discovery.
+- **Immutability**: Messages are immutable in MVP (no editing or deletion).
+- **Ordering & Read Cursor**:
+  - Deterministic message ordering: `(created_at, id)` ascending.
+  - `last_read_at` / `last_read_message` moves strictly monotonically forward (never backward).
+  - `unread_count`: count of messages with `created_at > last_read_at` excluding the user's own sent messages.
+
+### 20.4. Privacy & Authorization Rules
+- **Active Participants Only**: Access to chat history, sending, and read markers requires `GoalParticipant.status == ACTIVE`.
+- **Left / Removed Users**: Instantly lose access to chat endpoints (returns 404).
+- **Personal Goals**: Do not expose chat endpoints (returns 404).
+- **Unrelated Users**: Return 404 Not Found (zero information leakage).
+
+### 20.5. Outbox & Kafka Event Backbone
+- On message creation:
+  - `event_type`: `goal.chat.message_created.v1`
+  - `topic`: `promise.goal.v1`
+  - `aggregate_id`: `<goal_id>`
+  - `payload`:
+    ```json
+    {
+      "message_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "goal_id": "7b2e1f40-8b1a-4d22-90ab-5c328901f44a",
+      "sender_id": "11111111-1111-1111-1111-111111111111",
+      "created_at": "2026-08-22T02:15:00Z"
+    }
+    ```
+  - Note: `sender_name` is omitted from the raw event payload; notification consumers resolve user details if needed.
+
+### 20.6. REST API Surface
+- `GET /api/v1/goals/{id}/chat/messages/`: Paginated message list (`created_at, id` ascending or cursor).
+- `POST /api/v1/goals/{id}/chat/messages/`: Send message `{ "body": "..." }`.
+- `POST /api/v1/goals/{id}/chat/read/`: Update read cursor `{ "last_read_message_id": "..." }`.
+- `GET /api/v1/goals/{id}/chat/summary/`: Unread message count and latest snippet.
+
+### 20.7. Android UI & Chat Interaction Architecture
+1. **Design System Integration**:
+   - Reuses existing Promise theme tokens (`AppColors`, `PromiseTheme`), typography, and surface elevations. No custom color palettes or ad-hoc emoji structural icons.
+2. **Progress Hierarchy**:
+   - Distinct, restrained presentation of *My Progress / Streak* and *Collective Progress* without gamification, ranking, or dashboard clutter.
+3. **Chat Engine**:
+   - Private room scoped to the Shared Goal.
+   - Text and Unicode emojis in message content only.
+   - Cursor-based reverse layout pagination preserving scroll offset without jumping.
+   - Optimistic message sending with temporary local IDs, transitioning to authoritative server records on success or recoverable failure state on error.
+   - Integrated `PromiseHaptics` (light on send, confirm on check-in, no passive haptics).
+
+### 20.8. Real-Time Shared Goal Chat Architecture (WebSocket + REST Hybrid)
+1. **Transport & Routing**:
+   - **REST**: Initial history, pagination, message creation (`POST /chat/messages/`), and read markers (`POST /chat/read/`).
+   - **WebSocket**: Live broadcast channel (`ws://<host>/ws/goals/{goal_id}/chat/`) backed by Django ASGI/Channels with Redis channel layer (`channels_redis`).
+2. **Handshake Authentication & Security**:
+   - Authenticated via HTTP header `Authorization: Bearer <access_token>` during the WebSocket upgrade handshake. Tokens are **never** passed in the query string and **never** logged.
+   - Token expiry / rejection: Android client reuses the existing `SessionRefresher` / process-wide refresh mutex (refresh once, reconnect once).
+3. **Transaction Invariant & Event Fanout**:
+   - Strict ordering: `PostgreSQL ChatMessage + OutboxEvent` $\rightarrow$ `transaction.on_commit(...)` $\rightarrow$ WebSocket broadcast to Redis channel group `goal_chat_{goal_id}`.
+   - Never broadcast a message before the DB transaction commits.
+4. **Storage & Resilience Hierarchy**:
+   - **PostgreSQL**: Single authoritative source of truth for messages and membership.
+   - **Kafka**: Durable integration event propagation.
+   - **Redis**: Ephemeral coordination and cross-worker broadcast only. Redis outages or reconnects do not lose messages; clients automatically recover missed messages via REST.
+5. **Presence & FCM Notification Optimization**:
+   - Ephemeral presence key in Redis (`promise:chat_presence:{goal_id}:{user_id}`) with short TTL + heartbeat.
+   - Used solely as an optimization to suppress redundant FCM push notifications when the recipient is actively in the chat room. Stale presence never compromises message delivery correctness.
+6. **Membership Revocation & Disconnect**:
+   - When a participant becomes `LEFT` or `REMOVED`, the server immediately closes all active WebSockets for that user/goal session and rejects future handshakes.

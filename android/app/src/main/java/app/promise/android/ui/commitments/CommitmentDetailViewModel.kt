@@ -22,6 +22,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+
+@OptIn(FlowPreview::class)
 @HiltViewModel
 class CommitmentDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -29,6 +35,7 @@ class CommitmentDetailViewModel @Inject constructor(
     private val authSession: AuthSession,
     private val homeFreshness: HomeFreshness,
     private val haptics: PromiseHaptics,
+    private val appEventBus: AppEventBus,
 ) : ViewModel() {
     private val commitmentId: String = savedStateHandle.get<String>("commitmentId")
         ?: savedStateHandle.toRoute<CommitmentRoute>().commitmentId
@@ -44,6 +51,23 @@ class CommitmentDetailViewModel @Inject constructor(
 
     init {
         reload()
+        observeEvents()
+    }
+
+    private fun observeEvents() {
+        viewModelScope.launch {
+            appEventBus.events
+                .debounce(50L)
+                .collect { event ->
+                    when (event) {
+                        is AppMutationEvent.CommitmentUpdated -> if (event.commitmentId == commitmentId) reloadQuiet()
+                        is AppMutationEvent.CommitmentCompleted -> if (event.commitmentId == commitmentId) reloadQuiet()
+                        is AppMutationEvent.CommitmentCancelled -> if (event.commitmentId == commitmentId) reloadQuiet()
+                        is AppMutationEvent.CommitmentSnoozed -> if (event.commitmentId == commitmentId) reloadQuiet()
+                        else -> Unit
+                    }
+                }
+        }
     }
 
     fun reload() {
@@ -59,15 +83,30 @@ class CommitmentDetailViewModel @Inject constructor(
         }
     }
 
-    fun complete() = runAction(confirmHaptic = true) { repository.complete(commitmentId) }
+    fun complete() = runAction(
+        confirmHaptic = true,
+        onSuccess = { appEventBus.emit(AppMutationEvent.CommitmentCompleted(commitmentId)) },
+    ) { repository.complete(commitmentId) }
 
-    fun waitOn() = runAction(confirmHaptic = false) { repository.wait(commitmentId) }
+    fun waitOn() = runAction(
+        confirmHaptic = false,
+        onSuccess = { appEventBus.emit(AppMutationEvent.CommitmentUpdated(commitmentId)) },
+    ) { repository.wait(commitmentId) }
 
-    fun unsnooze() = runAction(confirmHaptic = false) { repository.unsnooze(commitmentId) }
+    fun unsnooze() = runAction(
+        confirmHaptic = false,
+        onSuccess = { appEventBus.emit(AppMutationEvent.CommitmentUpdated(commitmentId)) },
+    ) { repository.unsnooze(commitmentId) }
 
-    fun cancel() = runAction(confirmHaptic = true) { repository.cancel(commitmentId) }
+    fun cancel() = runAction(
+        confirmHaptic = true,
+        onSuccess = { appEventBus.emit(AppMutationEvent.CommitmentCancelled(commitmentId)) },
+    ) { repository.cancel(commitmentId) }
 
-    fun snooze(untilIso: String) = runAction(confirmHaptic = false) {
+    fun snooze(untilIso: String) = runAction(
+        confirmHaptic = false,
+        onSuccess = { appEventBus.emit(AppMutationEvent.CommitmentSnoozed(commitmentId)) },
+    ) {
         repository.snooze(commitmentId, untilIso)
     }
 
@@ -77,7 +116,11 @@ class CommitmentDetailViewModel @Inject constructor(
         }
     }
 
-    private fun runAction(confirmHaptic: Boolean, block: suspend () -> Commitment) {
+    private fun runAction(
+        confirmHaptic: Boolean,
+        onSuccess: (() -> Unit)? = null,
+        block: suspend () -> Commitment,
+    ) {
         if (_action.value is ActionState.InFlight) return
         viewModelScope.launch {
             _action.value = ActionState.InFlight
@@ -87,6 +130,7 @@ class CommitmentDetailViewModel @Inject constructor(
                 _action.value = ActionState.Idle
                 homeFreshness.markDirty()
                 if (confirmHaptic) haptics.confirm() else haptics.light()
+                onSuccess?.invoke()
             } catch (e: ApiException) {
                 val kind = e.toErrorKind()
                 _action.value = ActionState.Failed(kind)

@@ -22,4 +22,23 @@ class RoutesTest {
         assertEquals("c1", CommitmentRoute("c1").commitmentId)
         assertEquals("g1", GoalRoute("g1").goalId)
     }
+
+    @Test
+    fun deepLinkPatternsMatchExpectedSchemes() {
+        val homeUri = java.net.URI("promise://home")
+        assertEquals("promise", homeUri.scheme)
+        assertEquals("home", homeUri.host)
+
+        val commitmentUri = java.net.URI("promise://commitment/c-12345")
+        assertEquals("promise", commitmentUri.scheme)
+        assertEquals("commitment", commitmentUri.host)
+        assertEquals("/c-12345", commitmentUri.path)
+        assertEquals("c-12345", commitmentUri.path.substringAfterLast("/"))
+
+        val goalUri = java.net.URI("promise://goal/g-67890")
+        assertEquals("promise", goalUri.scheme)
+        assertEquals("goal", goalUri.host)
+        assertEquals("/g-67890", goalUri.path)
+        assertEquals("g-67890", goalUri.path.substringAfterLast("/"))
+    }
 }

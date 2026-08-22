@@ -1,6 +1,6 @@
 # Promise — Android Foundation Design
 
-**Status:** Design complete. Phases 9.2–9.6 exist under `android/` (bootstrap, auth/networking, shell + Home, Commitments product UI, Goals product UI). Shared Goals / FCM / Room are **not** implemented. Backend Phases 4–7 remain the API source of truth.
+**Status:** Design complete. Phases 9.2–9.8 exist under `android/` (bootstrap, auth/networking, shell + Home, Commitments product UI, Goals product UI, Home real data, Register UI, logout-all, production config, deep links). Shared Goals / FCM / Room are **not** implemented. Backend Phases 4–7 remain the API source of truth.
 
 | Label | Meaning |
 |---|---|
@@ -18,7 +18,7 @@ It fills in `docs/DEVELOPMENT.md` Phase 9 (Android Foundation) and `docs/ARCHITE
 - `docs/GOAL_DESIGN.md` — recurrence, check-ins, derived progress/streaks
 - `docs/REDIS_DESIGN.md` — 429 `RATE_LIMITED` + `Retry-After` (client must honor, not re-tune)
 
-Phase 9.2 added the single `:app` Gradle module, theme tokens, navigation graphs, and `LoadState` / `ActionState`. Phase 9.3 added Retrofit/OkHttp, Keystore refresh storage, login, and session restore. Phase 9.4 added the four-tab Main shell, Home with local preview data, and Light/Dark themes. Phase 9.5 added Commitments list/create/detail against backend APIs. Phase 9.6 added Goals list/create/detail/check-in/lifecycle against backend APIs. Shared Goals screens still do not exist.
+Phase 9.2 added the single `:app` Gradle module, theme tokens, navigation graphs, and `LoadState` / `ActionState`. Phase 9.3 added Retrofit/OkHttp, Keystore refresh storage, login, and session restore. Phase 9.4 added the four-tab Main shell, Home with local preview data, and Light/Dark themes. Phase 9.5 added Commitments list/create/detail against backend APIs. Phase 9.6 added Goals list/create/detail/check-in/lifecycle against backend APIs. Phase 9.7 added Home real data integration. Phase 9.8 added real Register UI, Profile logout-all, production API configuration, and deep links. Shared Goals screens and push notifications do not exist yet.
 
 Do not modify backend APIs, Docker, Redis, or Kafka to ship this design.
 

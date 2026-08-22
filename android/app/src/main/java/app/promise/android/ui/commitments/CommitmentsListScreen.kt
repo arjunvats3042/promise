@@ -99,9 +99,9 @@ fun CommitmentsListScreen(
         ) {
             Text(
                 text = "Commitments",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.displaySmall,
                 color = colors.textPrimary,
-                modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.md),
+                modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.sm),
             )
             FilterChipsRow(
                 selected = (state as? LoadState.Ready)?.value?.filter ?: CommitmentListFilter.OPEN,
@@ -212,25 +212,29 @@ private fun FilterChipsRow(
     ) {
         CommitmentListFilter.entries.forEach { filter ->
             val isSelected = filter == selected
-            Text(
-                text = filter.label(),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-                color = if (isSelected) colors.accent else colors.textSecondary,
+            Box(
                 modifier = Modifier
-                    .heightIn(min = TouchTarget.min)
                     .clip(RoundedCornerShape(Radius.sm))
+                    .background(if (isSelected) colors.surfaceMuted else MaterialTheme.colorScheme.background)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { onSelect(filter) },
                     )
-                    .padding(horizontal = Spacing.sm)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs)
                     .semantics { contentDescription = "${filter.label()} filter" },
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = filter.label(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) colors.textPrimary else colors.textSecondary,
+                )
+            }
         }
     }
-    Spacer(modifier = Modifier.height(Spacing.sm))
+    Spacer(modifier = Modifier.height(Spacing.xs))
 }
 
 @Composable
@@ -249,15 +253,15 @@ fun CommitmentRow(
     ) {
         Text(
             text = commitment.title,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = colors.textPrimary,
         )
-        Spacer(modifier = Modifier.height(2.dp))
+        Spacer(modifier = Modifier.height(Spacing.xxs))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (commitment.isOverdue) {
                 Box(
                     modifier = Modifier
-                        .size(8.dp)
+                        .size(Spacing.statusMark)
                         .clip(CircleShape)
                         .background(colors.warning)
                         .semantics { contentDescription = "Overdue" },
@@ -267,16 +271,11 @@ fun CommitmentRow(
             Text(
                 text = commitment.metaLine(timeZoneId),
                 style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
+                color = if (commitment.isOverdue) colors.warning else colors.textSecondary,
             )
         }
         Spacer(modifier = Modifier.height(Spacing.sm))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
-        )
+        app.promise.android.ui.components.PromiseHairlineDivider()
     }
 }
 

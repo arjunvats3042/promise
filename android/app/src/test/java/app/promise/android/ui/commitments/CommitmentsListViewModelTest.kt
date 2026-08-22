@@ -27,13 +27,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class CommitmentsListViewModelTest {
     private val dispatcher = StandardTestDispatcher()
+    private lateinit var eventBus: AppEventBus
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        eventBus = AppEventBus()
     }
 
     @After
@@ -51,7 +56,7 @@ class CommitmentsListViewModelTest {
         val session = AuthSession().also {
             it.setUser(User("1", "a@b.com", "Ada", "UTC", "2026-01-01T00:00:00Z"))
         }
-        val vm = CommitmentsListViewModel(repo, session, HomeFreshness(), FakePromiseHaptics())
+        val vm = CommitmentsListViewModel(repo, session, HomeFreshness(), FakePromiseHaptics(), eventBus)
         advanceUntilIdle()
         val ready = vm.state.value as LoadState.Ready
         assertEquals(CommitmentListFilter.OPEN, ready.value.filter)
@@ -64,7 +69,7 @@ class CommitmentsListViewModelTest {
             pages = mapOf(CommitmentListFilter.OPEN to listOf(sample("1"))),
         )
         val haptics = FakePromiseHaptics()
-        val vm = CommitmentsListViewModel(repo, AuthSession(), HomeFreshness(), haptics)
+        val vm = CommitmentsListViewModel(repo, AuthSession(), HomeFreshness(), haptics, eventBus)
         advanceUntilIdle()
         vm.create("New", "", null, DuePrecision.NONE) {}
         advanceUntilIdle()
@@ -83,7 +88,7 @@ class CommitmentsListViewModelTest {
             ),
         )
         val haptics = FakePromiseHaptics()
-        val vm = CommitmentsListViewModel(repo, AuthSession(), HomeFreshness(), haptics)
+        val vm = CommitmentsListViewModel(repo, AuthSession(), HomeFreshness(), haptics, eventBus)
         advanceUntilIdle()
         vm.selectFilter(CommitmentListFilter.OVERDUE)
         advanceUntilIdle()
@@ -92,6 +97,22 @@ class CommitmentsListViewModelTest {
         assertEquals(listOf("2"), ready.value.items.map { it.id })
         assertEquals(emptyList<String>(), haptics.events)
         assertEquals(false, ready.isRefreshing)
+    }
+
+    @Test
+    fun commitmentMutationEvent_triggersAutoRefresh() = runTest {
+        val repo = FakeCommitmentRepository(
+            pages = mapOf(CommitmentListFilter.OPEN to listOf(sample("1"))),
+        )
+        val vm = CommitmentsListViewModel(repo, AuthSession(), HomeFreshness(), FakePromiseHaptics(), eventBus)
+        advanceUntilIdle()
+
+        // Simulate external commitment completion
+        eventBus.emit(AppMutationEvent.CommitmentCompleted("1"))
+        advanceUntilIdle()
+
+        val ready = vm.state.value as LoadState.Ready
+        assertEquals(1, ready.value.items.size)
     }
 }
 

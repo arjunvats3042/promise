@@ -42,6 +42,26 @@ interface GoalRepository {
 
     suspend fun leave(goalId: String): GoalParticipant
 
+    suspend fun listChatMessages(
+        goalId: String,
+        limit: Int = DEFAULT_PAGE_SIZE,
+        beforeCreatedAt: String? = null,
+        beforeId: String? = null,
+    ): List<ChatMessage>
+
+    suspend fun sendChatMessage(goalId: String, body: String): ChatMessage
+
+    suspend fun markChatRead(goalId: String, lastReadMessageId: String): GoalChatReadState
+
+    suspend fun getChatSummary(goalId: String): GoalChatSummary
+
+    suspend fun listActivity(
+        goalId: String,
+        limit: Int = DEFAULT_PAGE_SIZE,
+        beforeCreatedAt: String? = null,
+        beforeId: String? = null,
+    ): List<GoalActivityItem>
+
     companion object {
         const val DEFAULT_PAGE_SIZE = 20
         const val HOME_PAGE_SIZE = 100

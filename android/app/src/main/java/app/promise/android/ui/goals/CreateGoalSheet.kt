@@ -65,6 +65,7 @@ fun CreateGoalSheet(
     var tracking by remember { mutableStateOf(GoalTrackingKind.BINARY) }
     var targetValue by remember { mutableStateOf("") }
     var targetUnit by remember { mutableStateOf("") }
+    var isShared by remember { mutableStateOf(false) }
     var endLocalDate by remember { mutableStateOf<LocalDate?>(null) }
     val submitting = action is ActionState.InFlight
     val error = (action as? ActionState.Failed)?.kind
@@ -80,7 +81,7 @@ fun CreateGoalSheet(
         ) {
             Text(
                 text = "New goal",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.headlineMedium,
                 color = colors.textPrimary,
             )
             Spacer(modifier = Modifier.height(Spacing.md))
@@ -185,6 +186,17 @@ fun CreateGoalSheet(
                 }
             }
             Spacer(modifier = Modifier.height(Spacing.md))
+            FieldLabel("Goal type")
+            ChoiceRow(
+                options = listOf(
+                    false to "Personal",
+                    true to "Shared (with others)",
+                ),
+                selected = isShared,
+                enabled = !submitting,
+                onSelect = { isShared = it },
+            )
+            Spacer(modifier = Modifier.height(Spacing.md))
             FieldLabel("End date (optional)")
             PromiseDateField(
                 date = endLocalDate,
@@ -232,6 +244,7 @@ fun CreateGoalSheet(
                                 null
                             },
                             targetUnit = if (tracking == GoalTrackingKind.COUNT) targetUnit else "",
+                            isShared = isShared,
                         ),
                     )
                 },

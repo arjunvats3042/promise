@@ -1,9 +1,15 @@
 package app.promise.android.data.goals
 
 import app.promise.android.data.commitments.pageNumberFromNext
+import app.promise.android.domain.ChatMessage
+import app.promise.android.domain.ChatMessageSender
 import app.promise.android.domain.CollectivePeriodCounts
 import app.promise.android.domain.CollectiveProgress
 import app.promise.android.domain.Goal
+import app.promise.android.domain.GoalActivityActor
+import app.promise.android.domain.GoalActivityItem
+import app.promise.android.domain.GoalChatReadState
+import app.promise.android.domain.GoalChatSummary
 import app.promise.android.domain.GoalCheckIn
 import app.promise.android.domain.GoalCheckInStatus
 import app.promise.android.domain.GoalDetail
@@ -172,5 +178,42 @@ fun pinInvites(items: List<GoalListItem>): List<GoalListItem> {
     val memberships = items.filterIsInstance<GoalListItem.Membership>()
     return invites + memberships
 }
+
+fun ChatMessageSenderDto.toDomain(): ChatMessageSender = ChatMessageSender(
+    id = id,
+    name = name,
+)
+
+fun ChatMessageDto.toDomain(): ChatMessage = ChatMessage(
+    id = id,
+    sender = sender.toDomain(),
+    body = body,
+    createdAt = createdAt,
+)
+
+fun GoalChatReadStateDto.toDomain(): GoalChatReadState = GoalChatReadState(
+    lastReadMessageId = lastReadMessageId,
+    lastReadAt = lastReadAt,
+)
+
+fun GoalChatSummaryDto.toDomain(): GoalChatSummary = GoalChatSummary(
+    unreadCount = unreadCount,
+    latestMessage = latestMessage?.toDomain(),
+)
+
+fun GoalActivityActorDto.toDomain(): GoalActivityActor = GoalActivityActor(
+    id = id,
+    name = name,
+)
+
+fun GoalActivityItemDto.toDomain(): GoalActivityItem = GoalActivityItem(
+    id = id,
+    eventType = eventType,
+    actor = actor?.toDomain(),
+    targetUser = targetUser?.toDomain(),
+    summary = summary,
+    periodDate = periodDate,
+    createdAt = createdAt,
+)
 
 fun goalPageNumberFromNext(next: String?): Int? = pageNumberFromNext(next)

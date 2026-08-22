@@ -201,6 +201,36 @@ private class FakeGoalRepository(
 
     override suspend fun leave(goalId: String): GoalParticipant =
         throw UnsupportedOperationException()
+
+    override suspend fun listChatMessages(
+        goalId: String,
+        limit: Int,
+        beforeCreatedAt: String?,
+        beforeId: String?,
+    ): List<app.promise.android.domain.ChatMessage> = emptyList()
+
+    override suspend fun sendChatMessage(
+        goalId: String,
+        body: String,
+    ): app.promise.android.domain.ChatMessage = throw UnsupportedOperationException()
+
+    override suspend fun markChatRead(
+        goalId: String,
+        lastReadMessageId: String,
+    ): app.promise.android.domain.GoalChatReadState =
+        app.promise.android.domain.GoalChatReadState(lastReadMessageId, "2026-08-21T12:00:00Z")
+
+    override suspend fun getChatSummary(
+        goalId: String,
+    ): app.promise.android.domain.GoalChatSummary =
+        app.promise.android.domain.GoalChatSummary(0, null)
+
+    override suspend fun listActivity(
+        goalId: String,
+        limit: Int,
+        beforeCreatedAt: String?,
+        beforeId: String?,
+    ): List<app.promise.android.domain.GoalActivityItem> = emptyList()
 }
 
 private fun commitment(id: String, dueAt: String?, isOverdue: Boolean) = Commitment(

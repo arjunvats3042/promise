@@ -1,7 +1,13 @@
 package app.promise.android.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,7 +24,10 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -164,4 +173,108 @@ fun PromiseHairlineDivider(modifier: Modifier = Modifier) {
         tonalElevation = 0.dp,
         content = {},
     )
+}
+
+@Composable
+fun PromiseMicroLabel(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color? = null,
+) {
+    val colors = PromiseThemeColors.current
+    Text(
+        text = text.uppercase(),
+        style = MaterialTheme.typography.labelMedium,
+        color = color ?: colors.textSecondary,
+        modifier = modifier,
+    )
+}
+
+@Composable
+fun PromiseLinearProgressBar(
+    progress: Float,
+    modifier: Modifier = Modifier,
+    color: Color? = null,
+    trackColor: Color? = null,
+) {
+    val colors = PromiseThemeColors.current
+    val actualColor = color ?: colors.accent
+    val actualTrack = trackColor ?: colors.surfaceMuted
+    val clampedProgress = progress.coerceIn(0f, 1f)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .clip(RoundedCornerShape(3.dp))
+            .background(actualTrack),
+    ) {
+        if (clampedProgress > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(clampedProgress)
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(actualColor),
+            )
+        }
+    }
+}
+
+@Composable
+fun PromiseCardSurface(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+    val baseModifier = modifier
+        .fillMaxWidth()
+        .border(
+            width = Elevation.hairline,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+            shape = RoundedCornerShape(Radius.lg),
+        )
+        .clip(RoundedCornerShape(Radius.lg))
+        .background(colors.surfaceRaised)
+
+    val clickableModifier = if (onClick != null) {
+        baseModifier.clickable(onClick = onClick)
+    } else {
+        baseModifier
+    }
+
+    Column(
+        modifier = clickableModifier.padding(Spacing.md),
+        content = content,
+    )
+}
+
+@Composable
+fun PromiseStreakBadge(
+    streakText: String,
+    modifier: Modifier = Modifier,
+) {
+    val colors = PromiseThemeColors.current
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(Radius.sm))
+            .background(colors.accent.copy(alpha = 0.12f))
+            .padding(horizontal = Spacing.xs + 2.dp, vertical = Spacing.xxs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
+    ) {
+        Text(
+            text = "STREAK",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.accent,
+        )
+        Text(
+            text = streakText,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.accent,
+        )
+    }
 }

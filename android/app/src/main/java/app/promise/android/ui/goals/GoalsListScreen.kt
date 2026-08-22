@@ -107,9 +107,9 @@ fun GoalsListScreen(
         ) {
             Text(
                 text = "Goals",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.displaySmall,
                 color = colors.textPrimary,
-                modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.md),
+                modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.sm),
             )
             FilterChipsRow(
                 selected = (state as? LoadState.Ready)?.value?.filter ?: GoalListFilter.ACTIVE,
@@ -169,6 +169,7 @@ fun GoalsListScreen(
                                         horizontal = Spacing.inset,
                                         vertical = Spacing.sm,
                                     ),
+                                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
                                 ) {
                                     items(
                                         s.value.items,
@@ -263,25 +264,29 @@ private fun FilterChipsRow(
     ) {
         GoalListFilter.entries.forEach { filter ->
             val isSelected = filter == selected
-            Text(
-                text = filter.label(),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-                color = if (isSelected) colors.accent else colors.textSecondary,
+            Box(
                 modifier = Modifier
-                    .heightIn(min = TouchTarget.min)
                     .clip(RoundedCornerShape(Radius.sm))
+                    .background(if (isSelected) colors.surfaceMuted else MaterialTheme.colorScheme.background)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { onSelect(filter) },
                     )
-                    .padding(horizontal = Spacing.sm)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs)
                     .semantics { contentDescription = "${filter.label()} filter" },
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = filter.label(),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) colors.textPrimary else colors.textSecondary,
+                )
+            }
         }
     }
-    Spacer(modifier = Modifier.height(Spacing.sm))
+    Spacer(modifier = Modifier.height(Spacing.xs))
 }
 
 @Composable
@@ -293,72 +298,87 @@ fun GoalRow(
     val colors = PromiseThemeColors.current
     val progressLine = GoalPresentation.progressLine(goal)
     val streak = GoalPresentation.streakLine(goal)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = Spacing.sm)
-            .semantics { contentDescription = goal.title },
+    app.promise.android.ui.components.PromiseCardSurface(
+        onClick = onClick,
+        modifier = Modifier.semantics { contentDescription = goal.title },
     ) {
-        Text(
-            text = goal.title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = colors.textPrimary,
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (goal.status == GoalStatus.PAUSED) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(colors.textSecondary)
-                        .semantics { contentDescription = "Paused" },
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = goal.title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.width(Spacing.xs))
+                Spacer(modifier = Modifier.height(Spacing.xxs))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (goal.status == GoalStatus.PAUSED) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(colors.warning)
+                                .semantics { contentDescription = "Paused" },
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.xs))
+                    }
+                    Text(
+                        text = goalMetaLine(goal),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
             }
+            if (streak != null) {
+                app.promise.android.ui.components.PromiseStreakBadge(
+                    streakText = streak,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(Spacing.md))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            app.promise.android.ui.components.PromiseMicroLabel(
+                text = if (goal.trackingKind == GoalTrackingKind.COUNT) "WEEKLY PROGRESS" else "CONSISTENCY",
+            )
             Text(
-                text = goalMetaLine(goal),
+                text = progressLine,
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
+                modifier = Modifier.semantics {
+                    contentDescription = progressLine.replace("/", " of ")
+                },
             )
         }
         Spacer(modifier = Modifier.height(Spacing.xs))
-        Text(
-            text = progressLine,
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textSecondary,
-            modifier = Modifier.semantics {
-                contentDescription = progressLine.replace("/", " of ")
-            },
+        app.promise.android.ui.components.PromiseLinearProgressBar(
+            progress = GoalPresentation.progressFraction(goal),
         )
-        if (streak != null) {
-            Text(
-                text = streak,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
-            )
-        }
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        ProgressTrack(fraction = GoalPresentation.progressFraction(goal))
         if (GoalPresentation.needsCheckInToday(goal)) {
-            Spacer(modifier = Modifier.height(Spacing.xs))
-            TextButton(
-                onClick = onCheckIn,
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .semantics { contentDescription = "Check in" },
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
             ) {
-                Text("Check in", color = colors.accent)
+                TextButton(
+                    onClick = onCheckIn,
+                    modifier = Modifier
+                        .heightIn(min = TouchTarget.min)
+                        .semantics { contentDescription = "Check in" },
+                ) {
+                    Text(
+                        text = "Check in today",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.accent,
+                    )
+                }
             }
         }
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
-        )
     }
 }
 

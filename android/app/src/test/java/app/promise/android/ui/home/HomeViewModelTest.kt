@@ -26,13 +26,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
     private val dispatcher = StandardTestDispatcher()
+    private lateinit var eventBus: AppEventBus
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        eventBus = AppEventBus()
     }
 
     @After
@@ -75,6 +80,7 @@ class HomeViewModelTest {
             session,
             HomeFreshness(),
             FakePromiseHaptics(),
+            eventBus,
         )
         advanceUntilIdle()
         val ready = vm.state.value as LoadState.Ready
@@ -90,6 +96,7 @@ class HomeViewModelTest {
             AuthSession(),
             HomeFreshness(),
             FakePromiseHaptics(),
+            eventBus,
         )
         advanceUntilIdle()
         val ready = vm.state.value as LoadState.Ready
@@ -110,6 +117,7 @@ class HomeViewModelTest {
             AuthSession(),
             HomeFreshness(),
             FakePromiseHaptics(),
+            eventBus,
         )
         advanceUntilIdle()
         val ready = vm.state.value as LoadState.Ready
@@ -124,6 +132,7 @@ class HomeViewModelTest {
             AuthSession(),
             HomeFreshness(),
             FakePromiseHaptics(),
+            eventBus,
         )
         advanceUntilIdle()
         val error = vm.state.value as LoadState.Error
@@ -140,7 +149,7 @@ class HomeViewModelTest {
                 practices = emptyList(),
             ),
         )
-        val vm = HomeViewModel(repo, AuthSession(), HomeFreshness(), haptics)
+        val vm = HomeViewModel(repo, AuthSession(), HomeFreshness(), haptics, eventBus)
         advanceUntilIdle()
         vm.completeCommitment("c1")
         advanceUntilIdle()
@@ -158,7 +167,7 @@ class HomeViewModelTest {
                 practices = listOf(HomePractice("g1", "Walk", 0.2f, "1 / 7 this week", 0)),
             ),
         )
-        val vm = HomeViewModel(repo, AuthSession(), HomeFreshness(), haptics)
+        val vm = HomeViewModel(repo, AuthSession(), HomeFreshness(), haptics, eventBus)
         advanceUntilIdle()
         vm.checkInPractice("g1")
         advanceUntilIdle()
@@ -170,7 +179,7 @@ class HomeViewModelTest {
     fun onVisible_skipsWhenFresh() = runTest {
         val freshness = HomeFreshness()
         val repo = FakeHomeRepository(HomeFeed(emptyList(), emptyList()))
-        val vm = HomeViewModel(repo, AuthSession(), freshness, FakePromiseHaptics())
+        val vm = HomeViewModel(repo, AuthSession(), freshness, FakePromiseHaptics(), eventBus)
         advanceUntilIdle()
         val loadsAfterInit = repo.loadCount
         freshness.markSuccessfulLoad(System.currentTimeMillis())
@@ -183,7 +192,7 @@ class HomeViewModelTest {
     fun onVisible_refreshesWhenDirty() = runTest {
         val freshness = HomeFreshness()
         val repo = FakeHomeRepository(HomeFeed(emptyList(), emptyList()))
-        val vm = HomeViewModel(repo, AuthSession(), freshness, FakePromiseHaptics())
+        val vm = HomeViewModel(repo, AuthSession(), freshness, FakePromiseHaptics(), eventBus)
         advanceUntilIdle()
         val loadsAfterInit = repo.loadCount
         freshness.markDirty()
@@ -195,14 +204,27 @@ class HomeViewModelTest {
     @Test
     fun pullRefresh_setsRefreshingThenReady() = runTest {
         val repo = FakeHomeRepository(HomeFeed(emptyList(), emptyList()))
-        val vm = HomeViewModel(repo, AuthSession(), HomeFreshness(), FakePromiseHaptics())
+        val vm = HomeViewModel(repo, AuthSession(), HomeFreshness(), FakePromiseHaptics(), eventBus)
         advanceUntilIdle()
         assertFalse((vm.state.value as LoadState.Ready).isRefreshing)
         vm.refresh(fromPull = true, force = true)
-        // Mid-refresh may race; after idle must be Ready not refreshing
         advanceUntilIdle()
         val ready = vm.state.value as LoadState.Ready
         assertFalse(ready.isRefreshing)
+    }
+
+    @Test
+    fun mutationEvent_autoRefreshesFeed() = runTest {
+        val repo = FakeHomeRepository(HomeFeed(emptyList(), emptyList()))
+        val vm = HomeViewModel(repo, AuthSession(), HomeFreshness(), FakePromiseHaptics(), eventBus)
+        advanceUntilIdle()
+        val initialLoads = repo.loadCount
+
+        // Simulate GoalCreated event
+        eventBus.emit(AppMutationEvent.GoalCreated("g1"))
+        advanceUntilIdle()
+
+        assertTrue(repo.loadCount > initialLoads)
     }
 }
 

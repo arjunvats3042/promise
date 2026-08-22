@@ -38,13 +38,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+
 @OptIn(ExperimentalCoroutinesApi::class)
 class GoalsListViewModelTest {
     private val dispatcher = StandardTestDispatcher()
+    private lateinit var eventBus: AppEventBus
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        eventBus = AppEventBus()
     }
 
     @After
@@ -60,7 +65,7 @@ class GoalsListViewModelTest {
         val session = AuthSession().also {
             it.setUser(User("1", "a@b.com", "Ada", "UTC", "2026-01-01T00:00:00Z"))
         }
-        val vm = GoalsListViewModel(repo, session, HomeFreshness(), FakePromiseHaptics())
+        val vm = GoalsListViewModel(repo, session, HomeFreshness(), FakePromiseHaptics(), eventBus)
         advanceUntilIdle()
         val ready = vm.state.value as LoadState.Ready
         assertEquals(GoalListFilter.ACTIVE, ready.value.filter)
@@ -73,7 +78,7 @@ class GoalsListViewModelTest {
             pages = mapOf(GoalListFilter.ACTIVE to listOf(sample("1"))),
         )
         val haptics = FakePromiseHaptics()
-        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), haptics)
+        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), haptics, eventBus)
         advanceUntilIdle()
         vm.create(
             CreateGoalInput(title = "New", recurrenceKind = GoalRecurrenceKind.DAILY),
@@ -92,7 +97,7 @@ class GoalsListViewModelTest {
             createError = ApiException(status = 429, code = "RATE_LIMITED", retryAfterSeconds = 9),
         )
         val haptics = FakePromiseHaptics()
-        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), haptics)
+        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), haptics, eventBus)
         advanceUntilIdle()
         vm.create(
             CreateGoalInput(title = "New", recurrenceKind = GoalRecurrenceKind.DAILY),
@@ -112,7 +117,7 @@ class GoalsListViewModelTest {
             ),
         )
         val haptics = FakePromiseHaptics()
-        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), haptics)
+        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), haptics, eventBus)
         advanceUntilIdle()
         vm.selectFilter(GoalListFilter.PAUSED)
         advanceUntilIdle()
@@ -130,12 +135,28 @@ class GoalsListViewModelTest {
             nextPage = 2,
             pageTwo = listOf(sample("2")),
         )
-        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), FakePromiseHaptics())
+        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), FakePromiseHaptics(), eventBus)
         advanceUntilIdle()
         vm.loadMore()
         advanceUntilIdle()
         val ready = vm.state.value as LoadState.Ready
         assertEquals(listOf("1", "2"), ready.value.items.map { it.itemId() })
+    }
+
+    @Test
+    fun goalMutationEvent_triggersAutoRefresh() = runTest {
+        val repo = FakeGoalRepository(
+            pages = mapOf(GoalListFilter.ACTIVE to listOf(sample("1"))),
+        )
+        val vm = GoalsListViewModel(repo, AuthSession(), HomeFreshness(), FakePromiseHaptics(), eventBus)
+        advanceUntilIdle()
+
+        // Simulate an external pause mutation
+        eventBus.emit(AppMutationEvent.GoalPaused("1"))
+        advanceUntilIdle()
+
+        val ready = vm.state.value as LoadState.Ready
+        assertEquals(1, ready.value.items.size)
     }
 }
 
@@ -215,6 +236,36 @@ class FakeGoalRepository(
 
     override suspend fun leave(goalId: String): GoalParticipant =
         throw UnsupportedOperationException()
+
+    override suspend fun listChatMessages(
+        goalId: String,
+        limit: Int,
+        beforeCreatedAt: String?,
+        beforeId: String?,
+    ): List<app.promise.android.domain.ChatMessage> = emptyList()
+
+    override suspend fun sendChatMessage(
+        goalId: String,
+        body: String,
+    ): app.promise.android.domain.ChatMessage = throw UnsupportedOperationException()
+
+    override suspend fun markChatRead(
+        goalId: String,
+        lastReadMessageId: String,
+    ): app.promise.android.domain.GoalChatReadState =
+        app.promise.android.domain.GoalChatReadState(lastReadMessageId, "2026-08-20T12:00:00Z")
+
+    override suspend fun getChatSummary(
+        goalId: String,
+    ): app.promise.android.domain.GoalChatSummary =
+        app.promise.android.domain.GoalChatSummary(0, null)
+
+    override suspend fun listActivity(
+        goalId: String,
+        limit: Int,
+        beforeCreatedAt: String?,
+        beforeId: String?,
+    ): List<app.promise.android.domain.GoalActivityItem> = emptyList()
 }
 
 fun sample(

@@ -1,9 +1,10 @@
 package app.promise.android.ui.commitments
 
-import app.promise.android.data.home.HomeFreshness
-
 import androidx.lifecycle.SavedStateHandle
 import app.promise.android.core.LoadState
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+import app.promise.android.data.home.HomeFreshness
 import app.promise.android.data.network.ApiException
 import app.promise.android.data.network.AuthSession
 import app.promise.android.domain.Commitment
@@ -29,10 +30,12 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class CommitmentDetailViewModelTest {
     private val dispatcher = StandardTestDispatcher()
+    private lateinit var eventBus: AppEventBus
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        eventBus = AppEventBus()
     }
 
     @After
@@ -44,7 +47,7 @@ class CommitmentDetailViewModelTest {
     fun complete_updatesStateAndConfirms() = runTest {
         val repo = DetailFakeRepo(sample("c1"))
         val haptics = FakePromiseHaptics()
-        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), HomeFreshness(), haptics)
+        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), HomeFreshness(), haptics, eventBus)
         advanceUntilIdle()
         vm.complete()
         advanceUntilIdle()
@@ -57,7 +60,7 @@ class CommitmentDetailViewModelTest {
     fun snooze_usesLightHaptic() = runTest {
         val repo = DetailFakeRepo(sample("c1"))
         val haptics = FakePromiseHaptics()
-        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), HomeFreshness(), haptics)
+        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), HomeFreshness(), haptics, eventBus)
         advanceUntilIdle()
         vm.snooze("2026-08-21T09:00:00Z")
         advanceUntilIdle()
@@ -69,11 +72,24 @@ class CommitmentDetailViewModelTest {
     fun conflict_emitsErrorHaptic() = runTest {
         val repo = DetailFakeRepo(sample("c1"), failWait = true)
         val haptics = FakePromiseHaptics()
-        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), HomeFreshness(), haptics)
+        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), HomeFreshness(), haptics, eventBus)
         advanceUntilIdle()
         vm.waitOn()
         advanceUntilIdle()
         assertTrue(haptics.events.contains("error"))
+    }
+
+    @Test
+    fun externalMutationEvent_reloadsQuietly() = runTest {
+        val repo = DetailFakeRepo(sample("c1"))
+        val vm = CommitmentDetailViewModel(handle("c1"), repo, AuthSession(), HomeFreshness(), FakePromiseHaptics(), eventBus)
+        advanceUntilIdle()
+
+        // Simulate external mutation
+        eventBus.emit(AppMutationEvent.CommitmentUpdated("c1"))
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value is LoadState.Ready)
     }
 
     private fun handle(id: String): SavedStateHandle {

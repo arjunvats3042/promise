@@ -118,7 +118,7 @@ def refresh_tokens(*, refresh_token):
     raise RefreshTokenInvalidError()
 
 
-def logout_session(*, user, refresh_token):
+def logout_session(*, user, refresh_token, device_id=None):
     session_id, secret = _parse_refresh_token(refresh_token)
     with transaction.atomic():
         session = (
@@ -137,6 +137,9 @@ def logout_session(*, user, refresh_token):
             session.revoked_at = timezone.now()
             session.revoked_reason = AuthSession.RevokedReason.LOGOUT
             session.save(update_fields=["revoked_at", "revoked_reason", "updated_at"])
+        if device_id:
+            from apps.notifications.models import UserDevice
+            UserDevice.objects.filter(user=user, device_id=device_id).update(is_active=False)
     deny_access_session(session_id)
 
 
@@ -154,6 +157,8 @@ def logout_all_sessions(*, user):
                 revoked_reason=AuthSession.RevokedReason.LOGOUT_ALL,
                 updated_at=now,
             )
+        from apps.notifications.models import UserDevice
+        UserDevice.objects.filter(user=user).update(is_active=False)
     for session_id in session_ids:
         deny_access_session(session_id)
 

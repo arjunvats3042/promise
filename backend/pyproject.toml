@@ -12,12 +12,16 @@ dependencies = [
     "cryptography",
     "redis",
     "confluent-kafka",
+    "channels>=4.1.0",
+    "daphne>=4.1.0",
+    "channels_redis>=4.2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
     "pytest-django",
+    "pytest-asyncio",
     "fakeredis[lua]",
 ]
 
