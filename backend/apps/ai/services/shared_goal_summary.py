@@ -1,22 +1,13 @@
 from datetime import datetime, timedelta, timezone as tz
+import time
 from typing import Any, Dict, Optional
 
-from rest_framework.exceptions import NotFound
-
+from apps.ai.observability import record_ai_metric
+from apps.ai.prompts import PROMPT_VERSION_V1, SHARED_GOAL_PROMPT_V1
 from apps.ai.providers.base import AIProvider
 from apps.ai.providers.gemini import GeminiProvider
+from apps.ai.routing import get_model_for_feature
 from apps.goals.models import Goal, GoalCheckIn, GoalParticipant
-
-SHARED_GOAL_SUMMARY_SYSTEM_PROMPT = """You are an AI group dynamics assistant for Promise.
-Your job is to generate a neutral, encouraging weekly summary of a shared group goal.
-
-Strict Rules:
-1. NEVER rank participants or compare members against each other.
-2. NEVER single out or identify the "weakest" or least active member.
-3. NEVER use shame, guilt, or pressure tactics.
-4. Focus strictly on the collective group effort, group milestones, and encouragement.
-5. All numerical claims MUST strictly match the supplied data facts.
-"""
 
 SHARED_GOAL_SUMMARY_SCHEMA = {
     "type": "OBJECT",
@@ -30,59 +21,62 @@ SHARED_GOAL_SUMMARY_SCHEMA = {
 
 
 def generate_shared_goal_weekly_summary(
-    user,
-    goal_id: str,
+    goal: Goal,
     provider: Optional[AIProvider] = None,
 ) -> Dict[str, Any]:
-    """Generates an encouraging, neutral weekly summary for an active shared goal participant."""
-    try:
-        goal = Goal.objects.get(id=goal_id, is_shared=True)
-    except Goal.DoesNotExist:
-        raise NotFound("Shared goal not found.")
-
-    # Strict authorization: User must be an ACTIVE participant
-    is_active = GoalParticipant.objects.filter(
-        goal=goal,
-        user=user,
-        status=GoalParticipant.Status.ACTIVE,
-    ).exists()
-    if not is_active:
-        raise NotFound("Shared goal not found.")
-
+    """Generates a neutral collective weekly summary for a shared goal without ranking individual members."""
     now = datetime.now(tz=tz.utc)
     seven_days_ago = now - timedelta(days=7)
 
-    active_participants = GoalParticipant.objects.filter(
+    active_participants_count = GoalParticipant.objects.filter(
         goal=goal,
         status=GoalParticipant.Status.ACTIVE,
-    )
-    total_active_members = active_participants.count()
-
-    total_checkins_this_week = GoalCheckIn.objects.filter(
-        goal=goal,
-        created_at__gte=seven_days_ago,
     ).count()
 
-    # Aggregate facts (anonymous, no per-member breakdown passed to AI)
-    facts = {
+    check_ins = GoalCheckIn.objects.filter(
+        goal=goal,
+        created_at__gte=seven_days_ago,
+    )
+    total_checkins_this_week = check_ins.count()
+
+    group_facts = {
         "goal_title": goal.title,
-        "active_members_count": total_active_members,
-        "total_group_check_ins_this_week": total_checkins_this_week,
-        "recurrence_kind": goal.recurrence_kind,
+        "active_members_count": active_participants_count,
+        "total_checkins_this_week": total_checkins_this_week,
         "period": "past_7_days",
     }
 
     if provider is None:
         provider = GeminiProvider()
 
-    prompt = f"Collective group goal statistics:\n{facts}"
-    ai_summary = provider.generate_structured(
-        prompt=prompt,
-        schema=SHARED_GOAL_SUMMARY_SCHEMA,
-        system_prompt=SHARED_GOAL_SUMMARY_SYSTEM_PROMPT,
-    )
+    model = get_model_for_feature("shared_goal_summary")
+    prompt = f"Collective group facts for shared goal:\n{group_facts}"
+    start_time = time.time()
+    success = False
+    failure_category = None
 
-    return {
-        "facts": facts,
-        "summary": ai_summary,
-    }
+    try:
+        ai_response = provider.generate_structured(
+            prompt=prompt,
+            schema=SHARED_GOAL_SUMMARY_SCHEMA,
+            system_prompt=SHARED_GOAL_PROMPT_V1,
+            model=model,
+        )
+        success = True
+        return {
+            "facts": group_facts,
+            "summary": ai_response,
+        }
+    except Exception as e:
+        failure_category = e.__class__.__name__
+        raise
+    finally:
+        latency_ms = int((time.time() - start_time) * 1000)
+        record_ai_metric(
+            feature="shared_goal_summary",
+            model=model,
+            prompt_version=PROMPT_VERSION_V1,
+            latency_ms=latency_ms,
+            success=success,
+            failure_category=failure_category,
+        )

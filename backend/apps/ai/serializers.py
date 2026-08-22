@@ -7,16 +7,18 @@ class GoalSuggestionRequestSerializer(serializers.Serializer):
 
 
 class GoalSuggestionResponseSerializer(serializers.Serializer):
-    title = serializers.CharField()
+    status = serializers.ChoiceField(choices=["READY", "NEEDS_CLARIFICATION"], default="READY")
+    clarification_question = serializers.CharField(required=False, allow_null=True)
+    title = serializers.CharField(required=False, allow_blank=True, default="")
     description = serializers.CharField(required=False, allow_blank=True, default="")
-    recurrence_kind = serializers.CharField()
+    recurrence_kind = serializers.CharField(required=False, allow_blank=True, default="DAILY")
     weekdays = serializers.ListField(child=serializers.IntegerField(), required=False, default=list)
     period_unit = serializers.CharField(required=False, allow_null=True)
     times_per_period = serializers.IntegerField(required=False, allow_null=True)
-    tracking_kind = serializers.CharField()
+    tracking_kind = serializers.CharField(required=False, allow_blank=True, default="BINARY")
     target_value = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     target_unit = serializers.CharField(required=False, allow_blank=True, default="")
-    reasoning = serializers.CharField()
+    reasoning = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class CommitmentRefinementRequestSerializer(serializers.Serializer):
@@ -25,13 +27,15 @@ class CommitmentRefinementRequestSerializer(serializers.Serializer):
 
 
 class CommitmentRefinementResponseSerializer(serializers.Serializer):
-    is_ambiguous = serializers.BooleanField()
+    status = serializers.ChoiceField(choices=["READY", "NEEDS_CLARIFICATION"], default="READY")
+    current_interpretation = serializers.CharField(required=False, allow_blank=True, default="")
+    missing_information = serializers.CharField(required=False, allow_null=True)
     clarifying_question = serializers.CharField(required=False, allow_null=True)
-    refined_title = serializers.CharField()
+    refined_title = serializers.CharField(required=False, allow_blank=True, default="")
     refined_description = serializers.CharField(required=False, allow_blank=True, default="")
     suggested_due_at = serializers.CharField(required=False, allow_null=True)
     suggested_due_precision = serializers.CharField(required=False, allow_null=True)
-    reasoning = serializers.CharField()
+    reasoning = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class ThoughtParserRequestSerializer(serializers.Serializer):
@@ -43,6 +47,7 @@ class ParsedThoughtItemSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=["commitment", "goal"])
     title = serializers.CharField()
     description = serializers.CharField(required=False, allow_blank=True, default="")
+    confidence = serializers.ChoiceField(choices=["HIGH", "MEDIUM", "LOW"], default="HIGH")
     due_at = serializers.CharField(required=False, allow_null=True)
     due_precision = serializers.CharField(required=False, allow_null=True)
     recurrence_kind = serializers.CharField(required=False, allow_null=True)
@@ -69,6 +74,7 @@ class CommandParserRequestSerializer(serializers.Serializer):
 class CommandParserResponseSerializer(serializers.Serializer):
     filter = serializers.DictField()
     entity = serializers.CharField()
+    interpreted_query_preview = serializers.CharField(required=False, allow_blank=True, default="")
     results_count = serializers.IntegerField()
     results = serializers.ListField()
 
@@ -82,11 +88,13 @@ class PlannerItemSerializer(serializers.Serializer):
     commitment_id = serializers.CharField()
     suggested_time_slot = serializers.CharField()
     priority_rank = serializers.IntegerField()
+    is_fixed_deadline = serializers.BooleanField(default=False)
     note = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class PlannerResponseSerializer(serializers.Serializer):
     planned_order = PlannerItemSerializer(many=True)
+    conflict_notes = serializers.CharField(required=False, allow_null=True)
     summary_advice = serializers.CharField()
 
 
@@ -113,6 +121,7 @@ class ChatSummaryRequestSerializer(serializers.Serializer):
 
 class ChatSummaryResponseSerializer(serializers.Serializer):
     summary = serializers.CharField()
-    key_decisions = serializers.ListField(child=serializers.CharField())
-    agreed_actions = serializers.ListField(child=serializers.CharField())
-    important_dates = serializers.ListField(child=serializers.CharField())
+    key_decisions = serializers.ListField(child=serializers.CharField(), default=list)
+    agreed_actions = serializers.ListField(child=serializers.CharField(), default=list)
+    important_dates = serializers.ListField(child=serializers.CharField(), default=list)
+    open_questions = serializers.ListField(child=serializers.CharField(), default=list)

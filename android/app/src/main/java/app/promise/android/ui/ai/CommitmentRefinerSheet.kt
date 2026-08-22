@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +63,7 @@ fun CommitmentRefinerSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var promptText by remember { mutableStateOf(initialPrompt) }
+    var deadlineAnswer by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var refinement by remember { mutableStateOf<CommitmentRefinement?>(null) }
@@ -167,6 +169,110 @@ fun CommitmentRefinerSheet(
                         Text("Refine with AI")
                     }
                 }
+            } else if (refinement!!.status == "NEEDS_CLARIFICATION") {
+                val ref = refinement!!
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.md))
+                        .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(Radius.md)),
+                    color = colors.surfaceMuted,
+                ) {
+                    Column(modifier = Modifier.padding(Spacing.md)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Outlined.HelpOutline,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.xs))
+                            Text(
+                                text = "CLARIFICATION NEEDED",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.accent,
+                            )
+                        }
+                        if (ref.missingInformation != null) {
+                            Spacer(modifier = Modifier.height(Spacing.xxs))
+                            Text(
+                                text = ref.missingInformation,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Text(
+                            text = ref.clarifyingQuestion ?: "When would you like to finish this by?",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.textPrimary,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                OutlinedTextField(
+                    value = deadlineAnswer,
+                    onValueChange = { deadlineAnswer = it },
+                    label = { Text("E.g. by Friday 5 PM") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.accent,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary,
+                    ),
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                Button(
+                    onClick = {
+                        val combined = "$promptText $deadlineAnswer".trim()
+                        isLoading = true
+                        errorMessage = null
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        scope.launch {
+                            try {
+                                refinement = onRefineCommitment(combined)
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            } catch (e: Exception) {
+                                errorMessage = "Could not refine commitment. Please try again."
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    },
+                    enabled = deadlineAnswer.isNotBlank() && !isLoading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(TouchTarget.min),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accent,
+                        contentColor = colors.surfaceMuted,
+                    ),
+                    shape = RoundedCornerShape(Radius.sm),
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = colors.surfaceMuted,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text("Add Deadline & Refine")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.xs))
+
+                TextButton(
+                    onClick = { refinement = null },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Start over", color = colors.textSecondary)
+                }
             } else {
                 val ref = refinement!!
                 Surface(
@@ -204,10 +310,10 @@ fun CommitmentRefinerSheet(
                                 color = colors.textSecondary,
                             )
                         }
-                        if (ref.clarifyingQuestion != null && ref.isAmbiguous) {
+                        if (ref.reasoning.isNotBlank()) {
                             Spacer(modifier = Modifier.height(Spacing.xs))
                             Text(
-                                text = "⚠️ ${ref.clarifyingQuestion}",
+                                text = "“${ref.reasoning}”",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary,
                             )

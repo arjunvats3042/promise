@@ -1,3 +1,4 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -33,6 +34,7 @@ from apps.ai.services import (
     refine_commitment,
     summarize_goal_chat,
 )
+from apps.goals.models import Goal, GoalParticipant
 
 
 @api_view(["POST"])
@@ -143,10 +145,14 @@ def reflection_view(request):
 def shared_goal_summary_view(request, goal_id):
     """Feature 8: Shared Goal Weekly Summary."""
     enforce_ai_rate_limit(request.user, "shared_goal_summary")
-    result = generate_shared_goal_weekly_summary(
-        user=request.user,
-        goal_id=goal_id,
+    goal = get_object_or_404(
+        Goal,
+        id=goal_id,
+        is_shared=True,
+        participants__user=request.user,
+        participants__status=GoalParticipant.Status.ACTIVE,
     )
+    result = generate_shared_goal_weekly_summary(goal=goal)
     return Response(result, status=status.HTTP_200_OK)
 
 
@@ -158,9 +164,16 @@ def chat_summary_view(request, goal_id):
     serializer = ChatSummaryRequestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
+    goal = get_object_or_404(
+        Goal,
+        id=goal_id,
+        is_shared=True,
+        participants__user=request.user,
+        participants__status=GoalParticipant.Status.ACTIVE,
+    )
+
     result = summarize_goal_chat(
-        user=request.user,
-        goal_id=goal_id,
+        goal=goal,
         limit=serializer.validated_data.get("limit", 50),
     )
     return Response(result, status=status.HTTP_200_OK)

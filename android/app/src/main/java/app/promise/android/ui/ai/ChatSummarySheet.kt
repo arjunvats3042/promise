@@ -33,7 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import app.promise.android.domain.GoalChatAiSummary
-import app.promise.android.ui.theme.LocalPromiseColors
+import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 
@@ -44,7 +44,7 @@ fun ChatSummarySheet(
     onDismiss: () -> Unit,
     onFetchSummary: suspend (String) -> GoalChatAiSummary,
 ) {
-    val colors = LocalPromiseColors.current
+    val colors = PromiseThemeColors.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var isLoading by remember { mutableStateOf(true) }
@@ -89,7 +89,7 @@ fun ChatSummarySheet(
             }
             Spacer(modifier = Modifier.height(Spacing.xs))
             Text(
-                text = "Key decisions, actions, and dates from recent conversation.",
+                text = "Key decisions, actions, dates, and open questions from recent conversation.",
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
             )
@@ -199,6 +199,24 @@ fun ChatSummarySheet(
                         items(res.importantDates) { date ->
                             Text(
                                 text = "📅 $date",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                                modifier = Modifier.padding(start = Spacing.xs),
+                            )
+                        }
+                    }
+
+                    if (res.openQuestions.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Open Questions",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = colors.textPrimary,
+                            )
+                        }
+                        items(res.openQuestions) { question ->
+                            Text(
+                                text = "❓ $question",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary,
                                 modifier = Modifier.padding(start = Spacing.xs),

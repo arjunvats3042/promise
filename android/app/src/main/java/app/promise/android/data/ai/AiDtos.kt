@@ -28,18 +28,22 @@ data class AiThoughtRequestDto(
 
 @Serializable
 data class GoalSuggestionDto(
-    val title: String,
+    val status: String = "READY",
+    @SerialName("clarification_question") val clarificationQuestion: String? = null,
+    val title: String = "",
     val description: String = "",
-    @SerialName("recurrence_kind") val recurrenceKind: String,
+    @SerialName("recurrence_kind") val recurrenceKind: String = "DAILY",
     val weekdays: List<Int> = emptyList(),
     @SerialName("period_unit") val periodUnit: String? = null,
     @SerialName("times_per_period") val timesPerPeriod: Int? = null,
-    @SerialName("tracking_kind") val trackingKind: String,
+    @SerialName("tracking_kind") val trackingKind: String = "BINARY",
     @SerialName("target_value") val targetValue: Double? = null,
     @SerialName("target_unit") val targetUnit: String = "",
     val reasoning: String = "",
 ) {
     fun toDomain(): GoalSuggestion = GoalSuggestion(
+        status = status,
+        clarificationQuestion = clarificationQuestion,
         title = title,
         description = description,
         recurrenceKind = recurrenceKind,
@@ -55,16 +59,20 @@ data class GoalSuggestionDto(
 
 @Serializable
 data class CommitmentRefinementDto(
-    @SerialName("is_ambiguous") val isAmbiguous: Boolean,
+    val status: String = "READY",
+    @SerialName("current_interpretation") val currentInterpretation: String = "",
+    @SerialName("missing_information") val missingInformation: String? = null,
     @SerialName("clarifying_question") val clarifyingQuestion: String? = null,
-    @SerialName("refined_title") val refinedTitle: String,
+    @SerialName("refined_title") val refinedTitle: String = "",
     @SerialName("refined_description") val refinedDescription: String = "",
     @SerialName("suggested_due_at") val suggestedDueAt: String? = null,
     @SerialName("suggested_due_precision") val suggestedDuePrecision: String? = null,
     val reasoning: String = "",
 ) {
     fun toDomain(): CommitmentRefinement = CommitmentRefinement(
-        isAmbiguous = isAmbiguous,
+        status = status,
+        currentInterpretation = currentInterpretation,
+        missingInformation = missingInformation,
         clarifyingQuestion = clarifyingQuestion,
         refinedTitle = refinedTitle,
         refinedDescription = refinedDescription,
@@ -79,6 +87,7 @@ data class ParsedThoughtItemDto(
     val type: String,
     val title: String,
     val description: String = "",
+    val confidence: String = "HIGH",
     @SerialName("due_at") val dueAt: String? = null,
     @SerialName("due_precision") val duePrecision: String? = null,
     @SerialName("recurrence_kind") val recurrenceKind: String? = null,
@@ -91,6 +100,7 @@ data class ParsedThoughtItemDto(
         type = type,
         title = title,
         description = description,
+        confidence = confidence,
         dueAt = dueAt,
         duePrecision = duePrecision,
         recurrenceKind = recurrenceKind,
@@ -107,29 +117,19 @@ data class ThoughtParserResponseDto(
 )
 
 @Serializable
-data class WeeklyAiFactsCommitmentsDto(
-    val total: Int = 0,
-    val completed: Int = 0,
-    val missed: Int = 0,
-)
-
-@Serializable
-data class WeeklyAiFactsGoalsDto(
+data class WeeklyAiFactsDto(
+    val period: String = "past_7_days",
+    @SerialName("commitments_total") val commitmentsTotal: Int = 0,
+    @SerialName("commitments_completed") val commitmentsCompleted: Int = 0,
+    @SerialName("commitments_overdue") val commitmentsOverdue: Int = 0,
     @SerialName("active_goals_count") val activeGoalsCount: Int = 0,
     @SerialName("check_ins_past_7_days") val checkInsPast7Days: Int = 0,
 )
 
 @Serializable
-data class WeeklyAiFactsDto(
-    val period: String = "past_7_days",
-    val commitments: WeeklyAiFactsCommitmentsDto = WeeklyAiFactsCommitmentsDto(),
-    val goals: WeeklyAiFactsGoalsDto = WeeklyAiFactsGoalsDto(),
-)
-
-@Serializable
 data class WeeklyAiInsightsContentDto(
     val summary: String,
-    @SerialName("key_patterns") val keyPatterns: List<String> = emptyList(),
+    @SerialName("observed_patterns") val observedPatterns: List<String> = emptyList(),
     @SerialName("constructive_suggestion") val constructiveSuggestion: String,
 )
 
@@ -141,15 +141,15 @@ data class WeeklyAiInsightsDto(
     fun toDomain(): WeeklyAiInsights = WeeklyAiInsights(
         facts = WeeklyAiFacts(
             period = facts.period,
-            totalCommitments = facts.commitments.total,
-            completedCommitments = facts.commitments.completed,
-            missedCommitments = facts.commitments.missed,
-            activeGoalsCount = facts.goals.activeGoalsCount,
-            checkInsPast7Days = facts.goals.checkInsPast7Days,
+            totalCommitments = facts.commitmentsTotal,
+            completedCommitments = facts.commitmentsCompleted,
+            missedCommitments = facts.commitmentsOverdue,
+            activeGoalsCount = facts.activeGoalsCount,
+            checkInsPast7Days = facts.checkInsPast7Days,
         ),
         insights = WeeklyAiInsightsContent(
             summary = insights.summary,
-            keyPatterns = insights.keyPatterns,
+            observedPatterns = insights.observedPatterns,
             constructiveSuggestion = insights.constructiveSuggestion,
         ),
     )
@@ -166,12 +166,14 @@ data class PlannedOrderItemDto(
     @SerialName("commitment_id") val commitmentId: String,
     @SerialName("suggested_time_slot") val suggestedTimeSlot: String,
     @SerialName("priority_rank") val priorityRank: Int,
+    @SerialName("is_fixed_deadline") val isFixedDeadline: Boolean = false,
     val note: String = "",
 ) {
     fun toDomain(): PlannedOrderItem = PlannedOrderItem(
         commitmentId = commitmentId,
         suggestedTimeSlot = suggestedTimeSlot,
         priorityRank = priorityRank,
+        isFixedDeadline = isFixedDeadline,
         note = note,
     )
 }
@@ -179,10 +181,12 @@ data class PlannedOrderItemDto(
 @Serializable
 data class PlannerResponseDto(
     @SerialName("planned_order") val plannedOrder: List<PlannedOrderItemDto> = emptyList(),
+    @SerialName("conflict_notes") val conflictNotes: String? = null,
     @SerialName("summary_advice") val summaryAdvice: String = "",
 ) {
     fun toDomain(): PlanningSuggestion = PlanningSuggestion(
         plannedOrder = plannedOrder.map { it.toDomain() },
+        conflictNotes = conflictNotes,
         summaryAdvice = summaryAdvice,
     )
 }
@@ -236,11 +240,13 @@ data class GoalChatAiSummaryDto(
     @SerialName("key_decisions") val keyDecisions: List<String> = emptyList(),
     @SerialName("agreed_actions") val agreedActions: List<String> = emptyList(),
     @SerialName("important_dates") val importantDates: List<String> = emptyList(),
+    @SerialName("open_questions") val openQuestions: List<String> = emptyList(),
 ) {
     fun toDomain(): GoalChatAiSummary = GoalChatAiSummary(
         summary = summary,
         keyDecisions = keyDecisions,
         agreedActions = agreedActions,
         importantDates = importantDates,
+        openQuestions = openQuestions,
     )
 }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +63,7 @@ fun GoalAiBuilderSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var promptText by remember { mutableStateOf("") }
+    var clarificationAnswer by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var suggestion by remember { mutableStateOf<GoalSuggestion?>(null) }
@@ -166,6 +168,102 @@ fun GoalAiBuilderSheet(
                     } else {
                         Text("Generate Suggestion")
                     }
+                }
+            } else if (suggestion!!.status == "NEEDS_CLARIFICATION") {
+                val sug = suggestion!!
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.md))
+                        .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(Radius.md)),
+                    color = colors.surfaceMuted,
+                ) {
+                    Column(modifier = Modifier.padding(Spacing.md)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Outlined.HelpOutline,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(modifier = Modifier.width(Spacing.xs))
+                            Text(
+                                text = "CLARIFICATION NEEDED",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.accent,
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Text(
+                            text = sug.clarificationQuestion ?: "How often would you like to practice this goal?",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = colors.textPrimary,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                OutlinedTextField(
+                    value = clarificationAnswer,
+                    onValueChange = { clarificationAnswer = it },
+                    label = { Text("E.g. 5 days a week, 30 minutes") },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.accent,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary,
+                    ),
+                )
+
+                Spacer(modifier = Modifier.height(Spacing.md))
+
+                Button(
+                    onClick = {
+                        val combined = "$promptText. Details: $clarificationAnswer".trim()
+                        isLoading = true
+                        errorMessage = null
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        scope.launch {
+                            try {
+                                suggestion = onSuggestGoal(combined)
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            } catch (e: Exception) {
+                                errorMessage = "Could not refine goal. Please try again."
+                            } finally {
+                                isLoading = false
+                            }
+                        }
+                    },
+                    enabled = clarificationAnswer.isNotBlank() && !isLoading,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(TouchTarget.min),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.accent,
+                        contentColor = colors.surfaceMuted,
+                    ),
+                    shape = RoundedCornerShape(Radius.sm),
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = colors.surfaceMuted,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text("Continue with Details")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.xs))
+
+                TextButton(
+                    onClick = { suggestion = null },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Start over", color = colors.textSecondary)
                 }
             } else {
                 val sug = suggestion!!
