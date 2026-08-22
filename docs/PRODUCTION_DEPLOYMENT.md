@@ -16,23 +16,22 @@ Promise is hosted on **Railway** with managed data and messaging tiers across **
                                           |
                                           v  (HTTPS / WSS via Cloud Load Balancer)
 +-----------------------------------------------------------------------------------+
-|                                 RAILWAY SERVICES                                  |
+|                                  RAILWAY SERVICES                                 |
 |                                                                                   |
 |  +------------------------------------+  +-------------------------------------+  |
-|  | Service 1: promise-web             |  | Service 2: promise-outbox-worker    |  |
-|  | Daphne ASGI Server                 |  | Transactional Outbox Publisher      |  |
-|  | daphne -b 0.0.0.0 -p $PORT         |  | python manage.py publish_outbox     |  |
-|  |   config.asgi:application          |  |   --continuous                      |  |
+|  | Service 1: promise-web             |  | Service 2: promise-background-wkr   |  |
+|  | Daphne ASGI Server                 |  | Outbox Publisher + Notif Dispatcher |  |
+|  | daphne -b 0.0.0.0 -p $PORT         |  | python scripts/                     |  |
+|  |   config.asgi:application          |  |   run_background_workers.py         |  |
 |  +------------------------------------+  +-------------------------------------+  |
 |                                                                                   |
-|  +------------------------------------+  +-------------------------------------+  |
-|  | Service 3: promise-goal-worker     |  | Service 4: promise-notification-wkr |  |
-|  | Kafka Goal Consumer Group          |  | FCM Reminder Dispatcher             |  |
-|  | python manage.py                   |  | python manage.py                    |  |
-|  |   consume_goal_events              |  |   run_notification_dispatcher       |  |
-|  |                                    |  |   --continuous                      |  |
-|  +------------------------------------+  +-------------------------------------+  |
-+-----------------------------------------+-----------------------------------------+
+|  +------------------------------------+                                           |
+|  | Service 3: promise-goal-worker     |                                           |
+|  | Kafka Goal Consumer Group          |                                           |
+|  | python manage.py                   |                                           |
+|  |   consume_goal_events              |                                           |
+|  +------------------------------------+                                           |
++-----------------------------------------------------------------------------------+
                                           |
         +---------------------------------+---------------------------------+
         |                                 |                                 |
@@ -48,20 +47,21 @@ Promise is hosted on **Railway** with managed data and messaging tiers across **
 ```
 
 ### Railway Service Definitions
-Every backend service uses the same repository and same Dockerfile build context (`backend/Dockerfile` with `rootDirectory = "backend"`), sharing the same environment variables.
+Every backend service uses the same repository and Dockerfile (`backend/Dockerfile`). The `healthcheckPath` is **intentionally absent** from `railway.toml` — it would apply to all services globally. Configure the healthcheck for `promise-web` only, in the Railway dashboard.
 
-| Railway Service Name | Start Command | Type / Ports | Healthcheck Path |
+| Railway Service Name | Start Command | Type / Ports | Healthcheck |
 | :--- | :--- | :--- | :--- |
-| `promise-web` | `sh -c 'daphne -b 0.0.0.0 -p "${PORT:-8000}" config.asgi:application'` (or leave empty) | Web (HTTP / WSS) | `/api/v1/health/ready/` |
-| `promise-outbox-worker` | `python manage.py publish_outbox --continuous` | Background Worker | N/A (Process Monitoring) |
-| `promise-goal-worker` | `python manage.py consume_goal_events` | Background Worker | N/A (Process Monitoring) |
-| `promise-notification-worker` | `python manage.py run_notification_dispatcher --continuous` | Background Worker | N/A (Process Monitoring) |
+| `promise-web` | *(leave empty — Dockerfile CMD runs Daphne)* | Web (HTTP / WSS) | **Dashboard only**: `Settings → Deploy → Healthcheck Path: /api/v1/health/ready/` |
+| `promise-background-worker` | `python scripts/run_background_workers.py` | Background Worker | **NONE** — no HTTP server. Clear any path in the dashboard. |
+| `promise-goal-worker` | `python manage.py consume_goal_events` | Background Worker | **NONE** — no HTTP server. Clear any path in the dashboard. |
 
 > [!IMPORTANT]
+> **Healthcheck configuration rule**: `railway.toml` applies to every service attached to this repo. Setting `healthcheckPath` there would probe worker services that have no HTTP server, causing deployment failures. The healthcheck is therefore configured **only** in the Railway dashboard for `promise-web`.
+>
 > **Network Security & Isolation**:
 > - Railway PostgreSQL and Redis must **NOT** have public TCP proxies enabled.
 > - All service-to-database communication occurs strictly over Railway's private internal network (`postgres.railway.internal`, `redis.railway.internal`).
-> - Only `promise-web` exposes a public HTTPS/WSS domain. The 3 background workers have no public ports.
+> - Only `promise-web` exposes a public HTTPS/WSS domain. Worker services have no public ports and no healthcheck.
 
 ---
 
@@ -92,8 +92,9 @@ All secrets must be configured as environment variables in Railway. Never commit
 | `KAFKA_SECURITY_PROTOCOL` | Yes | Security protocol | `SASL_SSL` |
 | `KAFKA_SASL_MECHANISM` | Yes | SASL mechanism | `SCRAM-SHA-256` |
 | `KAFKA_SASL_USERNAME` | Yes | Aiven Kafka user username | `avnadmin` |
-| `KAFKA_SASL_PASSWORD` | Yes | Aiven Kafka user password | `SecretPassword123` |
-| `KAFKA_SSL_CA_LOCATION` | No | CA cert path if custom CA is used | `""` (Uses system CAs) |
+| `KAFKA_SASL_PASSWORD` | Yes | Aiven Kafka user password | *(your Aiven password)* |
+| `KAFKA_SSL_CA_CERT` | Yes (prod) | Aiven CA certificate as a PEM string. Download `ca.pem` from Aiven console → paste full contents. **Never commit. Never log.** | *(Aiven ca.pem contents)* |
+| `KAFKA_SSL_CA_LOCATION` | No | Local filesystem CA cert path (local dev fallback only — not valid inside Railway containers). Leave empty in Railway. | `""` |
 
 ### Cryptography & Authentication
 | Variable | Required | Description / Generation |
@@ -182,22 +183,28 @@ The `apps.outbox.kafka` module automatically applies:
 
 ## 6. Background Workers & Graceful Shutdown
 
-All three worker services are designed for zero-data-loss and graceful shutdown:
+All worker services are designed for zero-data-loss and graceful shutdown.
 
-### Worker 1: Outbox Publisher
-- **Command**: `python manage.py publish_outbox --continuous`
+### Service: promise-background-worker
+- **Start Command**: `python scripts/run_background_workers.py`
+- **Behavior**: Process supervisor that starts two child workers and forwards `SIGTERM`/`SIGINT` to both. Exits non-zero if either child crashes unexpectedly (triggering Railway restart).
+- **No healthcheck** — background process with no HTTP server.
+
+#### Child A — Outbox Publisher
+- **Management command**: `python manage.py publish_outbox --continuous`
 - **Behavior**: Scans `outbox_events` table for unpublished events, publishes to Kafka with delivery callbacks, updates `published_at` timestamp.
 - **Shutdown**: Handles `SIGTERM`/`SIGINT`, finishes publishing the current batch, and terminates cleanly.
 
-### Worker 2: Goal Event Consumer
-- **Command**: `python manage.py consume_goal_events`
-- **Behavior**: Subscribes to `promise.goal.v1`, records processed event IDs in PostgreSQL `processed_events` for strict idempotency, commits Kafka offsets post-transaction.
-- **Shutdown**: Handles `SIGTERM`/`SIGINT`, closes consumer connection, and cleanly commits offset.
-
-### Worker 3: Notification Dispatcher
-- **Command**: `python manage.py run_notification_dispatcher --continuous`
+#### Child B — Notification Dispatcher
+- **Management command**: `python manage.py run_notification_dispatcher --continuous`
 - **Behavior**: Claims due reminders from PostgreSQL using transactional row locking and lease expiration, checks quiet hours and user notification preferences, delivers pushes via FCM.
 - **Shutdown**: Handles `SIGTERM`/`SIGINT`, completes active batch dispatch, and exits without leaving orphaned claimed leases.
+
+### Service: promise-goal-worker
+- **Start Command**: `python manage.py consume_goal_events`
+- **Behavior**: Subscribes to `promise.goal.v1`, records processed event IDs in PostgreSQL `processed_events` for strict idempotency, commits Kafka offsets post-transaction.
+- **Shutdown**: Handles `SIGTERM`/`SIGINT`, closes consumer connection, and cleanly commits offset.
+- **No healthcheck** — Kafka consumer with no HTTP server.
 
 ---
 
@@ -337,8 +344,10 @@ Before deploying to live infrastructure:
 - [ ] Build Docker backend container: `docker build -t promise-backend:latest ./backend`
 - [ ] Run `python manage.py check_production` under production settings
 - [ ] Provision Aiven Kafka topics (`promise.goal.v1`, `promise.commitment.v1`)
-- [ ] Provision Railway services (`promise-web`, `promise-outbox-worker`, `promise-goal-worker`, `promise-notification-worker`)
-- [ ] Configure environment variables in Railway dashboard
+- [ ] Provision Railway services: `promise-web`, `promise-background-worker`, `promise-goal-worker`
+- [ ] Configure environment variables in Railway dashboard (including `KAFKA_SSL_CA_CERT` with Aiven CA PEM)
+- [ ] Set healthcheck in Railway dashboard **only** for `promise-web`: `Settings → Deploy → Healthcheck Path: /api/v1/health/ready/`
+- [ ] Ensure `promise-background-worker` and `promise-goal-worker` have **no healthcheck path** and **no public networking**
 
 ---
 
