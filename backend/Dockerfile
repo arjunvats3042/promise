@@ -1,5 +1,6 @@
 # ==============================================================================
 # Promise Backend Production Dockerfile (Python 3.12 + ASGI Daphne)
+# Supports both repository root context and backend/ subdirectory context
 # ==============================================================================
 
 FROM python:3.12-slim-bookworm AS builder
@@ -20,12 +21,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install dependencies into a virtual environment
+# Create virtual environment
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Copy requirements from either root context (backend/requirements.txt) or backend context (requirements.txt)
+COPY . /tmp/build_context
+RUN if [ -f /tmp/build_context/backend/requirements.txt ]; then \
+        pip install -r /tmp/build_context/backend/requirements.txt; \
+    elif [ -f /tmp/build_context/requirements.txt ]; then \
+        pip install -r /tmp/build_context/requirements.txt; \
+    else \
+        echo "requirements.txt not found!" && exit 1; \
+    fi && \
+    rm -rf /tmp/build_context
 
 # ==============================================================================
 # Final Production Runtime Stage
@@ -53,11 +62,16 @@ COPY --from=builder /opt/venv /opt/venv
 # Create unprivileged application user
 RUN groupadd -r promise && useradd -r -g promise -d /app -s /sbin/nologin promise
 
-# Copy application source
-COPY --chown=promise:promise . /app
-
-# Prepare directories
-RUN mkdir -p /app/staticfiles && chown -R promise:promise /app
+# Copy application source: handles both root context and backend/ context
+COPY --chown=promise:promise . /tmp/src
+RUN if [ -d /tmp/src/backend/config ]; then \
+        cp -r /tmp/src/backend/* /app/ 2>/dev/null || true; \
+    else \
+        cp -r /tmp/src/* /app/ 2>/dev/null || true; \
+    fi && \
+    rm -rf /tmp/src && \
+    mkdir -p /app/staticfiles && \
+    chown -R promise:promise /app
 
 # Switch to non-root user
 USER promise

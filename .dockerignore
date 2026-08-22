@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+
+# Python & Virtual Environments
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+.installed.cfg
+*.egg
+.venv/
+env/
+venv/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environment Variables & Local Secrets
+.env
+.env.*
+!.env.example
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Android & Gradle
+android/
+.gradle/
+build/
+*.apk
+*.aab
+
+# Static & Documentation
+staticfiles/
+docs/
+repomix-output.xml
