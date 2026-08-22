@@ -96,6 +96,9 @@ KAFKA_SASL_MECHANISM = env("KAFKA_SASL_MECHANISM", default="SCRAM-SHA-256")
 KAFKA_SASL_USERNAME = env("KAFKA_SASL_USERNAME", default="")
 KAFKA_SASL_PASSWORD = env("KAFKA_SASL_PASSWORD", default="")
 KAFKA_SSL_CA_LOCATION = env("KAFKA_SSL_CA_LOCATION", default="")
+# PEM certificate string (preferred for Railway/cloud deploys where no filesystem
+# CA path exists). Takes precedence over KAFKA_SSL_CA_LOCATION when both are set.
+KAFKA_SSL_CA_CERT = env("KAFKA_SSL_CA_CERT", default="")
 
 AUTH_REFRESH_TOKEN_PEPPER = env("AUTH_REFRESH_TOKEN_PEPPER", default="")
 AUTH_REFRESH_TOKEN_ENCRYPTION_KEY = env(

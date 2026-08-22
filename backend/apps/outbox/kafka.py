@@ -1,7 +1,10 @@
 import json
+import logging
 
 from confluent_kafka import Consumer, KafkaException, Producer
 from django.conf import settings
+
+logger = logging.getLogger("promise")
 
 _producer = None
 
@@ -24,9 +27,18 @@ def _build_kafka_config(base_conf: dict) -> dict:
         sasl_password = getattr(settings, "KAFKA_SASL_PASSWORD", "")
         if sasl_password:
             conf["sasl.password"] = sasl_password
+        # Prefer in-memory PEM string (KAFKA_SSL_CA_CERT) — works in Railway
+        # containers where no local CA file exists.  Falls back to a filesystem
+        # path (KAFKA_SSL_CA_LOCATION) for local development.
+        # librdkafka >= 1.7 / confluent_kafka >= 2.x supports ssl.ca.pem.
+        ssl_ca_cert = getattr(settings, "KAFKA_SSL_CA_CERT", "")
         ssl_ca_location = getattr(settings, "KAFKA_SSL_CA_LOCATION", "")
-        if ssl_ca_location:
+        if ssl_ca_cert:
+            conf["ssl.ca.pem"] = ssl_ca_cert
+            logger.debug("Kafka: using ssl.ca.pem from KAFKA_SSL_CA_CERT")
+        elif ssl_ca_location:
             conf["ssl.ca.location"] = ssl_ca_location
+            logger.debug("Kafka: using ssl.ca.location from KAFKA_SSL_CA_LOCATION")
     return conf
 
 
