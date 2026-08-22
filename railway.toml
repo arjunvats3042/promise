@@ -3,25 +3,25 @@
 # ==============================================================================
 # Target: Railway Managed Infrastructure
 #
-# Dedicated Services (Attach 4 services to this repo in Railway):
+# Services attached to this repo in Railway:
 #
 # 1. promise-web:
-#    Start Command: (Leave empty to use Dockerfile CMD, or use:)
-#                   sh -c 'daphne -b 0.0.0.0 -p "${PORT:-8000}" config.asgi:application'
-#    Healthcheck:   /api/v1/health/ready/
+#    Start Command: (Leave empty — Dockerfile CMD runs Daphne)
+#    Healthcheck:   Set in Railway dashboard ONLY:
+#                     Settings → Deploy → Healthcheck Path: /api/v1/health/ready/
+#                   DO NOT set healthcheckPath here — it would apply to all services.
 #
-# 2. promise-outbox-worker:
-#    Start Command: python manage.py publish_outbox --continuous
+# 2. promise-background-worker:
+#    Start Command: python scripts/run_background_workers.py
+#    Healthcheck:   NONE (background process, no HTTP server)
 #
 # 3. promise-goal-worker:
 #    Start Command: python manage.py consume_goal_events
+#    Healthcheck:   NONE (Kafka consumer, no HTTP server)
 #
-# 4. promise-notification-worker:
-#    Start Command: python manage.py run_notification_dispatcher --continuous
-#
-# Managed Services:
-# - Railway PostgreSQL (Private network only: postgres.railway.internal)
-# - Railway Redis Key-Value (Private network only: redis.railway.internal)
+# Managed Services (private network only):
+# - Railway PostgreSQL  → postgres.railway.internal
+# - Railway Redis       → redis.railway.internal
 #
 # External Messaging:
 # - Aiven Managed Kafka (SASL_SSL / SCRAM-SHA-256)
@@ -33,7 +33,11 @@ dockerfilePath = "backend/Dockerfile"
 watchPatterns = ["backend/**"]
 
 [deploy]
-healthcheckPath = "/api/v1/health/ready/"
-healthcheckTimeout = 100
+# healthcheckPath is intentionally absent.
+# Railway applies railway.toml to EVERY service attached to this repo.
+# Worker services (background-worker, goal-worker) run no HTTP server.
+# Configure the healthcheck for promise-web in the Railway dashboard instead:
+#   Settings → Deploy → Healthcheck Path: /api/v1/health/ready/
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
+
