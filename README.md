@@ -61,30 +61,6 @@ cd android
 
 ---
 
-## Testing
-
-```bash
-# Backend Automated Tests (651 tests)
-cd backend
-./.venv/bin/pytest -v
-
-# Django System & Migration Checks
-./.venv/bin/python manage.py check
-./.venv/bin/python manage.py makemigrations --check
-
-# Android JVM Unit Tests
-cd android
-./gradlew test
-
-# Real Gemini AI External Integration (Optional / Manual)
-cd backend
-RUN_REAL_AI_TESTS=1 GEMINI_API_KEY_1="AIzaSy..." ./.venv/bin/pytest tests/test_real_ai_integration.py -v
-```
-
-See [`docs/TESTING.md`](docs/TESTING.md) for full testing documentation.
-
----
-
 ## Production Deployment
 
 Promise is configured for automated deployment to **Railway** across 4 dedicated services sharing internal networking:

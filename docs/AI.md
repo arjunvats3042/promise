@@ -89,13 +89,3 @@ The AI layer utilizes structured JSON schema definitions. All raw LLM text outpu
 - **Failure Isolation**: If the Gemini API is unreachable, rate-limited, or responds with malformed JSON, the backend returns clean `503 Service Unavailable` or `400 Bad Request` API error envelopes with localized user-friendly error codes (`AI_SERVICE_UNAVAILABLE`). The core Promise app remains 100% operational.
 
 ---
-
-## 6. Real AI Integration Testing
-
-The real integration test suite validates all 15 feature contracts against live Gemini servers.
-
-To execute the suite:
-```bash
-cd backend
-RUN_REAL_AI_TESTS=1 GEMINI_API_KEY_1="<your_api_key>" ./.venv/bin/pytest tests/test_real_ai_integration.py -v
-```

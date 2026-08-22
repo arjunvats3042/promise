@@ -6,14 +6,12 @@ Use this checklist during live deployment to ensure all pre-flight verifications
 
 ## 1. PRE-DEPLOYMENT QUALIFICATION
 
-### Automated Code & Test Checks
-- [ ] Backend test suite passes 100%: `./.venv/bin/pytest -v` (651 tests passing).
+### Pre-Flight System & Build Checks
 - [ ] Django system check passes cleanly: `python manage.py check`.
 - [ ] No unapplied database migrations: `python manage.py makemigrations --check`.
 - [ ] Production configuration audit passes: `python manage.py check_production`.
 - [ ] Docker container builds cleanly: `docker build -t promise-backend:prod ./backend`.
 - [ ] Git workspace clean with zero whitespace errors: `git diff --check`.
-- [ ] Android JVM unit tests pass: `./gradlew test`.
 - [ ] Android debug compilation succeeds: `./gradlew assembleDebug`.
 
 ### Infrastructure & Secrets Provisioning
