@@ -1,7 +1,8 @@
 package app.promise.android.notifications
 
-import android.content.Context
 import app.promise.android.domain.DeviceRegistrationRepository
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -11,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-class PromiseFirebaseMessagingService {
+class PromiseFirebaseMessagingService : FirebaseMessagingService() {
 
     @EntryPoint
     @InstallIn(SingletonComponent::class)
@@ -22,8 +23,9 @@ class PromiseFirebaseMessagingService {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    fun onNewToken(context: Context, token: String) {
-        val entryPoint = EntryPointAccessors.fromApplication(context, FcmEntryPoint::class.java)
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        val entryPoint = EntryPointAccessors.fromApplication(applicationContext, FcmEntryPoint::class.java)
         val repository = entryPoint.deviceRegistrationRepository()
         repository.storeFcmToken(token)
         scope.launch {
@@ -31,9 +33,10 @@ class PromiseFirebaseMessagingService {
         }
     }
 
-    fun onMessageReceived(context: Context, data: Map<String, String>) {
-        val parsed = NotificationPayloadParser.parse(data) ?: return
-        val entryPoint = EntryPointAccessors.fromApplication(context, FcmEntryPoint::class.java)
+    override fun onMessageReceived(message: RemoteMessage) {
+        super.onMessageReceived(message)
+        val parsed = NotificationPayloadParser.parse(message.data) ?: return
+        val entryPoint = EntryPointAccessors.fromApplication(applicationContext, FcmEntryPoint::class.java)
         val notificationManager = entryPoint.notificationManager()
         notificationManager.show(parsed)
     }
