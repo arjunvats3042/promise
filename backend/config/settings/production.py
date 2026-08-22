@@ -9,15 +9,23 @@ from .base import env
 
 DEBUG = False
 
-# Strict host allowlist from environment.
-# Must be set to production domains (e.g. api.promise.app, promise-web.up.railway.app).
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=[])
 if not ALLOWED_HOSTS:
     ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
+# Always allow Railway's internal healthcheck host
+if "healthcheck.railway.app" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append("healthcheck.railway.app")
+
 # Reverse proxy / TLS termination headers (Railway / Cloudflare / Load Balancers)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=True)
+
+# Exempt healthcheck paths from HTTPS redirect for Railway's HTTP health check
+SECURE_REDIRECT_EXEMPT = [
+    r"^api/v1/health/ready/$",
+    r"^api/v1/health/$",
+]
 
 # Cookie & Session Security
 SESSION_COOKIE_SECURE = True
