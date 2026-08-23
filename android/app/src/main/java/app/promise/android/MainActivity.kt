@@ -1,6 +1,9 @@
 package app.promise.android
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -23,6 +26,9 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var accentSession: AccentSession
     @Inject lateinit var appUpdateManager: AppUpdateManager
 
+    private val handler = Handler(Looper.getMainLooper())
+    private var isFirstResume = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -30,9 +36,6 @@ class MainActivity : ComponentActivity() {
             val systemDark = isSystemInDarkTheme()
             LaunchedEffect(systemDark) {
                 themeController.syncSystem(systemDark)
-            }
-            LaunchedEffect(Unit) {
-                appUpdateManager.checkForUpdate()
             }
             val mode by themeController.mode.collectAsStateWithLifecycle()
             val sessionAccent by accentSession.accent.collectAsStateWithLifecycle()
@@ -48,4 +51,39 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        Log.i(TAG, "MainActivity onResume")
+
+        // Delay the first check to let the Activity fully settle and the Firebase
+        // App Distribution SDK register this Activity via ActivityLifecycleCallbacks.
+        // Subsequent resumes (background → foreground) call immediately.
+        val delayMs = if (isFirstResume) FIRST_CHECK_DELAY_MS else 0L
+        isFirstResume = false
+
+        handler.removeCallbacksAndMessages(UPDATE_CHECK_TOKEN)
+        handler.postAtTime(
+            {
+                if (!isDestroyed && !isFinishing) {
+                    Log.i(TAG, "calling AppUpdateManager.checkForUpdate")
+                    appUpdateManager.checkForUpdate()
+                }
+            },
+            UPDATE_CHECK_TOKEN,
+            android.os.SystemClock.uptimeMillis() + delayMs,
+        )
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handler.removeCallbacksAndMessages(UPDATE_CHECK_TOKEN)
+    }
+
+    companion object {
+        private const val TAG = "PromiseAppUpdate"
+        private const val FIRST_CHECK_DELAY_MS = 1500L
+        private val UPDATE_CHECK_TOKEN = Any()
+    }
 }
+
