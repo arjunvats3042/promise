@@ -20,5 +20,5 @@ REASONING_FEATURES = {
 def get_model_for_feature(feature_name: str) -> str:
     """Returns configured model name based on task complexity."""
     if feature_name in FAST_FEATURES:
-        return getattr(settings, "GEMINI_FAST_MODEL", "gemini-3.6-flash")
-    return getattr(settings, "GEMINI_DEFAULT_MODEL", "gemini-3.6-flash")
+        return getattr(settings, "GEMINI_FAST_MODEL", "gemini-3.5-flash-lite")
+    return getattr(settings, "GEMINI_DEFAULT_MODEL", "gemini-3.5-flash")

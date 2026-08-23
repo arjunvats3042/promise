@@ -21,7 +21,7 @@ def validate_ai_environment() -> Dict[str, Any]:
     key_2 = str(os.environ.get("GEMINI_API_KEY_2") or getattr(settings, "GEMINI_API_KEY_2", "")).strip()
     key_3 = str(os.environ.get("GEMINI_API_KEY_3") or getattr(settings, "GEMINI_API_KEY_3", "")).strip()
 
-    model = getattr(settings, "GEMINI_DEFAULT_MODEL", "gemini-3.6-flash")
+    model = getattr(settings, "GEMINI_DEFAULT_MODEL", "gemini-3.5-flash")
     timeout = getattr(settings, "GEMINI_TIMEOUT_SECONDS", 15)
     max_tokens = getattr(settings, "GEMINI_MAX_OUTPUT_TOKENS", 1024)
 

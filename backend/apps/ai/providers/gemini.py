@@ -210,7 +210,7 @@ class GeminiProvider(AIProvider):
 
         self.default_model = (
             default_model
-            or getattr(settings, "GEMINI_DEFAULT_MODEL", "gemini-3.6-flash")
+            or getattr(settings, "GEMINI_DEFAULT_MODEL", "gemini-3.5-flash")
         )
         self.timeout = timeout or getattr(settings, "GEMINI_TIMEOUT_SECONDS", 15)
         self.max_output_tokens = (
