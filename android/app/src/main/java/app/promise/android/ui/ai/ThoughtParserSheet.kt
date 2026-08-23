@@ -174,8 +174,20 @@ fun ThoughtParserSheet(
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 } catch (_: kotlinx.coroutines.CancellationException) {
                                     // Ignored silently on lifecycle/sheet cancel
+                                } catch (e: java.net.SocketTimeoutException) {
+                                    errorMessage = "Request timed out. Please try again."
+                                } catch (e: java.io.IOException) {
+                                    errorMessage = "Cannot reach server. Check your network or backend."
+                                } catch (e: retrofit2.HttpException) {
+                                    errorMessage = when (e.code()) {
+                                        400 -> "Thought text is invalid or exceeds 500 characters."
+                                        401 -> "Session expired. Please log in again."
+                                        429 -> "Rate limit reached. Please wait a moment."
+                                        in 500..599 -> "AI service is temporarily unavailable. Please try again."
+                                        else -> "Error (${e.code()}). Please try again."
+                                    }
                                 } catch (e: Exception) {
-                                    errorMessage = "Could not parse thoughts. Please try again."
+                                    errorMessage = e.localizedMessage ?: "Could not parse thoughts. Please try again."
                                 } finally {
                                     isLoading = false
                                 }
