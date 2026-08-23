@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -15,6 +17,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +28,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.NotificationsOff
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -37,16 +51,20 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
@@ -54,12 +72,20 @@ import app.promise.android.domain.NotificationHistoryItem
 import app.promise.android.domain.NotificationPreferences
 import app.promise.android.domain.NotificationPreferencesPatch
 import app.promise.android.ui.components.PromiseHairlineDivider
+import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+
+enum class NotificationAccordion {
+    REMINDERS,
+    SHARED_GOALS,
+    WEEKLY,
+    QUIET_HOURS,
+}
 
 @Composable
 fun NotificationPreferencesSection(
@@ -72,6 +98,15 @@ fun NotificationPreferencesSection(
     val colors = PromiseThemeColors.current
     val isOsPermissionGranted = remember { NotificationManagerCompat.from(context).areNotificationsEnabled() }
     var selectedTab by remember { mutableIntStateOf(0) }
+    var expandedSections by remember { mutableStateOf(setOf<NotificationAccordion>()) }
+
+    fun toggleSection(section: NotificationAccordion) {
+        expandedSections = if (expandedSections.contains(section)) {
+            expandedSections - section
+        } else {
+            expandedSections + section
+        }
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
@@ -165,176 +200,182 @@ fun NotificationPreferencesSection(
             // Skeleton loading state while preferences fetch asynchronously
             NotificationPreferencesSkeleton()
         } else if (selectedTab == 0) {
-            // Preferences View
+            // Preferences View with Accordions
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.lg))
-                    .background(colors.surfaceMuted)
-                    .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
-                // NOTIFICATIONS - Master Toggle
-                Text(
-                    text = "NOTIFICATIONS",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.accent,
-                    letterSpacing = 1.2.sp,
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                PreferenceSwitchRow(
-                    title = "Allow Notifications",
-                    subtitle = "Master switch for all push notifications and reminders",
-                    checked = preferences.enabled,
-                    onCheckedChange = { onUpdate(NotificationPreferencesPatch(enabled = it)) },
+                // Master Toggle Card
+                MasterNotificationToggleCard(
+                    enabled = preferences.enabled,
+                    onToggle = { onUpdate(NotificationPreferencesPatch(enabled = it)) },
                 )
 
                 AnimatedVisibility(
                     visible = preferences.enabled,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut(),
+                    enter = expandVertically(animationSpec = Motion.standardTween(Motion.CompletionMs)) + fadeIn(),
+                    exit = shrinkVertically(animationSpec = Motion.exitTween(Motion.CompletionMs)) + fadeOut(),
                 ) {
-                    Column {
-                        Spacer(modifier = Modifier.height(Spacing.md))
-                        PromiseHairlineDivider()
-                        Spacer(modifier = Modifier.height(Spacing.md))
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        // 1. Reminders & Anchor Times Accordion
+                        val remindersActiveCount = listOf(
+                            preferences.commitmentsDueSoon,
+                            preferences.commitmentsDueNow,
+                            preferences.commitmentsOverdue,
+                            preferences.goalsTodayPractice,
+                            preferences.goalsStreakProtection,
+                        ).count { it }
 
-                        // REMINDERS Section
-                        Text(
-                            text = "REMINDERS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textSecondary,
-                            letterSpacing = 1.0.sp,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        PreferenceSwitchRow(
-                            title = "Due Soon",
-                            subtitle = "Prompts before upcoming commitment deadlines",
-                            checked = preferences.commitmentsDueSoon,
-                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(commitmentsDueSoon = it)) },
-                        )
-                        PreferenceSwitchRow(
-                            title = "Due Now",
-                            subtitle = "Alert at the exact moment a commitment is due",
-                            checked = preferences.commitmentsDueNow,
-                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(commitmentsDueNow = it)) },
-                        )
-                        PreferenceSwitchRow(
-                            title = "Overdue",
-                            subtitle = "Gentle prompts for unfinished commitments",
-                            checked = preferences.commitmentsOverdue,
-                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(commitmentsOverdue = it)) },
-                        )
-                        PreferenceSwitchRow(
-                            title = "Morning Practice",
-                            subtitle = "Daily morning prompt for active goals",
-                            checked = preferences.goalsTodayPractice,
-                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(goalsTodayPractice = it)) },
-                        )
-                        if (preferences.goalsTodayPractice) {
-                            TimePickerInlineRow(
-                                label = "Morning Practice Time",
-                                isoTime = preferences.morningAnchorTime,
-                                defaultHour = 8,
-                                defaultMin = 30,
-                                onSave = { timeStr ->
-                                    onUpdate(NotificationPreferencesPatch(morningAnchorTime = timeStr))
-                                },
-                            )
-                        }
-                        PreferenceSwitchRow(
-                            title = "Evening Check-In",
-                            subtitle = "Evening reflection and streak momentum",
-                            checked = preferences.goalsStreakProtection,
-                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(goalsStreakProtection = it)) },
-                        )
-                        if (preferences.goalsStreakProtection) {
-                            TimePickerInlineRow(
-                                label = "Evening Check-In Time",
-                                isoTime = preferences.eveningAnchorTime,
-                                defaultHour = 20,
-                                defaultMin = 30,
-                                onSave = { timeStr ->
-                                    onUpdate(NotificationPreferencesPatch(eveningAnchorTime = timeStr))
-                                },
-                            )
+                        val remindersSubtitle = if (remindersActiveCount == 0) {
+                            "All reminders paused"
+                        } else {
+                            val morningTime = formatTime(parseLocalTime(preferences.morningAnchorTime, 8, 30))
+                            val eveningTime = formatTime(parseLocalTime(preferences.eveningAnchorTime, 20, 30))
+                            "Morning $morningTime • Evening $eveningTime"
                         }
 
-                        Spacer(modifier = Modifier.height(Spacing.md))
-                        PromiseHairlineDivider()
-                        Spacer(modifier = Modifier.height(Spacing.md))
+                        NotificationAccordionCard(
+                            icon = Icons.Outlined.Alarm,
+                            title = "Reminders & Routines",
+                            subtitle = remindersSubtitle,
+                            statusBadge = "$remindersActiveCount/5 Active",
+                            isBadgeAccent = remindersActiveCount > 0,
+                            expanded = expandedSections.contains(NotificationAccordion.REMINDERS),
+                            onToggle = { toggleSection(NotificationAccordion.REMINDERS) },
+                        ) {
+                            PreferenceSwitchRow(
+                                title = "Due Soon",
+                                subtitle = "Prompts before upcoming commitment deadlines",
+                                checked = preferences.commitmentsDueSoon,
+                                onCheckedChange = { onUpdate(NotificationPreferencesPatch(commitmentsDueSoon = it)) },
+                            )
+                            PreferenceSwitchRow(
+                                title = "Due Now",
+                                subtitle = "Alert at the exact moment a commitment is due",
+                                checked = preferences.commitmentsDueNow,
+                                onCheckedChange = { onUpdate(NotificationPreferencesPatch(commitmentsDueNow = it)) },
+                            )
+                            PreferenceSwitchRow(
+                                title = "Overdue",
+                                subtitle = "Gentle prompts for unfinished commitments",
+                                checked = preferences.commitmentsOverdue,
+                                onCheckedChange = { onUpdate(NotificationPreferencesPatch(commitmentsOverdue = it)) },
+                            )
+                            PreferenceSwitchRow(
+                                title = "Morning Practice",
+                                subtitle = "Daily morning prompt for active goals",
+                                checked = preferences.goalsTodayPractice,
+                                onCheckedChange = { onUpdate(NotificationPreferencesPatch(goalsTodayPractice = it)) },
+                            )
+                            if (preferences.goalsTodayPractice) {
+                                TimePickerInlineRow(
+                                    label = "Morning Practice Time",
+                                    isoTime = preferences.morningAnchorTime,
+                                    defaultHour = 8,
+                                    defaultMin = 30,
+                                    onSave = { timeStr ->
+                                        onUpdate(NotificationPreferencesPatch(morningAnchorTime = timeStr))
+                                    },
+                                )
+                            }
+                            PreferenceSwitchRow(
+                                title = "Evening Check-In",
+                                subtitle = "Evening reflection and streak momentum",
+                                checked = preferences.goalsStreakProtection,
+                                onCheckedChange = { onUpdate(NotificationPreferencesPatch(goalsStreakProtection = it)) },
+                            )
+                            if (preferences.goalsStreakProtection) {
+                                TimePickerInlineRow(
+                                    label = "Evening Check-In Time",
+                                    isoTime = preferences.eveningAnchorTime,
+                                    defaultHour = 20,
+                                    defaultMin = 30,
+                                    onSave = { timeStr ->
+                                        onUpdate(NotificationPreferencesPatch(eveningAnchorTime = timeStr))
+                                    },
+                                )
+                            }
+                        }
 
-                        // SHARED GOALS Section
-                        Text(
-                            text = "SHARED GOALS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textSecondary,
-                            letterSpacing = 1.0.sp,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        PreferenceSwitchRow(
-                            title = "Shared Goal Chat",
-                            subtitle = "Messages from shared goal companions",
-                            checked = preferences.sharedGoalsChat,
-                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(sharedGoalsChat = it)) },
-                        )
-                        PreferenceSwitchRow(
-                            title = "Shared Goal Activity",
-                            subtitle = "When partners join, complete check-ins, or leave",
-                            checked = preferences.sharedGoalsActivity,
-                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(sharedGoalsActivity = it)) },
-                        )
+                        // 2. Shared Goals Accordion
+                        val sharedActiveCount = listOf(
+                            preferences.sharedGoalsChat,
+                            preferences.sharedGoalsActivity,
+                        ).count { it }
 
-                        Spacer(modifier = Modifier.height(Spacing.md))
-                        PromiseHairlineDivider()
-                        Spacer(modifier = Modifier.height(Spacing.md))
+                        NotificationAccordionCard(
+                            icon = Icons.Outlined.Group,
+                            title = "Shared Goals & Chat",
+                            subtitle = if (sharedActiveCount == 0) "Partner alerts paused" else "Group chat & check-in activity",
+                            statusBadge = "$sharedActiveCount/2 Active",
+                            isBadgeAccent = sharedActiveCount > 0,
+                            expanded = expandedSections.contains(NotificationAccordion.SHARED_GOALS),
+                            onToggle = { toggleSection(NotificationAccordion.SHARED_GOALS) },
+                        ) {
+                            PreferenceSwitchRow(
+                                title = "Shared Goal Chat",
+                                subtitle = "Messages from shared goal companions",
+                                checked = preferences.sharedGoalsChat,
+                                onCheckedChange = { onUpdate(NotificationPreferencesPatch(sharedGoalsChat = it)) },
+                            )
+                            PreferenceSwitchRow(
+                                title = "Shared Goal Activity",
+                                subtitle = "When partners join, complete check-ins, or leave",
+                                checked = preferences.sharedGoalsActivity,
+                                onCheckedChange = { onUpdate(NotificationPreferencesPatch(sharedGoalsActivity = it)) },
+                            )
+                        }
 
-                        // WEEKLY Section
-                        Text(
-                            text = "WEEKLY",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textSecondary,
-                            letterSpacing = 1.0.sp,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        PreferenceSwitchRow(
+                        // 3. Weekly Digest Accordion
+                        NotificationAccordionCard(
+                            icon = Icons.Outlined.DateRange,
                             title = "Weekly Digest",
                             subtitle = "Sunday recap of completed commitments & practices",
-                            checked = preferences.weeklyDigestEnabled,
-                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(weeklyDigestEnabled = it)) },
-                        )
-
-                        Spacer(modifier = Modifier.height(Spacing.md))
-                        PromiseHairlineDivider()
-                        Spacer(modifier = Modifier.height(Spacing.md))
-
-                        // QUIET HOURS Section
-                        Text(
-                            text = "QUIET HOURS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textSecondary,
-                            letterSpacing = 1.0.sp,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        PreferenceSwitchRow(
-                            title = "Enable Quiet Hours",
-                            subtitle = "Silence non-urgent alerts during rest",
-                            checked = preferences.quietHoursEnabled,
-                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(quietHoursEnabled = it)) },
-                        )
-
-                        if (preferences.quietHoursEnabled) {
-                            QuietHoursTimePickerRow(
-                                startIso = preferences.quietHoursStart,
-                                endIso = preferences.quietHoursEnd,
-                                onSave = { start, end ->
-                                    onUpdate(NotificationPreferencesPatch(quietHoursStart = start, quietHoursEnd = end))
-                                },
+                            statusBadge = if (preferences.weeklyDigestEnabled) "Active" else "Off",
+                            isBadgeAccent = preferences.weeklyDigestEnabled,
+                            expanded = expandedSections.contains(NotificationAccordion.WEEKLY),
+                            onToggle = { toggleSection(NotificationAccordion.WEEKLY) },
+                        ) {
+                            PreferenceSwitchRow(
+                                title = "Weekly Digest Summary",
+                                subtitle = "Receive a comprehensive summary every Sunday evening",
+                                checked = preferences.weeklyDigestEnabled,
+                                onCheckedChange = { onUpdate(NotificationPreferencesPatch(weeklyDigestEnabled = it)) },
                             )
+                        }
+
+                        // 4. Quiet Hours Accordion
+                        val quietHoursStart = parseLocalTime(preferences.quietHoursStart, 22, 0)
+                        val quietHoursEnd = parseLocalTime(preferences.quietHoursEnd, 8, 0)
+                        val quietHoursFormatted = "${formatTime(quietHoursStart)} – ${formatTime(quietHoursEnd)}"
+
+                        NotificationAccordionCard(
+                            icon = Icons.Outlined.Bedtime,
+                            title = "Quiet Hours",
+                            subtitle = if (preferences.quietHoursEnabled) quietHoursFormatted else "Silence non-urgent alerts during rest",
+                            statusBadge = if (preferences.quietHoursEnabled) "Active" else "Off",
+                            isBadgeAccent = preferences.quietHoursEnabled,
+                            expanded = expandedSections.contains(NotificationAccordion.QUIET_HOURS),
+                            onToggle = { toggleSection(NotificationAccordion.QUIET_HOURS) },
+                        ) {
+                            PreferenceSwitchRow(
+                                title = "Enable Quiet Hours",
+                                subtitle = "Silence non-urgent alerts during rest",
+                                checked = preferences.quietHoursEnabled,
+                                onCheckedChange = { onUpdate(NotificationPreferencesPatch(quietHoursEnabled = it)) },
+                            )
+                            if (preferences.quietHoursEnabled) {
+                                QuietHoursTimePickerRow(
+                                    startIso = preferences.quietHoursStart,
+                                    endIso = preferences.quietHoursEnd,
+                                    onSave = { start, end ->
+                                        onUpdate(NotificationPreferencesPatch(quietHoursStart = start, quietHoursEnd = end))
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -346,6 +387,7 @@ fun NotificationPreferencesSection(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(Radius.lg))
                     .background(colors.surfaceMuted)
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(Radius.lg))
                     .padding(Spacing.cardPadding),
             ) {
                 Text(
@@ -376,6 +418,218 @@ fun NotificationPreferencesSection(
                             NotificationHistoryCard(item = item)
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MasterNotificationToggleCard(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = PromiseThemeColors.current
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(colors.surfaceMuted)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(Radius.lg))
+            .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = TouchTarget.min)
+                .toggleable(
+                    value = enabled,
+                    role = Role.Switch,
+                    onValueChange = onToggle,
+                )
+                .semantics {
+                    contentDescription = "Allow Notifications master switch, ${if (enabled) "Enabled" else "Disabled"}"
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                modifier = Modifier.weight(1f).padding(end = Spacing.md),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(Radius.sm))
+                        .background(if (enabled) colors.accent.copy(alpha = 0.15f) else colors.surfaceRaised),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (enabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
+                        contentDescription = null,
+                        tint = if (enabled) colors.accent else colors.textSecondary,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+
+                Column {
+                    Text(
+                        text = "Allow Notifications",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (enabled) "Push notifications & reminders active" else "All alerts and routine reminders are paused",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
+            }
+
+            Switch(
+                checked = enabled,
+                onCheckedChange = null,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.onPrimaryControl,
+                    checkedTrackColor = colors.primaryControl,
+                    uncheckedThumbColor = colors.textSecondary,
+                    uncheckedTrackColor = colors.surfaceRaised,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun NotificationAccordionCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    statusBadge: String? = null,
+    isBadgeAccent: Boolean = false,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = Motion.standardTween(Motion.CompletionMs),
+        label = "chevronRotation",
+    )
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(colors.surfaceMuted)
+            .border(
+                1.dp,
+                if (expanded) colors.accent.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
+                RoundedCornerShape(Radius.lg),
+            )
+            .animateContentSize(animationSpec = Motion.standardTween(Motion.CompletionMs)),
+    ) {
+        // Accordion Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = TouchTarget.min)
+                .clickable(onClick = onToggle)
+                .semantics {
+                    contentDescription = "$title accordion, $subtitle. ${if (expanded) "Expanded" else "Collapsed"}. Double tap to toggle."
+                }
+                .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                modifier = Modifier.weight(1f).padding(end = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(Radius.sm))
+                        .background(if (expanded) colors.accent.copy(alpha = 0.15f) else colors.surfaceRaised),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = if (expanded) colors.accent else colors.textSecondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                if (statusBadge != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.sm))
+                            .background(if (isBadgeAccent) colors.accent.copy(alpha = 0.15f) else colors.surfaceRaised)
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    ) {
+                        Text(
+                            text = statusBadge,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = if (isBadgeAccent) colors.accent else colors.textSecondary,
+                        )
+                    }
+                }
+
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = colors.textSecondary,
+                    modifier = Modifier
+                        .size(22.dp)
+                        .rotate(rotation),
+                )
+            }
+        }
+
+        // Accordion Expandable Content
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(animationSpec = Motion.standardTween(Motion.CompletionMs)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = Motion.exitTween(Motion.CompletionMs)) + fadeOut(),
+        ) {
+            Column {
+                PromiseHairlineDivider()
+                Column(
+                    modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.xs),
+                ) {
+                    content()
                 }
             }
         }
@@ -457,6 +711,7 @@ private fun TimePickerInlineRow(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = TouchTarget.min)
+            .clip(RoundedCornerShape(Radius.sm))
             .clickable {
                 TimePickerDialog(
                     context,
@@ -481,12 +736,27 @@ private fun TimePickerInlineRow(
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
         )
-        Text(
-            text = formatted,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.accent,
-        )
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(Radius.sm))
+                .background(colors.accent.copy(alpha = 0.12f))
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.AccessTime,
+                contentDescription = null,
+                tint = colors.accent,
+                modifier = Modifier.size(14.dp),
+            )
+            Text(
+                text = formatted,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.accent,
+            )
+        }
     }
 }
 
@@ -508,6 +778,7 @@ private fun QuietHoursTimePickerRow(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = TouchTarget.min)
+            .clip(RoundedCornerShape(Radius.sm))
             .clickable {
                 showQuietHoursDialogs(context, startTime, endTime, onSave)
             }
@@ -524,12 +795,28 @@ private fun QuietHoursTimePickerRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
-            Text(
-                text = formatted,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.accent,
-            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Radius.sm))
+                    .background(colors.accent.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Bedtime,
+                    contentDescription = null,
+                    tint = colors.accent,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = formatted,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.accent,
+                )
+            }
         }
         TextButton(
             onClick = { showQuietHoursDialogs(context, startTime, endTime, onSave) },
@@ -634,52 +921,27 @@ private fun NotificationPreferencesSkeleton(
     val colors = PromiseThemeColors.current
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.lg))
-            .background(colors.surfaceMuted)
-            .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
+        // Master skeleton card
         Box(
             modifier = Modifier
-                .width(100.dp)
-                .height(14.dp)
-                .clip(RoundedCornerShape(Radius.sm))
-                .background(colors.surfaceRaised),
+                .fillMaxWidth()
+                .height(72.dp)
+                .clip(RoundedCornerShape(Radius.lg))
+                .background(colors.surfaceMuted),
         )
-        Spacer(modifier = Modifier.height(Spacing.md))
+
+        // Accordion skeleton cards
         repeat(4) {
-            Row(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = Spacing.sm),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .width(140.dp)
-                            .height(16.dp)
-                            .clip(RoundedCornerShape(Radius.sm))
-                            .background(colors.surfaceRaised),
-                    )
-                    Spacer(modifier = Modifier.height(Spacing.xxs))
-                    Box(
-                        modifier = Modifier
-                            .width(200.dp)
-                            .height(12.dp)
-                            .clip(RoundedCornerShape(Radius.sm))
-                            .background(colors.surfaceRaised.copy(alpha = 0.6f)),
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(width = 44.dp, height = 24.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(colors.surfaceRaised),
-                )
-            }
+                    .height(64.dp)
+                    .clip(RoundedCornerShape(Radius.lg))
+                    .background(colors.surfaceMuted),
+            )
         }
     }
 }

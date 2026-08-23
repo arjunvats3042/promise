@@ -380,3 +380,46 @@ fun computeNotificationId(identityKey: String): Int {
 - When the participant navigates away or disconnects, the presence key is deleted immediately.
 - **FCM Optimization**: During `dispatch_due_reminders`, if a valid presence key exists for the target recipient and goal, the FCM push is suppressed (`PRESENCE_ACTIVE_IN_CHAT`) to prevent noisy duplicate alerts while the user is actively reading the live chat.
 - **Correctness Guarantees**: Presence is purely an optimization. If Redis is unavailable or the presence key has expired, the dispatcher safely falls back to standard FCM push dispatch.
+
+---
+
+## 12. Phase 10.5 / Batch 16 — Notification Preferences & In-App History UI
+
+### 12.1. Server-Side Preference Contract
+The mobile client synchronizes durable settings via `GET` / `PATCH /api/v1/notifications/preferences/`:
+
+```json
+{
+  "enabled": true,
+  "commitments_due_soon": true,
+  "commitments_due_now": true,
+  "commitments_overdue": true,
+  "goals_daily_reminder": true,
+  "goals_daily_reminder_time": "08:30:00",
+  "goals_evening_reminder": true,
+  "goals_evening_reminder_time": "20:30:00",
+  "shared_goals_activity": true,
+  "shared_goals_chat": true,
+  "weekly_digest_enabled": false,
+  "quiet_hours_enabled": true,
+  "quiet_hours_start": "22:00:00",
+  "quiet_hours_end": "08:00:00"
+}
+```
+
+### 12.2. Visual Organization on Profile
+The UI in `NotificationPreferencesSection.kt` is structured into 6 calm, accessible sections:
+1. **NOTIFICATIONS**: Master toggle (`enabled`) controlling all push dispatch.
+2. **REMINDERS**:
+   - Due Soon, Due Now, Overdue toggles.
+   - Morning Practice toggle + inline `TimePickerDialog` for `goals_daily_reminder_time`.
+   - Evening Check-In toggle + inline `TimePickerDialog` for `goals_evening_reminder_time`.
+3. **SHARED GOALS**: Chat Messages & Activity Updates toggles.
+4. **WEEKLY**: Weekly Digest toggle.
+5. **QUIET HOURS**: Enable toggle + Start/End range picker dialog for `quiet_hours_start` and `quiet_hours_end`.
+6. **HISTORY**: Paginated delivery history cards via `GET /api/v1/notifications/history/?page=1` showing category badges, formatted timestamps, status, title, and body.
+
+### 12.3. Loading & Error Resilience
+- Layout-preserving skeleton during initial async fetch (zero disappearing views).
+- Optimistic toggle state updates with automatic rollback on network failure.
+- Full TalkBack accessibility with 48dp touch targets and announced switch states.
