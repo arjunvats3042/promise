@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -429,3 +430,136 @@ fun PromiseErrorBanner(
         }
     }
 }
+
+enum class DayProgressState {
+    Completed,
+    Pending,
+    Missed,
+    Inactive,
+}
+
+@Composable
+fun PromiseWeeklyProgressDots(
+    days: List<Pair<String, DayProgressState>>, // e.g. ("Mon", Completed), ("Tue", Completed), etc.
+    modifier: Modifier = Modifier,
+) {
+    val colors = PromiseThemeColors.current
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        days.forEach { (dayLabel, state) ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = dayLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textSecondary,
+                    fontWeight = FontWeight.Medium,
+                )
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when (state) {
+                                DayProgressState.Completed -> colors.accent.copy(alpha = 0.2f)
+                                DayProgressState.Pending -> colors.surfaceMuted
+                                DayProgressState.Missed -> MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                                DayProgressState.Inactive -> colors.surfaceMuted.copy(alpha = 0.5f)
+                            },
+                        )
+                        .border(
+                            1.dp,
+                            when (state) {
+                                DayProgressState.Completed -> colors.accent
+                                DayProgressState.Pending -> MaterialTheme.colorScheme.outline
+                                DayProgressState.Missed -> MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
+                                DayProgressState.Inactive -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            },
+                            CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    when (state) {
+                        DayProgressState.Completed -> {
+                            Text(
+                                text = "✓",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.accent,
+                            )
+                        }
+                        DayProgressState.Pending -> {
+                            Text(
+                                text = "○",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textSecondary,
+                            )
+                        }
+                        DayProgressState.Missed -> {
+                            Text(
+                                text = "✕",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        DayProgressState.Inactive -> {
+                            Text(
+                                text = "·",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textSecondary.copy(alpha = 0.4f),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PromiseStatusChip(
+    label: String,
+    modifier: Modifier = Modifier,
+    isWarning: Boolean = false,
+    isAccent: Boolean = false,
+) {
+    val colors = PromiseThemeColors.current
+    val bg = when {
+        isAccent -> colors.accent.copy(alpha = 0.12f)
+        isWarning -> colors.warning.copy(alpha = 0.12f)
+        else -> colors.surfaceMuted
+    }
+    val fg = when {
+        isAccent -> colors.accent
+        isWarning -> colors.warning
+        else -> colors.textSecondary
+    }
+    val border = when {
+        isAccent -> colors.accent.copy(alpha = 0.3f)
+        isWarning -> colors.warning.copy(alpha = 0.3f)
+        else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(Radius.sm))
+            .background(bg)
+            .border(1.dp, border, RoundedCornerShape(Radius.sm))
+            .padding(horizontal = Spacing.xs + 2.dp, vertical = Spacing.xxs),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = fg,
+        )
+    }
+}
+

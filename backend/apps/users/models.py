@@ -14,6 +14,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     timezone = models.CharField(max_length=63, default="Asia/Kolkata")
     email_verified = models.BooleanField(default=False)
     google_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    avatar_url = models.CharField(max_length=1024, blank=True, default="")
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(default=django_timezone.now)

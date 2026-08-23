@@ -35,5 +35,6 @@ class UserLookupQuerySerializer(serializers.Serializer):
 class UserLookupSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "name", "email")
+        fields = ("id", "name", "email", "avatar_url")
         read_only_fields = fields
+

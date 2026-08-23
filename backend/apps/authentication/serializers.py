@@ -99,6 +99,7 @@ class UserResponseSerializer(serializers.ModelSerializer):
             "id",
             "email",
             "name",
+            "avatar_url",
             "timezone",
             "email_verified",
             "has_password",

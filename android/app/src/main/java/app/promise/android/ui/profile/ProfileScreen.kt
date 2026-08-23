@@ -1,5 +1,8 @@
 package app.promise.android.ui.profile
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,6 +51,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.promise.android.BuildConfig
 import app.promise.android.domain.UserSession
 import app.promise.android.ui.auth.GreetingClock
+import app.promise.android.ui.components.AvatarSize
+import app.promise.android.ui.components.PromiseAvatar
 import app.promise.android.ui.components.PromiseGreetingText
 import app.promise.android.ui.components.PromiseHairlineDivider
 import app.promise.android.ui.components.TabSwipeContainer
@@ -69,51 +74,43 @@ data class FaqItem(
 val PROMISE_FAQS = listOf(
     FaqItem(
         question = "1. What is Promise?",
-        answer = "Promise is a focused workspace combining one-time deadline commitments, daily recurring practice routines, and shared partner accountability.",
+        answer = "Promise is a calm accountability app that combines one-time deadline commitments, recurring practice routines, and shared partner goals.",
     ),
     FaqItem(
-        question = "2. What is the difference between a Goal and a Commitment?",
-        answer = "A Commitment is a single promise with a specific due date. A Goal is an ongoing recurring practice to build long-term consistency.",
+        question = "2. What is a Commitment?",
+        answer = "A Commitment is a bounded promise with a specific due date and time. It helps you stay true to high-leverage tasks.",
     ),
     FaqItem(
-        question = "3. How does Thought → Promise work?",
-        answer = "Enter a natural thought or brain dump into the AI assistant to instantly convert it into structured commitments or recurring goals.",
+        question = "3. What is a Goal?",
+        answer = "A Goal is an ongoing recurring practice (e.g. daily, weekdays, or N times per week) designed to build lasting consistency.",
     ),
     FaqItem(
-        question = "4. How do Shared Goals help with accountability?",
-        answer = "Partner with friends on mutual goals to share check-in activity and group chat while keeping individual privacy intact.",
+        question = "4. How do Shared Goals work?",
+        answer = "You invite friends or teammates to a mutual goal. You see each other's check-ins, celebrate milestones, and chat in a private group channel.",
     ),
     FaqItem(
-        question = "5. What are Weekly Insights?",
-        answer = "Weekly Insights provide visual analytics on your completion rates and time-of-day momentum patterns to help optimize your routines.",
+        question = "5. How do notifications work?",
+        answer = "Promise delivers quiet, timely alerts for due commitments, daily morning practice routines, evening streak protection, and shared group activity.",
     ),
     FaqItem(
-        question = "6. How do Smart Reminders work?",
-        answer = "Configure customizable alerts for upcoming deadlines, exact due moments, morning routines, evening check-ins, and overnight quiet hours.",
+        question = "6. Can I use Promise with friends?",
+        answer = "Yes! You can invite friends to any goal with an invite code or link and practice together with shared accountability.",
     ),
     FaqItem(
-        question = "7. What does Promise AI actually do?",
-        answer = "AI helps structure goals, refine commitments, parse thoughts, and summarize long group chats. It never takes actions without your confirmation.",
+        question = "7. What does AI do?",
+        answer = "AI helps refine vague thoughts into structured commitments, builds goal schedules from natural language, and summarizes group discussions.",
     ),
     FaqItem(
         question = "8. Does AI create things automatically?",
-        answer = "No. AI only provides structured suggestions. Nothing is saved or scheduled until you review and confirm.",
+        answer = "No. AI only suggests structured options. Nothing is created or scheduled until you review and explicitly tap Confirm & Create.",
     ),
     FaqItem(
-        question = "9. What information is sent to AI?",
-        answer = "Only the specific prompt or chat context you choose to process is sent to Google Gemini for processing.",
+        question = "9. What data does Promise send to AI?",
+        answer = "Only the specific prompt, thought text, or chat snippet you request refinement for is sent to Google Gemini. No extraneous personal data is shared.",
     ),
     FaqItem(
-        question = "10. How is my account/data protected?",
-        answer = "Your data is securely authenticated via Google Sign-In with protected session management and instant account deletion support.",
-    ),
-    FaqItem(
-        question = "11. How do I control notifications?",
-        answer = "Customize master toggles, specific reminder categories, anchor times, and quiet hours under Notifications & Reminders above.",
-    ),
-    FaqItem(
-        question = "12. How do I delete my account?",
-        answer = "You can permanently delete your account, cancel all active commitments and goals, and sign out at any time from this screen.",
+        question = "10. How do I delete my account?",
+        answer = "Tap 'Delete account' at the bottom of this screen. Your personal data is immediately anonymized, all active commitments are cancelled, and you are signed out.",
     ),
 )
 
@@ -124,17 +121,27 @@ fun ProfileScreen(
 ) {
     val mode by viewModel.mode.collectAsStateWithLifecycle()
     val user by viewModel.user.collectAsStateWithLifecycle()
+    val photoUri by viewModel.photoUri.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
-    val notificationHistory by viewModel.notificationHistory.collectAsStateWithLifecycle()
+    val unreadHistory by viewModel.unreadHistory.collectAsStateWithLifecycle()
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
     val isSendingTest by viewModel.isSendingTest.collectAsStateWithLifecycle()
     val testSuccessMessage by viewModel.testSuccessMessage.collectAsStateWithLifecycle()
 
+    var showPhotoOptionsDialog by remember { mutableStateOf(false) }
     var showLogoutAllDialog by remember { mutableStateOf(false) }
     var showRevokeOtherDialog by remember { mutableStateOf(false) }
     var sessionToRevoke by remember { mutableStateOf<UserSession?>(null) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var expandedFaqIndex by remember { mutableStateOf<Int?>(null) }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) {
+            viewModel.updateProfilePhoto(uri)
+        }
+    }
 
     val colors = PromiseThemeColors.current
     val swipeHost = LocalTabSwipeHost.current
@@ -167,7 +174,7 @@ fun ProfileScreen(
                     .padding(horizontal = Spacing.inset)
                     .padding(top = Spacing.lg, bottom = Spacing.xxl),
             ) {
-                // Profile header card
+                // Profile header card: Prominent avatar, greeting, editorial serif name, email, and change action
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -179,20 +186,22 @@ fun ProfileScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.background)
-                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = initials,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = colors.textPrimary,
-                            )
-                        }
+                        val effectivePhoto = photoUri ?: user?.avatarUrl
+                        PromiseAvatar(
+                            initials = initials,
+                            photoPath = effectivePhoto,
+                            size = AvatarSize.LG,
+                            onClick = {
+                                if (effectivePhoto != null) {
+                                    showPhotoOptionsDialog = true
+                                } else {
+                                    photoPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                    )
+                                }
+                            },
+                            contentDescription = "Profile photo. Tap to choose from gallery",
+                        )
                         Column(modifier = Modifier.weight(1f)) {
                             PromiseGreetingText(text = greeting)
                             Spacer(modifier = Modifier.height(Spacing.xxs))
@@ -207,6 +216,21 @@ fun ProfileScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary,
                             )
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            Text(
+                                text = "Choose profile picture",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.accent,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(Radius.sm))
+                                    .clickable {
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                        )
+                                    }
+                                    .padding(vertical = 2.dp),
+                            )
                         }
                     }
                 }
@@ -215,8 +239,10 @@ fun ProfileScreen(
                 // Notifications Section
                 NotificationPreferencesSection(
                     preferences = preferences,
-                    history = notificationHistory,
+                    unreadHistory = unreadHistory,
                     onUpdate = { patch -> viewModel.updatePreferences(patch) },
+                    onOpenNotification = { item -> viewModel.openNotification(item) },
+                    onMarkAllRead = { viewModel.markAllNotificationsRead() },
                     onSendTest = { viewModel.sendTestNotification() },
                     isSendingTest = isSendingTest,
                     testSuccessMessage = testSuccessMessage,
@@ -224,7 +250,7 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.section))
 
-                // Security & Account Section
+                // Security & Account Section (Google-only)
                 Text(
                     text = "Security & Account",
                     style = MaterialTheme.typography.titleLarge,
@@ -252,7 +278,7 @@ fun ProfileScreen(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Connected • $email",
+                                text = "Connected · $email",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.accent,
                             )
@@ -347,7 +373,7 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.section))
 
-                // Help & FAQ Section
+                // Help & FAQ Section (Concise 10 Items with 48dp touch targets)
                 Text(
                     text = "Help & FAQ",
                     style = MaterialTheme.typography.titleLarge,
@@ -364,9 +390,9 @@ fun ProfileScreen(
                 ) {
                     PROMISE_FAQS.forEachIndexed { index, item ->
                         if (index > 0) {
-                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            Spacer(modifier = Modifier.height(Spacing.xs))
                             PromiseHairlineDivider()
-                            Spacer(modifier = Modifier.height(Spacing.sm))
+                            Spacer(modifier = Modifier.height(Spacing.xs))
                         }
                         FaqAccordionRow(
                             item = item,
@@ -650,6 +676,55 @@ fun ProfileScreen(
             shape = RoundedCornerShape(Radius.md),
         )
     }
+
+    if (showPhotoOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showPhotoOptionsDialog = false },
+            title = {
+                Text(
+                    text = "Profile Picture",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.textPrimary,
+                )
+            },
+            text = {
+                Text(
+                    text = "Choose a new photo from your gallery or remove the existing one.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textSecondary,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPhotoOptionsDialog = false
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                        )
+                    },
+                ) {
+                    Text("Choose from Gallery", color = colors.accent, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            showPhotoOptionsDialog = false
+                            viewModel.clearProfilePhoto()
+                        },
+                    ) {
+                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                    }
+                    TextButton(onClick = { showPhotoOptionsDialog = false }) {
+                        Text("Cancel", color = colors.textSecondary)
+                    }
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(Radius.md),
+        )
+    }
 }
 
 @Composable
@@ -660,7 +735,7 @@ fun FaqAccordionRow(
 ) {
     val colors = PromiseThemeColors.current
     val stateDescription = if (expanded) "expanded" else "collapsed"
-    val semanticsDesc = "${item.question}, $stateDescription"
+    val semanticsDesc = "${item.question}, $stateDescription. Double tap to toggle."
 
     Column(
         modifier = Modifier
@@ -681,7 +756,7 @@ fun FaqAccordionRow(
         ) {
             Text(
                 text = item.question,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
                 modifier = Modifier.weight(1f),
@@ -691,10 +766,11 @@ fun FaqAccordionRow(
                 imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                 contentDescription = null,
                 tint = colors.textSecondary,
+                modifier = Modifier.size(20.dp),
             )
         }
         if (expanded) {
-            Spacer(modifier = Modifier.height(Spacing.sm))
+            Spacer(modifier = Modifier.height(Spacing.xs))
             Text(
                 text = item.answer,
                 style = MaterialTheme.typography.bodyMedium,

@@ -208,3 +208,7 @@ GEMINI_FAST_MODEL = env("GEMINI_FAST_MODEL", default="gemini-3.5-flash-lite")
 GEMINI_TIMEOUT_SECONDS = env.int("GEMINI_TIMEOUT_SECONDS", default=15)
 GEMINI_MAX_OUTPUT_TOKENS = env.int("GEMINI_MAX_OUTPUT_TOKENS", default=1024)
 
+# Media Files (User Uploads, Avatars)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+

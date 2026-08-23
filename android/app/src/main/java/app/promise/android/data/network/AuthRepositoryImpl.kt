@@ -4,10 +4,14 @@ import app.promise.android.core.AppLog
 import app.promise.android.data.local.TokenStore
 import app.promise.android.domain.AuthRepository
 import app.promise.android.domain.SessionState
+import app.promise.android.domain.User
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class AuthRepositoryImpl(
     private val publicApi: AuthApi,
@@ -312,6 +316,36 @@ class AuthRepositoryImpl(
     override suspend fun getSecurityEvents(): List<app.promise.android.domain.SecurityEventItem> {
         return try {
             authedApi.getSecurityEvents().results.map { it.toDomain() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun uploadProfilePhoto(bytes: ByteArray, mimeType: String): User {
+        return try {
+            val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val part = MultipartBody.Part.createFormData("photo", "avatar.jpg", requestBody)
+            val response = authedApi.uploadProfilePhoto(part)
+            val user = response.user.toDomain()
+            memory.setUser(user)
+            _session.value = SessionState.Authenticated(user)
+            user
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
+    override suspend fun deleteProfilePhoto(): User {
+        return try {
+            val response = authedApi.deleteProfilePhoto()
+            val user = response.user.toDomain()
+            memory.setUser(user)
+            _session.value = SessionState.Authenticated(user)
+            user
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {

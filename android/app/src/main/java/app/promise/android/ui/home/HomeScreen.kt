@@ -69,10 +69,17 @@ import app.promise.android.domain.HomeCommitment
 import app.promise.android.domain.HomePractice
 import app.promise.android.ui.ai.ThoughtParserSheet
 import app.promise.android.ui.ai.WeeklyInsightsCard
+import app.promise.android.ui.components.AvatarSize
+import app.promise.android.ui.components.PromiseAvatar
+import app.promise.android.ui.components.PromiseCardSurface
 import app.promise.android.ui.components.PromiseFeedSkeleton
 import app.promise.android.ui.components.PromiseGreetingText
 import app.promise.android.ui.components.PromiseHairlineDivider
+import app.promise.android.ui.components.PromiseLinearProgressBar
 import app.promise.android.ui.components.PromiseModalSheet
+import app.promise.android.ui.components.PromiseSectionHeader
+import app.promise.android.ui.components.PromiseStatusChip
+import app.promise.android.ui.components.PromiseStreakBadge
 import app.promise.android.ui.theme.Alpha
 import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseThemeColors
@@ -91,6 +98,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val photoUri by viewModel.photoUri.collectAsStateWithLifecycle()
     val weeklyInsightsState by viewModel.weeklyInsightsState.collectAsStateWithLifecycle()
     val dailyMotivationState by viewModel.dailyMotivationState.collectAsStateWithLifecycle()
     var countPractice by remember { mutableStateOf<HomePractice?>(null) }
@@ -128,6 +136,7 @@ fun HomeScreen(
             ) {
                 HomeContent(
                     model = s.value,
+                    photoUri = photoUri,
                     weeklyInsightsState = weeklyInsightsState,
                     dailyMotivationState = dailyMotivationState,
                     onOpenProfile = onOpenProfile,
@@ -237,6 +246,7 @@ private fun HomeError(
 @Composable
 private fun HomeContent(
     model: HomeUiModel,
+    photoUri: String?,
     weeklyInsightsState: WeeklyInsightsUiState,
     dailyMotivationState: DailyMotivationUiState,
     onOpenProfile: () -> Unit,
@@ -252,12 +262,19 @@ private fun HomeContent(
 ) {
     val colors = PromiseThemeColors.current
     val reduceMotion = rememberReduceMotion()
+    var showAllCommitments by remember { mutableStateOf(false) }
 
     val personalPractices = remember(model.practices) {
         model.practices.filter { !it.isShared }
     }
     val sharedPractices = remember(model.practices) {
         model.practices.filter { it.isShared }
+    }
+
+    val visibleCommitments = if (showAllCommitments || model.commitments.size <= 4) {
+        model.commitments
+    } else {
+        model.commitments.take(4)
     }
 
     LazyColumn(
@@ -276,6 +293,7 @@ private fun HomeContent(
                 userName = model.userName,
                 dateLabel = model.dateLabel,
                 initials = model.initials,
+                photoUri = photoUri,
                 onOpenProfile = onOpenProfile,
                 onOpenSearch = onOpenSearch,
             )
@@ -361,12 +379,17 @@ private fun HomeContent(
 
         // 2. TODAY (Today's Commitments)
         item {
-            Text(
-                text = "Today",
-                style = MaterialTheme.typography.titleLarge,
-                color = colors.textPrimary,
+            PromiseSectionHeader(
+                title = "Today",
+                subtitle = if (model.commitments.isNotEmpty()) {
+                    "${model.commitments.count { it.isCompleted }} of ${model.commitments.size} completed"
+                } else null,
+                actionLabel = if (model.commitments.size > 4) {
+                    if (showAllCommitments) "Show less" else "View all (${model.commitments.size})"
+                } else null,
+                onActionClick = { showAllCommitments = !showAllCommitments },
             )
-            Spacer(modifier = Modifier.height(Spacing.sectionHeaderBottom))
+            Spacer(modifier = Modifier.height(Spacing.xs))
         }
 
         when {
@@ -405,7 +428,7 @@ private fun HomeContent(
                 }
             }
             else -> {
-                items(model.commitments, key = { it.id }) { commitment ->
+                items(visibleCommitments, key = { it.id }) { commitment ->
                     CommitmentTodayRow(
                         commitment = commitment,
                         reduceMotion = reduceMotion,
@@ -419,12 +442,11 @@ private fun HomeContent(
 
         // 3. YOUR PRACTICE (Personal Practices)
         item {
-            Text(
-                text = "Your Practice",
-                style = MaterialTheme.typography.titleLarge,
-                color = colors.textPrimary,
+            PromiseSectionHeader(
+                title = "Your Practice",
+                subtitle = if (personalPractices.isNotEmpty()) "${personalPractices.size} active" else null,
             )
-            Spacer(modifier = Modifier.height(Spacing.sectionHeaderBottom))
+            Spacer(modifier = Modifier.height(Spacing.xs))
         }
 
         when {
@@ -464,46 +486,41 @@ private fun HomeContent(
             }
             else -> {
                 items(personalPractices, key = { it.id }) { practice ->
-                    PracticeRow(
+                    PersonalPracticeCard(
                         practice = practice,
-                        reduceMotion = reduceMotion,
                         onOpen = { onOpenPractice(practice.id) },
                         onCheckIn = { onCheckIn(practice) },
                     )
+                    Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
             }
         }
 
-        // 4. SHARED (Shared Goals / Practices)
+        // 4. SHARED PRACTICE
         if (sharedPractices.isNotEmpty()) {
             item {
-                Text(
-                    text = "Shared Practice",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.textPrimary,
+                PromiseSectionHeader(
+                    title = "Shared Practice",
+                    subtitle = "${sharedPractices.size} shared",
                 )
-                Spacer(modifier = Modifier.height(Spacing.sectionHeaderBottom))
+                Spacer(modifier = Modifier.height(Spacing.xs))
             }
             items(sharedPractices, key = { it.id }) { practice ->
-                PracticeRow(
+                SharedPracticeCard(
                     practice = practice,
-                    reduceMotion = reduceMotion,
                     onOpen = { onOpenPractice(practice.id) },
                     onCheckIn = { onCheckIn(practice) },
                 )
+                Spacer(modifier = Modifier.height(Spacing.sm))
             }
             item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
         }
 
         // 5. AI ASSISTANTS
         item {
-            Text(
-                text = "AI Assistant",
-                style = MaterialTheme.typography.titleLarge,
-                color = colors.textPrimary,
-            )
-            Spacer(modifier = Modifier.height(Spacing.sectionHeaderBottom))
+            PromiseSectionHeader(title = "AI Assistant")
+            Spacer(modifier = Modifier.height(Spacing.xs))
 
             Surface(
                 onClick = onOpenThoughtParser,
@@ -522,7 +539,7 @@ private fun HomeContent(
                         imageVector = Icons.Outlined.AutoAwesome,
                         contentDescription = null,
                         tint = colors.accent,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(24.dp),
                     )
                     Spacer(modifier = Modifier.width(Spacing.md))
                     Column(modifier = Modifier.weight(1f)) {
@@ -718,6 +735,7 @@ fun HomeHeader(
     userName: String,
     dateLabel: String,
     initials: String,
+    photoUri: String?,
     onOpenProfile: () -> Unit,
     onOpenSearch: () -> Unit = {},
 ) {
@@ -757,24 +775,13 @@ fun HomeHeader(
             )
         }
         Spacer(modifier = Modifier.width(Spacing.xs))
-        Box(
-            modifier = Modifier
-                .size(TouchTarget.min)
-                .clip(CircleShape)
-                .background(colors.surfaceMuted)
-                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                .clickable(onClick = onOpenProfile)
-                .semantics {
-                    contentDescription = "Open profile for $userName"
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = initials,
-                style = MaterialTheme.typography.labelLarge,
-                color = colors.textPrimary,
-            )
-        }
+        PromiseAvatar(
+            initials = initials,
+            photoPath = photoUri,
+            size = AvatarSize.MD,
+            onClick = onOpenProfile,
+            contentDescription = "Open profile for $userName",
+        )
     }
 }
 
@@ -797,7 +804,7 @@ fun CommitmentTodayRow(
     val commitmentDesc = "${commitment.title}, $statusText, ${commitment.dueLabel}"
 
     Row(
-        modifier = animModifier.padding(vertical = Spacing.md),
+        modifier = animModifier.padding(vertical = Spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(
@@ -840,7 +847,7 @@ fun CommitmentTodayRow(
                 ),
                 textDecoration = if (commitment.isCompleted) TextDecoration.LineThrough else null,
             )
-            Spacer(modifier = Modifier.height(Spacing.xs))
+            Spacer(modifier = Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (commitment.isOverdue) {
                     Box(
@@ -867,144 +874,213 @@ fun CommitmentTodayRow(
 }
 
 @Composable
-fun PracticeRow(
+fun PersonalPracticeCard(
     practice: HomePractice,
     onCheckIn: () -> Unit,
     onOpen: () -> Unit = {},
-    reduceMotion: Boolean = false,
 ) {
     val colors = PromiseThemeColors.current
-    val animModifier = if (reduceMotion) {
-        Modifier.fillMaxWidth()
-    } else {
-        Modifier
-            .fillMaxWidth()
-            .animateContentSize(animationSpec = Motion.standardTween(Motion.CompletionMs))
-    }
     val practiceDesc = buildString {
         append(practice.title)
-        if (practice.isShared) append(", Shared practice")
         if (practice.streakDays > 0) append(", ${practice.streakDays} day streak")
         append(", ${practice.progressLabel}")
         if (practice.checkedInToday) append(", Checked in today")
     }
 
-    Column(
-        modifier = animModifier.padding(vertical = Spacing.md),
+    PromiseCardSurface(
+        onClick = onOpen,
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription = practiceDesc
+        },
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(onClick = onOpen)
-                    .semantics(mergeDescendants = true) {
-                        contentDescription = practiceDesc
-                    },
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = practice.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                ) {
-                    Text(
-                        text = practice.progressLabel,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textSecondary,
-                    )
-                    if (practice.streakDays > 0) {
-                        app.promise.android.ui.components.PromiseStreakBadge(
-                            streakText = "${practice.streakDays}d",
-                        )
-                    }
-                    if (practice.isShared) {
-                        Text(
-                            text = "· Shared",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.textSecondary,
-                        )
-                    }
-                }
-
-                if (practice.isShared && (practice.unreadChatCount > 0 || practice.latestChatMessage != null)) {
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(Radius.sm))
-                            .background(if (practice.unreadChatCount > 0) colors.accent.copy(alpha = 0.15f) else colors.surfaceMuted)
-                            .border(
-                                width = 1.dp,
-                                color = if (practice.unreadChatCount > 0) colors.accent.copy(alpha = 0.35f) else androidx.compose.ui.graphics.Color.Transparent,
-                                shape = RoundedCornerShape(Radius.sm),
-                            )
-                            .clickable(onClick = onOpen)
-                            .padding(horizontal = Spacing.xs + 2.dp, vertical = Spacing.xxs),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        Text(
-                            text = "💬",
-                            fontSize = 11.sp,
-                        )
-                        if (practice.unreadChatCount > 0) {
-                            Text(
-                                text = "${practice.unreadChatCount} new",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.accent,
-                            )
-                            Text(
-                                text = "•",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.textSecondary,
-                            )
-                        }
-                        Text(
-                            text = practice.latestChatMessage?.let { "${it.senderName}: ${it.text}" } ?: "Group chat",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (practice.unreadChatCount > 0) colors.textPrimary else colors.textSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-
-                if (practice.progressFraction > 0f) {
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    app.promise.android.ui.components.PromiseLinearProgressBar(
-                        progress = practice.progressFraction,
-                        modifier = Modifier.fillMaxWidth(0.9f),
-                    )
-                }
+                Spacer(modifier = Modifier.height(Spacing.xxs))
+                Text(
+                    text = practice.progressLabel,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
             }
+            if (practice.streakDays > 0) {
+                PromiseStreakBadge(streakText = "${practice.streakDays}d")
+            }
+        }
+
+        if (practice.progressFraction > 0f) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            PromiseLinearProgressBar(
+                progress = practice.progressFraction,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        PromiseHairlineDivider()
+        Spacer(modifier = Modifier.height(Spacing.xs))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = if (practice.checkedInToday) "Checked in today ✓" else "Next: Today",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (practice.checkedInToday) colors.success else colors.textSecondary,
+            )
             TextButton(
                 onClick = onCheckIn,
                 enabled = !practice.checkedInToday,
-                modifier = Modifier
-                    .heightIn(min = TouchTarget.min)
-                    .semantics {
-                        contentDescription = if (practice.checkedInToday) {
-                            "${practice.title} checked in today"
-                        } else {
-                            "Check in ${practice.title}"
-                        }
-                    },
             ) {
                 Text(
                     text = if (practice.checkedInToday) "Done" else "Check in",
                     style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
                     color = if (practice.checkedInToday) colors.success else colors.accent,
                 )
             }
         }
     }
-    PromiseHairlineDivider()
 }
+
+@Composable
+fun SharedPracticeCard(
+    practice: HomePractice,
+    onCheckIn: () -> Unit,
+    onOpen: () -> Unit = {},
+) {
+    val colors = PromiseThemeColors.current
+    val practiceDesc = buildString {
+        append(practice.title)
+        append(", Shared practice")
+        if (practice.streakDays > 0) append(", ${practice.streakDays} day streak")
+        append(", ${practice.progressLabel}")
+        if (practice.checkedInToday) append(", Checked in today")
+    }
+
+    PromiseCardSurface(
+        onClick = onOpen,
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription = practiceDesc
+        },
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = practice.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                )
+                Spacer(modifier = Modifier.height(Spacing.xxs))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    PromiseStatusChip(label = "Shared", isAccent = true)
+                    Text(
+                        text = practice.progressLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
+            }
+            if (practice.streakDays > 0) {
+                PromiseStreakBadge(streakText = "${practice.streakDays}d")
+            }
+        }
+
+        if (practice.unreadChatCount > 0 || practice.latestChatMessage != null) {
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Radius.sm))
+                    .background(if (practice.unreadChatCount > 0) colors.accent.copy(alpha = 0.15f) else colors.surfaceMuted)
+                    .border(
+                        width = 1.dp,
+                        color = if (practice.unreadChatCount > 0) colors.accent.copy(alpha = 0.35f) else androidx.compose.ui.graphics.Color.Transparent,
+                        shape = RoundedCornerShape(Radius.sm),
+                    )
+                    .padding(horizontal = Spacing.xs + 2.dp, vertical = Spacing.xxs),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Text(
+                    text = "💬",
+                    fontSize = 11.sp,
+                )
+                if (practice.unreadChatCount > 0) {
+                    Text(
+                        text = "${practice.unreadChatCount} new",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.accent,
+                    )
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textSecondary,
+                    )
+                }
+                Text(
+                    text = practice.latestChatMessage?.let { "${it.senderName}: ${it.text}" } ?: "Group chat",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (practice.unreadChatCount > 0) colors.textPrimary else colors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        if (practice.progressFraction > 0f) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            PromiseLinearProgressBar(
+                progress = practice.progressFraction,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        PromiseHairlineDivider()
+        Spacer(modifier = Modifier.height(Spacing.xs))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = if (practice.checkedInToday) "Checked in today ✓" else "Check in expected today",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (practice.checkedInToday) colors.success else colors.textSecondary,
+            )
+            TextButton(
+                onClick = onCheckIn,
+                enabled = !practice.checkedInToday,
+            ) {
+                Text(
+                    text = if (practice.checkedInToday) "Done" else "Check in",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (practice.checkedInToday) colors.success else colors.accent,
+                )
+            }
+        }
+    }
+}
+

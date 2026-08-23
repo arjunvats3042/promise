@@ -478,38 +478,54 @@ private fun ChatMessageBubble(
         colors.textPrimary
     }
 
-    Column(
+    val rowArrangement = if (isMe) Arrangement.End else Arrangement.Start
+
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
-        horizontalAlignment = alignment,
+        horizontalArrangement = rowArrangement,
+        verticalAlignment = Alignment.Bottom,
     ) {
-        if (!isMe && message.sender.name.isNotBlank()) {
-            Text(
-                text = message.sender.name,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Medium,
-                color = colors.accent,
-                modifier = Modifier.padding(start = Spacing.xs, bottom = 2.dp),
+        if (!isMe) {
+            val initials = app.promise.android.ui.home.HomeViewModel.initialsFor(message.sender.name.ifBlank { "User" })
+            app.promise.android.ui.components.PromiseAvatar(
+                initials = initials,
+                photoPath = message.sender.avatarUrl,
+                size = app.promise.android.ui.components.AvatarSize.SM,
+                modifier = Modifier.padding(end = Spacing.xs, bottom = 2.dp),
             )
         }
-        val timeStr = formatTimestamp(message.createdAt)
-        val accessibilityLabel = when {
-            message.deliveryStatus == ChatMessageDeliveryStatus.FAILED -> "Message failed to send: ${message.body}. Tap to retry."
-            message.deliveryStatus == ChatMessageDeliveryStatus.SENDING -> "Sending message: ${message.body}"
-            isMe -> "Your message sent at $timeStr: ${message.body}"
-            else -> "Message from ${message.sender.name} at $timeStr: ${message.body}"
-        }
 
-        Surface(
-            shape = bubbleShape,
-            color = bubbleColor,
-            modifier = Modifier
-                .widthIn(max = 280.dp)
-                .semantics(mergeDescendants = true) {
-                    contentDescription = accessibilityLabel
-                },
+        Column(
+            horizontalAlignment = alignment,
         ) {
+            if (!isMe && message.sender.name.isNotBlank()) {
+                Text(
+                    text = message.sender.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.accent,
+                    modifier = Modifier.padding(start = Spacing.xs, bottom = 2.dp),
+                )
+            }
+            val timeStr = formatTimestamp(message.createdAt)
+            val accessibilityLabel = when {
+                message.deliveryStatus == ChatMessageDeliveryStatus.FAILED -> "Message failed to send: ${message.body}. Tap to retry."
+                message.deliveryStatus == ChatMessageDeliveryStatus.SENDING -> "Sending message: ${message.body}"
+                isMe -> "Your message sent at $timeStr: ${message.body}"
+                else -> "Message from ${message.sender.name} at $timeStr: ${message.body}"
+            }
+
+            Surface(
+                shape = bubbleShape,
+                color = bubbleColor,
+                modifier = Modifier
+                    .widthIn(max = 280.dp)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = accessibilityLabel
+                    },
+            ) {
             Column(
                 modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
             ) {
@@ -564,6 +580,7 @@ private fun ChatMessageBubble(
         }
     }
 }
+}
 
 private fun formatTimestamp(isoString: String): String {
     return runCatching {
@@ -572,3 +589,4 @@ private fun formatTimestamp(isoString: String): String {
         DateTimeFormatter.ofPattern("HH:mm").format(time)
     }.getOrDefault("")
 }
+

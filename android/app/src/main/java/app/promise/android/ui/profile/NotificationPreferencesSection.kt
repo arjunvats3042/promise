@@ -27,12 +27,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.Bedtime
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.DoneAll
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Notifications
@@ -77,7 +80,10 @@ import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
+import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 enum class NotificationAccordion {
@@ -90,8 +96,10 @@ enum class NotificationAccordion {
 @Composable
 fun NotificationPreferencesSection(
     preferences: NotificationPreferences?,
-    history: List<NotificationHistoryItem> = emptyList(),
+    unreadHistory: List<NotificationHistoryItem> = emptyList(),
     onUpdate: (NotificationPreferencesPatch) -> Unit,
+    onOpenNotification: (NotificationHistoryItem) -> Unit = {},
+    onMarkAllRead: () -> Unit = {},
     onSendTest: () -> Unit = {},
     isSendingTest: Boolean = false,
     testSuccessMessage: String? = null,
@@ -101,9 +109,10 @@ fun NotificationPreferencesSection(
     val colors = PromiseThemeColors.current
     val isOsPermissionGranted = remember { NotificationManagerCompat.from(context).areNotificationsEnabled() }
     var selectedTab by remember { mutableIntStateOf(0) }
+    var isParentExpanded by remember { mutableStateOf(true) }
     var expandedSections by remember { mutableStateOf(setOf<NotificationAccordion>()) }
 
-    fun toggleSection(section: NotificationAccordion) {
+    fun toggleChildSection(section: NotificationAccordion) {
         expandedSections = if (expandedSections.contains(section)) {
             expandedSections - section
         } else {
@@ -189,7 +198,7 @@ fun NotificationPreferencesSection(
                 modifier = Modifier.heightIn(min = TouchTarget.min),
                 text = {
                     Text(
-                        if (history.isNotEmpty()) "History (${history.size})" else "History",
+                        if (unreadHistory.isNotEmpty()) "History (${unreadHistory.size})" else "History",
                         style = MaterialTheme.typography.labelLarge,
                         color = if (selectedTab == 1) colors.textPrimary else colors.textSecondary,
                     )
@@ -200,30 +209,24 @@ fun NotificationPreferencesSection(
         Spacer(modifier = Modifier.height(Spacing.md))
 
         if (preferences == null) {
-            // Skeleton loading state while preferences fetch asynchronously
             NotificationPreferencesSkeleton()
         } else if (selectedTab == 0) {
-            // Preferences View with Accordions
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            // Preferences View: Parent Accordion "Notifications"
+            ParentNotificationAccordionCard(
+                enabled = preferences.enabled,
+                expanded = isParentExpanded,
+                onToggleExpand = { isParentExpanded = !isParentExpanded },
+                onToggleMaster = { onUpdate(NotificationPreferencesPatch(enabled = it)) },
             ) {
-                // Master Toggle Card
-                MasterNotificationToggleCard(
-                    enabled = preferences.enabled,
-                    onToggle = { onUpdate(NotificationPreferencesPatch(enabled = it)) },
-                )
-
-                AnimatedVisibility(
-                    visible = preferences.enabled,
-                    enter = expandVertically(animationSpec = Motion.standardTween(Motion.CompletionMs)) + fadeIn(),
-                    exit = shrinkVertically(animationSpec = Motion.exitTween(Motion.CompletionMs)) + fadeOut(),
-                ) {
+                // Nested Child Accordions
+                if (preferences.enabled) {
                     Column(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = Spacing.sm),
                         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        // 1. Reminders & Anchor Times Accordion
+                        // 1. Reminders & Routines Accordion
                         val remindersActiveCount = listOf(
                             preferences.commitmentsDueSoon,
                             preferences.commitmentsDueNow,
@@ -244,10 +247,10 @@ fun NotificationPreferencesSection(
                             icon = Icons.Outlined.Alarm,
                             title = "Reminders & Routines",
                             subtitle = remindersSubtitle,
-                            statusBadge = "$remindersActiveCount/5 Active",
+                            statusBadge = "$remindersActiveCount/5",
                             isBadgeAccent = remindersActiveCount > 0,
                             expanded = expandedSections.contains(NotificationAccordion.REMINDERS),
-                            onToggle = { toggleSection(NotificationAccordion.REMINDERS) },
+                            onToggle = { toggleChildSection(NotificationAccordion.REMINDERS) },
                         ) {
                             PreferenceSwitchRow(
                                 title = "Due Soon",
@@ -313,10 +316,10 @@ fun NotificationPreferencesSection(
                             icon = Icons.Outlined.Group,
                             title = "Shared Goals & Chat",
                             subtitle = if (sharedActiveCount == 0) "Partner alerts paused" else "Group chat & check-in activity",
-                            statusBadge = "$sharedActiveCount/2 Active",
+                            statusBadge = "$sharedActiveCount/2",
                             isBadgeAccent = sharedActiveCount > 0,
                             expanded = expandedSections.contains(NotificationAccordion.SHARED_GOALS),
-                            onToggle = { toggleSection(NotificationAccordion.SHARED_GOALS) },
+                            onToggle = { toggleChildSection(NotificationAccordion.SHARED_GOALS) },
                         ) {
                             PreferenceSwitchRow(
                                 title = "Shared Goal Chat",
@@ -337,10 +340,10 @@ fun NotificationPreferencesSection(
                             icon = Icons.Outlined.DateRange,
                             title = "Weekly Digest",
                             subtitle = "Sunday recap of completed commitments & practices",
-                            statusBadge = if (preferences.weeklyDigestEnabled) "Active" else "Off",
+                            statusBadge = if (preferences.weeklyDigestEnabled) "ON" else "OFF",
                             isBadgeAccent = preferences.weeklyDigestEnabled,
                             expanded = expandedSections.contains(NotificationAccordion.WEEKLY),
-                            onToggle = { toggleSection(NotificationAccordion.WEEKLY) },
+                            onToggle = { toggleChildSection(NotificationAccordion.WEEKLY) },
                         ) {
                             PreferenceSwitchRow(
                                 title = "Weekly Digest Summary",
@@ -359,10 +362,10 @@ fun NotificationPreferencesSection(
                             icon = Icons.Outlined.Bedtime,
                             title = "Quiet Hours",
                             subtitle = if (preferences.quietHoursEnabled) quietHoursFormatted else "Silence non-urgent alerts during rest",
-                            statusBadge = if (preferences.quietHoursEnabled) "Active" else "Off",
+                            statusBadge = if (preferences.quietHoursEnabled) "ON" else "OFF",
                             isBadgeAccent = preferences.quietHoursEnabled,
                             expanded = expandedSections.contains(NotificationAccordion.QUIET_HOURS),
-                            onToggle = { toggleSection(NotificationAccordion.QUIET_HOURS) },
+                            onToggle = { toggleChildSection(NotificationAccordion.QUIET_HOURS) },
                         ) {
                             PreferenceSwitchRow(
                                 title = "Enable Quiet Hours",
@@ -381,30 +384,29 @@ fun NotificationPreferencesSection(
                             }
                         }
 
-                        // 5. Test Push Notification Action Card
+                        // 5. Test Push Notification Card
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(Radius.lg))
-                                .background(colors.surfaceMuted)
-                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(Radius.lg))
-                                .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+                                .clip(RoundedCornerShape(Radius.md))
+                                .background(colors.surfaceRaised)
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(Radius.md))
+                                .padding(horizontal = Spacing.cardPadding, vertical = Spacing.sm),
                         ) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Column(modifier = Modifier.weight(1f).padding(end = Spacing.md)) {
+                                Column(modifier = Modifier.weight(1f).padding(end = Spacing.sm)) {
                                     Text(
                                         text = "Test Push Notification",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
                                         color = colors.textPrimary,
                                     )
-                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = "Send an immediate test alert to this device to verify delivery",
+                                        text = "Send an immediate test alert to this device",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = colors.textSecondary,
                                     )
@@ -423,7 +425,7 @@ fun NotificationPreferencesSection(
                             }
 
                             if (testSuccessMessage != null) {
-                                Spacer(modifier = Modifier.height(Spacing.xs))
+                                Spacer(modifier = Modifier.height(Spacing.xxs))
                                 Text(
                                     text = testSuccessMessage,
                                     style = MaterialTheme.typography.bodySmall,
@@ -435,7 +437,7 @@ fun NotificationPreferencesSection(
                 }
             }
         } else {
-            // Notification History View
+            // Notification History View (Unread-first, compact rows, mark-all-read action, calm empty state)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -444,32 +446,72 @@ fun NotificationPreferencesSection(
                     .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(Radius.lg))
                     .padding(Spacing.cardPadding),
             ) {
-                Text(
-                    text = "RECENT NOTIFICATIONS",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.textSecondary,
-                    letterSpacing = 1.0.sp,
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = if (unreadHistory.isNotEmpty()) "UNREAD NOTIFICATIONS (${unreadHistory.size})" else "NOTIFICATIONS",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textSecondary,
+                        letterSpacing = 1.0.sp,
+                    )
+                    if (unreadHistory.isNotEmpty()) {
+                        TextButton(
+                            onClick = onMarkAllRead,
+                            modifier = Modifier.heightIn(min = 36.dp),
+                        ) {
+                            Text(
+                                text = "Mark all as read",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.accent,
+                            )
+                        }
+                    }
+                }
 
-                if (history.isEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.xs))
+
+                if (unreadHistory.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = Spacing.xl),
+                            .padding(vertical = Spacing.xxl),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = "No recent notifications",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.textSecondary,
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Check,
+                                contentDescription = null,
+                                tint = colors.textSecondary,
+                                modifier = Modifier.size(24.dp),
+                            )
+                            Text(
+                                text = "You're all caught up.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textSecondary,
+                            )
+                        }
                     }
                 } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        history.forEach { item ->
-                            NotificationHistoryCard(item = item)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        unreadHistory.forEachIndexed { index, item ->
+                            if (index > 0) {
+                                PromiseHairlineDivider()
+                            }
+                            CompactNotificationHistoryRow(
+                                item = item,
+                                onClick = { onOpenNotification(item) },
+                            )
                         }
                     }
                 }
@@ -479,33 +521,43 @@ fun NotificationPreferencesSection(
 }
 
 @Composable
-private fun MasterNotificationToggleCard(
+private fun ParentNotificationAccordionCard(
     enabled: Boolean,
-    onToggle: (Boolean) -> Unit,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onToggleMaster: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = PromiseThemeColors.current
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = Motion.standardTween(Motion.CompletionMs),
+        label = "parentChevronRotation",
+    )
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.lg))
             .background(colors.surfaceMuted)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(Radius.lg))
-            .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+            .border(
+                1.dp,
+                if (expanded) colors.accent.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                RoundedCornerShape(Radius.lg),
+            )
+            .animateContentSize(animationSpec = Motion.standardTween(Motion.CompletionMs)),
     ) {
+        // Parent Header: Visually prominent with title, subtitle, master switch, and expansion toggle
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = TouchTarget.min)
-                .toggleable(
-                    value = enabled,
-                    role = Role.Switch,
-                    onValueChange = onToggle,
-                )
+                .clickable(onClick = onToggleExpand)
                 .semantics {
-                    contentDescription = "Allow Notifications master switch, ${if (enabled) "Enabled" else "Disabled"}"
-                },
+                    contentDescription = "Notifications section, Push notifications & alerts ${if (enabled) "ON" else "OFF"}. ${if (expanded) "Expanded" else "Collapsed"}. Double tap to toggle."
+                }
+                .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -516,8 +568,8 @@ private fun MasterNotificationToggleCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(Radius.sm))
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(Radius.md))
                         .background(if (enabled) colors.accent.copy(alpha = 0.15f) else colors.surfaceRaised),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -525,36 +577,65 @@ private fun MasterNotificationToggleCard(
                         imageVector = if (enabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
                         contentDescription = null,
                         tint = if (enabled) colors.accent else colors.textSecondary,
-                        modifier = Modifier.size(22.dp),
+                        modifier = Modifier.size(24.dp),
                     )
                 }
 
                 Column {
                     Text(
-                        text = "Allow Notifications",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        text = "Notifications",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
                         color = colors.textPrimary,
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = if (enabled) "Push notifications & reminders active" else "All alerts and routine reminders are paused",
+                        text = "Push notifications & alerts",
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary,
                     )
                 }
             }
 
-            Switch(
-                checked = enabled,
-                onCheckedChange = null,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = colors.onPrimaryControl,
-                    checkedTrackColor = colors.primaryControl,
-                    uncheckedThumbColor = colors.textSecondary,
-                    uncheckedTrackColor = colors.surfaceRaised,
-                ),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            ) {
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = onToggleMaster,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = colors.onPrimaryControl,
+                        checkedTrackColor = colors.primaryControl,
+                        uncheckedThumbColor = colors.textSecondary,
+                        uncheckedTrackColor = colors.surfaceRaised,
+                    ),
+                )
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = colors.textSecondary,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .rotate(rotation),
+                )
+            }
+        }
+
+        // Expanded Parent Content
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(animationSpec = Motion.standardTween(Motion.CompletionMs)) + fadeIn(),
+            exit = shrinkVertically(animationSpec = Motion.exitTween(Motion.CompletionMs)) + fadeOut(),
+        ) {
+            Column {
+                PromiseHairlineDivider()
+                Column(
+                    modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.sm),
+                ) {
+                    content()
+                }
+            }
         }
     }
 }
@@ -581,12 +662,12 @@ private fun NotificationAccordionCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.lg))
-            .background(colors.surfaceMuted)
+            .clip(RoundedCornerShape(Radius.md))
+            .background(colors.surfaceRaised)
             .border(
                 1.dp,
                 if (expanded) colors.accent.copy(alpha = 0.35f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
-                RoundedCornerShape(Radius.lg),
+                RoundedCornerShape(Radius.md),
             )
             .animateContentSize(animationSpec = Motion.standardTween(Motion.CompletionMs)),
     ) {
@@ -599,7 +680,7 @@ private fun NotificationAccordionCard(
                 .semantics {
                     contentDescription = "$title accordion, $subtitle. ${if (expanded) "Expanded" else "Collapsed"}. Double tap to toggle."
                 }
-                .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+                .padding(horizontal = Spacing.cardPadding, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -610,23 +691,23 @@ private fun NotificationAccordionCard(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(34.dp)
                         .clip(RoundedCornerShape(Radius.sm))
-                        .background(if (expanded) colors.accent.copy(alpha = 0.15f) else colors.surfaceRaised),
+                        .background(if (expanded) colors.accent.copy(alpha = 0.15f) else colors.surfaceMuted),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = if (expanded) colors.accent else colors.textSecondary,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(18.dp),
                     )
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = colors.textPrimary,
                     )
@@ -649,8 +730,8 @@ private fun NotificationAccordionCard(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(Radius.sm))
-                            .background(if (isBadgeAccent) colors.accent.copy(alpha = 0.15f) else colors.surfaceRaised)
-                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                            .background(if (isBadgeAccent) colors.accent.copy(alpha = 0.15f) else colors.surfaceMuted)
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
                     ) {
                         Text(
                             text = statusBadge,
@@ -666,7 +747,7 @@ private fun NotificationAccordionCard(
                     contentDescription = null,
                     tint = colors.textSecondary,
                     modifier = Modifier
-                        .size(22.dp)
+                        .size(20.dp)
                         .rotate(rotation),
                 )
             }
@@ -724,7 +805,7 @@ private fun PreferenceSwitchRow(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 color = colors.textPrimary,
             )
             Spacer(modifier = Modifier.height(2.dp))
@@ -741,7 +822,7 @@ private fun PreferenceSwitchRow(
                 checkedThumbColor = colors.onPrimaryControl,
                 checkedTrackColor = colors.primaryControl,
                 uncheckedThumbColor = colors.textSecondary,
-                uncheckedTrackColor = colors.surfaceRaised,
+                uncheckedTrackColor = colors.surfaceMuted,
             ),
         )
     }
@@ -854,7 +935,7 @@ private fun QuietHoursTimePickerRow(
                 modifier = Modifier
                     .clip(RoundedCornerShape(Radius.sm))
                     .background(colors.accent.copy(alpha = 0.12f))
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                .padding(horizontal = 10.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
@@ -913,56 +994,56 @@ private fun showQuietHoursDialogs(
 }
 
 @Composable
-private fun NotificationHistoryCard(
+private fun CompactNotificationHistoryRow(
     item: NotificationHistoryItem,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = PromiseThemeColors.current
+    val formattedTime = formatRelativeOrAbsoluteTime(item.createdAt)
 
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.sm))
-            .background(colors.surfaceRaised)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(Radius.sm))
-            .padding(Spacing.cardPadding),
+            .clickable(onClick = onClick)
+            .semantics {
+                contentDescription = "${item.title}. ${item.body}. $formattedTime. Unread. Double tap to view."
+            }
+            .padding(vertical = Spacing.sm),
+        verticalAlignment = Alignment.Top,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(Radius.sm))
-                    .background(colors.accent.copy(alpha = 0.15f))
-                    .padding(horizontal = Spacing.xs, vertical = 2.dp),
-            ) {
+        // Unread Indicator Dot
+        Box(
+            modifier = Modifier
+                .padding(top = 6.dp, end = Spacing.sm)
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(colors.accent),
+        )
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textPrimary,
+            )
+            if (item.body.isNotBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = item.category,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.accent,
+                    text = item.body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                text = formatHistoryDate(item.createdAt),
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textSecondary,
-            )
-        }
-
-        Spacer(modifier = Modifier.height(Spacing.xxs))
-        Text(
-            text = item.title,
-            style = MaterialTheme.typography.titleSmall,
-            color = colors.textPrimary,
-        )
-        if (item.body.isNotBlank()) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = item.body,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
+                text = formattedTime,
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.textSecondary.copy(alpha = 0.8f),
             )
         }
     }
@@ -978,7 +1059,6 @@ private fun NotificationPreferencesSkeleton(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(Spacing.sm),
     ) {
-        // Master skeleton card
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -986,17 +1066,6 @@ private fun NotificationPreferencesSkeleton(
                 .clip(RoundedCornerShape(Radius.lg))
                 .background(colors.surfaceMuted),
         )
-
-        // Accordion skeleton cards
-        repeat(4) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp)
-                    .clip(RoundedCornerShape(Radius.lg))
-                    .background(colors.surfaceMuted),
-            )
-        }
     }
 }
 
@@ -1014,15 +1083,18 @@ private fun formatTime(time: LocalTime): String {
     return time.format(formatter)
 }
 
-private fun formatHistoryDate(isoString: String): String {
+private fun formatRelativeOrAbsoluteTime(isoString: String): String {
     return try {
-        val parts = isoString.split("T")
-        if (parts.size >= 2) {
-            val date = parts[0]
-            val time = parts[1].substring(0, 5)
-            "$date $time"
-        } else {
-            isoString
+        val instant = Instant.parse(isoString)
+        val zdt = instant.atZone(ZoneId.systemDefault())
+        val date = zdt.toLocalDate()
+        val time = zdt.toLocalTime().format(DateTimeFormatter.ofPattern("h:mm a"))
+        val today = LocalDate.now()
+
+        when (date) {
+            today -> "Today · $time"
+            today.minusDays(1) -> "Yesterday · $time"
+            else -> "${date.format(DateTimeFormatter.ofPattern("MMM d"))} · $time"
         }
     } catch (_: Exception) {
         isoString

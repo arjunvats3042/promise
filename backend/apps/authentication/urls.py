@@ -21,6 +21,8 @@ from apps.authentication.views import (
     revoke_all_sessions_view,
     revoke_session,
     set_password,
+    upload_profile_photo_view,
+    delete_profile_photo_view,
     verify_email_confirm,
     verify_email_request,
 )
@@ -49,5 +51,7 @@ urlpatterns = [
     path("sessions/<uuid:session_id>/", revoke_session, name="revoke-session"),
     path("sessions/revoke-all/", revoke_all_sessions_view, name="revoke-all-sessions"),
     path("security-events/", list_security_events, name="list-security-events"),
+    path("profile/photo/", upload_profile_photo_view, name="upload-profile-photo"),
+    path("profile/photo/delete/", delete_profile_photo_view, name="delete-profile-photo"),
     path("me/", me, name="me"),
 ]

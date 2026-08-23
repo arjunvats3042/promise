@@ -74,6 +74,13 @@ interface AuthApi {
     @GET("auth/security-events/")
     suspend fun getSecurityEvents(): SecurityEventsResponse
 
+    @retrofit2.http.Multipart
+    @POST("auth/profile/photo/")
+    suspend fun uploadProfilePhoto(@retrofit2.http.Part photo: okhttp3.MultipartBody.Part): MeResponse
+
+    @POST("auth/profile/photo/delete/")
+    suspend fun deleteProfilePhoto(): MeResponse
+
     @GET("auth/me/")
     suspend fun me(): MeResponse
 }
@@ -87,6 +94,7 @@ fun UserDto.toDomain(): User {
         emailVerified = emailVerified,
         hasPassword = hasPassword,
         googleLinked = googleLinked,
+        avatarUrl = avatarUrl,
         createdAt = createdAt,
     )
 }

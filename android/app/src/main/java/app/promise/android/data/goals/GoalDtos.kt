@@ -109,6 +109,8 @@ data class GoalParticipantDto(
     val userId: String,
     @SerialName("user_name")
     val userName: String,
+    @SerialName("avatar_url")
+    val avatarUrl: String? = null,
     val role: String,
     val status: String,
     @SerialName("invited_at")
@@ -289,6 +291,8 @@ data class InviteParticipantRequest(
 data class ChatMessageSenderDto(
     val id: String,
     val name: String,
+    @SerialName("avatar_url")
+    val avatarUrl: String? = null,
 )
 
 @Serializable
@@ -331,6 +335,8 @@ data class GoalChatSummaryDto(
 data class GoalActivityActorDto(
     val id: String,
     val name: String,
+    @SerialName("avatar_url")
+    val avatarUrl: String? = null,
 )
 
 @Serializable

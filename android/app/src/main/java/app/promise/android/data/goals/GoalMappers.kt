@@ -184,6 +184,7 @@ fun GoalParticipantDto.toDomain(): GoalParticipant {
         isExpired = isExpired,
         joinedAt = joinedAt,
         leftAt = leftAt,
+        avatarUrl = avatarUrl,
     )
 }
 
@@ -230,6 +231,7 @@ fun pinInvites(items: List<GoalListItem>): List<GoalListItem> {
 fun ChatMessageSenderDto.toDomain(): ChatMessageSender = ChatMessageSender(
     id = id,
     name = name,
+    avatarUrl = avatarUrl,
 )
 
 fun ChatMessageDto.toDomain(): ChatMessage = ChatMessage(
@@ -252,6 +254,7 @@ fun GoalChatSummaryDto.toDomain(): GoalChatSummary = GoalChatSummary(
 fun GoalActivityActorDto.toDomain(): GoalActivityActor = GoalActivityActor(
     id = id,
     name = name,
+    avatarUrl = avatarUrl,
 )
 
 fun GoalActivityItemDto.toDomain(): GoalActivityItem = GoalActivityItem(

@@ -1,4 +1,7 @@
-from django.urls import include, path
+from django.conf import settings
+from django.conf.urls.static import static
+from django.urls import include, path, re_path
+from django.views.static import serve
 
 from apps.ai.views import daily_motivation_view
 from config.views import api_not_found, health, ready
@@ -19,5 +22,7 @@ v1_urlpatterns = [
 ]
 
 urlpatterns = [
+    re_path(r"^media/(?P<path>.*)$", serve, {"document_root": settings.MEDIA_ROOT}),
     path("api/v1/", include(v1_urlpatterns)),
 ]
+

@@ -21,6 +21,7 @@ from apps.goals.services import (
 
 class GoalParticipantSerializer(serializers.ModelSerializer):
     user_name = serializers.CharField(source="user.name", read_only=True)
+    avatar_url = serializers.CharField(source="user.avatar_url", read_only=True, default="")
     is_expired = serializers.SerializerMethodField()
     invitation_expires_at = serializers.SerializerMethodField()
 
@@ -30,6 +31,7 @@ class GoalParticipantSerializer(serializers.ModelSerializer):
             "id",
             "user_id",
             "user_name",
+            "avatar_url",
             "role",
             "status",
             "invited_at",
@@ -380,6 +382,7 @@ class GoalInviteCreateSerializer(serializers.Serializer):
 class ChatMessageSenderSerializer(serializers.Serializer):
     id = serializers.UUIDField(source="sender_id", read_only=True)
     name = serializers.CharField(source="sender.name", read_only=True)
+    avatar_url = serializers.CharField(source="sender.avatar_url", read_only=True, default="")
 
 
 class ChatMessageSerializer(serializers.ModelSerializer):
@@ -412,6 +415,7 @@ class ChatSummarySerializer(serializers.Serializer):
 class GoalActivityActorSerializer(serializers.Serializer):
     id = serializers.UUIDField(read_only=True)
     name = serializers.CharField(read_only=True)
+    avatar_url = serializers.CharField(default="", read_only=True)
 
 
 class GoalActivityItemSerializer(serializers.Serializer):

@@ -120,6 +120,8 @@ data class UserDto(
     val email: String,
     val name: String,
     val timezone: String,
+    @SerialName("avatar_url")
+    val avatarUrl: String? = null,
     @SerialName("email_verified")
     val emailVerified: Boolean = false,
     @SerialName("has_password")

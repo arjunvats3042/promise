@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import app.promise.android.domain.DeviceRegistrationRepository
 import app.promise.android.ui.components.AppUpdateDialog
+import app.promise.android.ui.navigation.DeepLinkRouter
 import app.promise.android.ui.navigation.PromiseNavHost
 import app.promise.android.ui.theme.AccentSession
 import app.promise.android.ui.theme.PromiseTheme
@@ -34,6 +35,7 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var accentSession: AccentSession
     @Inject lateinit var appUpdateManager: AppUpdateManager
     @Inject lateinit var deviceRegistrationRepository: DeviceRegistrationRepository
+    @Inject lateinit var deepLinkRouter: DeepLinkRouter
 
     private val handler = Handler(Looper.getMainLooper())
     private var isFirstResume = true
@@ -51,6 +53,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Handle initial deep link or notification payload
+        handleIncomingIntent(intent)
 
         // Request notification permission on Android 13+ (API 33+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -85,6 +90,27 @@ class MainActivity : ComponentActivity() {
                     onDismiss = { appUpdateManager.dismissForSession() },
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: android.content.Intent?) {
+        if (intent == null) return
+        val uri = intent.dataString
+        if (!uri.isNullOrBlank()) {
+            deepLinkRouter.routeUri(uri)
+            return
+        }
+        val entityType = intent.getStringExtra("entity_type")
+        val entityId = intent.getStringExtra("entity_id")
+        val eventType = intent.getStringExtra("event_type") ?: ""
+        if (!entityType.isNullOrBlank() && !entityId.isNullOrBlank()) {
+            deepLinkRouter.routeEntity(entityType, entityId, eventType)
         }
     }
 

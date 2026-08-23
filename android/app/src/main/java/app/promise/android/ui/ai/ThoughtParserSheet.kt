@@ -319,20 +319,32 @@ fun ThoughtParserSheet(
                                         Text(
                                             text = item.type.uppercase(),
                                             style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                             color = colors.accent,
                                         )
-                                        Text(
-                                            text = "• ${item.confidence} confidence",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = colors.textSecondary,
-                                        )
+                                        if (!item.dueAt.isNullOrBlank()) {
+                                            Text(
+                                                text = "• Due ${item.dueAt}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = colors.textSecondary,
+                                            )
+                                        } else if (item.recurrenceKind != null) {
+                                            Text(
+                                                text = "• ${item.recurrenceKind}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = colors.textSecondary,
+                                            )
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = item.title,
                                         style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                                         color = colors.textPrimary,
                                     )
                                     if (item.description.isNotBlank()) {
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = item.description,
                                             style = MaterialTheme.typography.bodySmall,

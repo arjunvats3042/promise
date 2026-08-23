@@ -69,6 +69,21 @@ import app.promise.android.domain.GoalTrackingKind
 import app.promise.android.domain.GroupMilestone
 import app.promise.android.domain.GroupSummary
 import app.promise.android.domain.WeeklyReflection
+import app.promise.android.ui.components.AvatarSize
+import app.promise.android.ui.components.PromiseAvatar
+import app.promise.android.ui.components.PromiseAvatarStack
+import app.promise.android.ui.components.PromiseCardSurface
+import app.promise.android.ui.components.PromiseErrorBanner
+import app.promise.android.ui.components.PromiseGoalHero
+import app.promise.android.ui.components.PromiseHairlineDivider
+import app.promise.android.ui.components.PromiseLinearProgressBar
+import app.promise.android.ui.components.PromiseMicroLabel
+import app.promise.android.ui.components.PromisePrimaryButton
+import app.promise.android.ui.components.PromiseSecondaryButton
+import app.promise.android.ui.components.PromiseSectionHeader
+import app.promise.android.ui.components.PromiseStatusChip
+import app.promise.android.ui.components.PromiseStreakBadge
+import app.promise.android.ui.components.PromiseTimelineItem
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
@@ -343,13 +358,12 @@ private fun DetailContent(
         TextButton(onClick = onBack) {
             Text("Back", style = MaterialTheme.typography.labelLarge, color = colors.textSecondary)
         }
-        Spacer(modifier = Modifier.height(Spacing.xs))
         AnimatedContent(
             targetState = goal.status,
             transitionSpec = { fadeIn() togetherWith fadeOut() },
             label = "goal-status",
         ) { status ->
-            app.promise.android.ui.components.PromiseMicroLabel(
+            PromiseMicroLabel(
                 text = GoalPresentation.statusLabel(status),
                 color = colors.textSecondary,
             )
@@ -374,51 +388,33 @@ private fun DetailContent(
                 color = colors.textSecondary,
             )
         }
+
+        Spacer(modifier = Modifier.height(Spacing.md))
+
+        // Hero Progress Card
+        PromiseGoalHero(
+            sectionLabel = if (goal.isShared) "YOUR PROGRESS" else if (goal.trackingKind == GoalTrackingKind.COUNT) "WEEKLY PROGRESS" else "CONSISTENCY",
+            primaryProgressText = GoalPresentation.progressLine(goal),
+            progressFraction = GoalPresentation.progressFraction(goal),
+            progressSubtitle = GoalPresentation.streakLine(goal)?.let { "$it streak" },
+            streakDays = goal.currentStreak,
+            nextCheckInLabel = if (ui.canCheckInToday()) "Today" else "Scheduled",
+            collectiveText = GoalPresentation.collectiveLine(goal),
+        )
+
         if (goal.description.isNotBlank()) {
             Spacer(modifier = Modifier.height(Spacing.md))
             Text(
                 text = goal.description,
                 style = MaterialTheme.typography.bodyLarge,
-                color = colors.textPrimary,
+                color = colors.textSecondary,
             )
         }
-        Spacer(modifier = Modifier.height(Spacing.lg))
-        app.promise.android.ui.components.PromiseCardSurface {
-            if (goal.isShared) {
-                app.promise.android.ui.components.PromiseMicroLabel("YOUR PROGRESS")
-                Spacer(modifier = Modifier.height(Spacing.xs))
-            } else {
-                app.promise.android.ui.components.PromiseMicroLabel(
-                    if (goal.trackingKind == GoalTrackingKind.COUNT) "WEEKLY PROGRESS" else "CONSISTENCY",
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = GoalPresentation.progressLine(goal),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.textPrimary,
-                    modifier = Modifier.semantics {
-                        contentDescription = GoalPresentation.progressLine(goal).replace("/", " of ")
-                    },
-                )
-                GoalPresentation.streakLine(goal)?.let { streak ->
-                    app.promise.android.ui.components.PromiseStreakBadge(
-                        streakText = streak,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            app.promise.android.ui.components.PromiseLinearProgressBar(
-                progress = GoalPresentation.progressFraction(goal),
-            )
-            GoalPresentation.collectiveLine(goal)?.let { collective ->
-                Spacer(modifier = Modifier.height(Spacing.md))
-                app.promise.android.ui.components.PromiseMicroLabel("EVERYONE")
+
+        GoalPresentation.collectiveLine(goal)?.let { collective ->
+            Spacer(modifier = Modifier.height(Spacing.md))
+            PromiseCardSurface {
+                PromiseMicroLabel("EVERYONE")
                 Spacer(modifier = Modifier.height(Spacing.xxs))
                 Text(
                     text = collective.removePrefix("Everyone: ").trimStart(),
@@ -427,6 +423,7 @@ private fun DetailContent(
                 )
             }
         }
+
         if (goal.isShared && goal.groupSummary != null) {
             Spacer(modifier = Modifier.height(Spacing.md))
             GroupProgressSummaryCard(summary = goal.groupSummary)
@@ -444,11 +441,12 @@ private fun DetailContent(
 
         if (actionError != null) {
             Spacer(modifier = Modifier.height(Spacing.md))
-            app.promise.android.ui.components.PromiseErrorBanner(
+            PromiseErrorBanner(
                 message = actionError.toUserMessage(),
                 onRetry = onClearError,
             )
         }
+
         if (ui.canCheckInToday()) {
             Spacer(modifier = Modifier.height(Spacing.lg))
             InlineCheckIn(
@@ -458,9 +456,10 @@ private fun DetailContent(
                 onSubmit = onCheckIn,
             )
         }
+
         if (!goal.isShared && goal.isOwnerViewer && !goal.isTerminal) {
             Spacer(modifier = Modifier.height(Spacing.section))
-            app.promise.android.ui.components.PromiseCardSurface(
+            PromiseCardSurface(
                 onClick = onConvertToShared,
             ) {
                 Row(
@@ -504,40 +503,29 @@ private fun DetailContent(
 
         if (goal.isShared) {
             Spacer(modifier = Modifier.height(Spacing.section))
-            if (goal.canManageParticipants) {
-                Row {
-                    TextButton(
-                        onClick = onManageParticipants,
-                        modifier = Modifier
-                            .heightIn(min = TouchTarget.min)
-                            .semantics { contentDescription = "View participants" },
-                    ) {
-                        Text("Participants", color = colors.accent)
-                    }
-                    TextButton(
-                        onClick = onInviteParticipant,
-                        enabled = !inviteBusy,
-                        modifier = Modifier
-                            .heightIn(min = TouchTarget.min)
-                            .semantics { contentDescription = "Invite someone" },
-                    ) {
-                        Text("Invite", color = colors.accent)
-                    }
-                }
-            } else {
+            PromiseSectionHeader(
+                title = "Collaboration",
+                actionLabel = if (goal.canManageParticipants && !inviteBusy) "+ Invite" else null,
+                onActionClick = onInviteParticipant,
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 TextButton(
                     onClick = onManageParticipants,
-                    modifier = Modifier
-                        .heightIn(min = TouchTarget.min)
-                        .semantics { contentDescription = "View participants" },
+                    modifier = Modifier.semantics { contentDescription = "View participants" },
                 ) {
-                    Text("Participants", color = colors.accent)
+                    Text("View ${goal.participants.size.takeIf { it > 0 } ?: ""} Participants", color = colors.accent)
                 }
             }
 
             if (goal.canViewChat && onOpenChat != null) {
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                app.promise.android.ui.components.PromiseCardSurface(
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                PromiseCardSurface(
                     modifier = Modifier.clickable { onOpenChat(goal.id) },
                 ) {
                     Row(
@@ -601,13 +589,13 @@ private fun DetailContent(
 
             if (ui.recentActivity.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(Spacing.md))
-                app.promise.android.ui.components.PromiseCardSurface {
+                PromiseCardSurface {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        app.promise.android.ui.components.PromiseMicroLabel("RECENT ACTIVITY")
+                        PromiseMicroLabel("RECENT ACTIVITY")
                         Text(
                             text = "View all",
                             style = MaterialTheme.typography.labelMedium,
@@ -618,9 +606,7 @@ private fun DetailContent(
                         )
                     }
                     Spacer(modifier = Modifier.height(Spacing.xs))
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
+                    Column {
                         ui.recentActivity.take(4).forEach { item ->
                             ActivityRowItem(item = item)
                         }
@@ -628,9 +614,10 @@ private fun DetailContent(
                 }
             }
         }
+
         Spacer(modifier = Modifier.height(Spacing.section))
         if (goal.canPause) {
-            app.promise.android.ui.components.PromiseSecondaryButton(
+            PromiseSecondaryButton(
                 text = "Pause",
                 onClick = onPause,
                 enabled = !busy,
@@ -639,7 +626,7 @@ private fun DetailContent(
             Spacer(modifier = Modifier.height(Spacing.xs))
         }
         if (goal.canResume) {
-            app.promise.android.ui.components.PromiseSecondaryButton(
+            PromiseSecondaryButton(
                 text = "Resume",
                 onClick = onResume,
                 enabled = !busy,
@@ -648,7 +635,7 @@ private fun DetailContent(
             Spacer(modifier = Modifier.height(Spacing.xs))
         }
         if (goal.canCompleteGoal) {
-            app.promise.android.ui.components.PromisePrimaryButton(
+            PromisePrimaryButton(
                 text = if (busy) "Working…" else "Complete",
                 onClick = onComplete,
                 enabled = !busy,
@@ -680,13 +667,13 @@ private fun DetailContent(
                 Text("Leave goal", color = MaterialTheme.colorScheme.error)
             }
         }
+
         Spacer(modifier = Modifier.height(Spacing.section))
-        Text(
-            text = "History",
-            style = MaterialTheme.typography.titleLarge,
-            color = colors.textPrimary,
+        PromiseSectionHeader(
+            title = "History",
+            subtitle = if (ui.checkIns.isNotEmpty()) "${ui.checkIns.size} check-ins" else null,
         )
-        Spacer(modifier = Modifier.height(Spacing.sm))
+        Spacer(modifier = Modifier.height(Spacing.xs))
         if (ui.checkIns.isEmpty()) {
             Text(
                 text = "No check-ins yet.",
@@ -694,8 +681,10 @@ private fun DetailContent(
                 color = colors.textSecondary,
             )
         } else {
-            ui.checkIns.forEach { row ->
-                HistoryRow(row)
+            Column {
+                ui.checkIns.forEach { row ->
+                    HistoryRow(row)
+                }
             }
         }
         Spacer(modifier = Modifier.height(Spacing.xxl))
@@ -893,34 +882,15 @@ private fun InlineCheckIn(
 
 @Composable
 private fun HistoryRow(checkIn: GoalCheckIn) {
-    val colors = PromiseThemeColors.current
     val status = when (checkIn.status) {
         GoalCheckInStatus.COMPLETED -> "Done"
         GoalCheckInStatus.SKIPPED -> "Skipped"
     }
     val valuePart = checkIn.value?.let { " · $it" }.orEmpty()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = Spacing.xs),
-    ) {
-        Text(
-            text = checkIn.periodDate,
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textSecondary,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            text = status + valuePart,
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textPrimary,
-        )
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+    PromiseTimelineItem(
+        title = status + valuePart,
+        timestamp = checkIn.periodDate,
+        isCompleted = checkIn.status == GoalCheckInStatus.COMPLETED,
     )
 }
 

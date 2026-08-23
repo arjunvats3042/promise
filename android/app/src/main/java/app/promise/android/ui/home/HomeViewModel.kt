@@ -78,7 +78,9 @@ class HomeViewModel @Inject constructor(
     private val aiRepository: AiRepository,
     private val goalRepository: app.promise.android.domain.GoalRepository,
     private val commitmentRepository: app.promise.android.domain.CommitmentRepository,
+    private val profilePhotoStore: app.promise.android.data.local.ProfilePhotoStore,
 ) : ViewModel() {
+    val photoUri: StateFlow<String?> = profilePhotoStore.photoUri
     private val _state = MutableStateFlow<LoadState<HomeUiModel>>(LoadState.Loading)
     val state: StateFlow<LoadState<HomeUiModel>> = _state.asStateFlow()
 

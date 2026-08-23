@@ -49,11 +49,13 @@ import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.rememberReduceMotion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 @HiltViewModel
 class MainShellViewModel @Inject constructor(
     val haptics: PromiseHaptics,
+    val deepLinkRouter: DeepLinkRouter,
 ) : ViewModel()
 
 @Composable
@@ -69,6 +71,35 @@ fun MainShell(
     val coroutineScope = rememberCoroutineScope()
 
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { 4 })
+
+    // Observe and handle deep link events across cold start, background, and foreground
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        viewModel.deepLinkRouter.destinations.collectLatest { destination ->
+            when (destination) {
+                is DeepLinkDestination.Commitment -> {
+                    navController.navigate(CommitmentRoute(destination.id)) {
+                        launchSingleTop = true
+                    }
+                }
+                is DeepLinkDestination.Goal -> {
+                    navController.navigate(GoalRoute(destination.id)) {
+                        launchSingleTop = true
+                    }
+                }
+                is DeepLinkDestination.GoalChat -> {
+                    navController.navigate(GoalChatRoute(destination.id)) {
+                        launchSingleTop = true
+                    }
+                }
+                DeepLinkDestination.Home -> {
+                    pagerState.scrollToPage(0)
+                }
+                DeepLinkDestination.Profile -> {
+                    pagerState.scrollToPage(3)
+                }
+            }
+        }
+    }
 
     val swipeHost = remember(pagerState) {
         TabSwipeHost(

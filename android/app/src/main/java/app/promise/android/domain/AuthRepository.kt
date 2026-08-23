@@ -63,4 +63,8 @@ interface AuthRepository {
     suspend fun revokeAllSessions(exceptCurrent: Boolean = true)
 
     suspend fun getSecurityEvents(): List<SecurityEventItem>
+
+    suspend fun uploadProfilePhoto(bytes: ByteArray, mimeType: String = "image/jpeg"): User
+
+    suspend fun deleteProfilePhoto(): User
 }

@@ -9,4 +9,5 @@ data class User(
     val emailVerified: Boolean = false,
     val hasPassword: Boolean = true,
     val googleLinked: Boolean = false,
+    val avatarUrl: String? = null,
 )

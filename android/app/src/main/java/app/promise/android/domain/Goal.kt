@@ -64,6 +64,7 @@ data class GoalParticipant(
     val leftAt: String?,
     val isExpired: Boolean = false,
     val invitationExpiresAt: String? = null,
+    val avatarUrl: String? = null,
 )
 
 data class GroupSummary(
@@ -136,6 +137,7 @@ data class GoalChatMessageSummary(
     val senderName: String,
     val senderId: String,
     val createdAt: String,
+    val senderAvatarUrl: String? = null,
 )
 
 data class Goal(
@@ -232,6 +234,7 @@ enum class ChatMessageDeliveryStatus {
 data class ChatMessageSender(
     val id: String,
     val name: String,
+    val avatarUrl: String? = null,
 )
 
 data class ChatMessage(
@@ -305,11 +308,13 @@ data class LookupUser(
     val id: String,
     val name: String,
     val email: String,
+    val avatarUrl: String? = null,
 )
 
 data class GoalActivityActor(
     val id: String,
     val name: String,
+    val avatarUrl: String? = null,
 )
 
 data class GoalActivityItem(
@@ -321,3 +326,4 @@ data class GoalActivityItem(
     val periodDate: String?,
     val createdAt: String,
 )
+

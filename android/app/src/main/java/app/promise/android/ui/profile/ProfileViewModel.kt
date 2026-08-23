@@ -4,19 +4,29 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.promise.android.core.events.AppEventBus
 import app.promise.android.core.events.AppMutationEvent
+import app.promise.android.data.local.NotificationReadStore
+import app.promise.android.data.local.ProfilePhotoStore
 import app.promise.android.data.network.AuthSession
 import app.promise.android.domain.AuthRepository
-import app.promise.android.domain.SecurityEventItem
+import app.promise.android.domain.DeviceRegistrationRepository
+import app.promise.android.domain.NotificationHistoryItem
+import app.promise.android.domain.NotificationPreferences
+import app.promise.android.domain.NotificationPreferencesPatch
+import app.promise.android.domain.NotificationPreferencesRepository
 import app.promise.android.domain.User
 import app.promise.android.domain.UserSession
 import app.promise.android.ui.haptics.PromiseHaptics
+import app.promise.android.ui.navigation.DeepLinkRouter
 import app.promise.android.ui.theme.PromiseThemeMode
 import app.promise.android.ui.theme.ThemeController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -24,28 +34,63 @@ class ProfileViewModel @Inject constructor(
     private val themeController: ThemeController,
     private val haptics: PromiseHaptics,
     private val authRepository: AuthRepository,
-    private val notificationPreferencesRepository: app.promise.android.domain.NotificationPreferencesRepository,
-    private val deviceRegistrationRepository: app.promise.android.domain.DeviceRegistrationRepository,
+    private val notificationPreferencesRepository: NotificationPreferencesRepository,
+    private val deviceRegistrationRepository: DeviceRegistrationRepository,
     private val appEventBus: AppEventBus,
+    private val profilePhotoStore: ProfilePhotoStore,
+    private val notificationReadStore: NotificationReadStore,
+    val deepLinkRouter: DeepLinkRouter,
     authSession: AuthSession,
 ) : ViewModel() {
     val mode: StateFlow<PromiseThemeMode> = themeController.mode
     val user: StateFlow<User?> = authSession.user
+    val photoUri: StateFlow<String?> = profilePhotoStore.photoUri
+
+    fun updateProfilePhoto(uri: android.net.Uri) {
+        profilePhotoStore.savePhotoFromUri(uri)
+        haptics.confirm()
+        viewModelScope.launch {
+            try {
+                val bytes = profilePhotoStore.readBytesFromUri(uri)
+                if (bytes != null && bytes.isNotEmpty()) {
+                    authRepository.uploadProfilePhoto(bytes)
+                }
+            } catch (t: Throwable) {
+                // Keep local cached photo even if offline
+            }
+        }
+    }
+
+    fun clearProfilePhoto() {
+        profilePhotoStore.clearPhoto()
+        haptics.light()
+        viewModelScope.launch {
+            try {
+                authRepository.deleteProfilePhoto()
+            } catch (_: Throwable) {
+            }
+        }
+    }
 
     private val _isLoggingOut = MutableStateFlow(false)
     val isLoggingOut: StateFlow<Boolean> = _isLoggingOut.asStateFlow()
 
-    private val _preferences = MutableStateFlow<app.promise.android.domain.NotificationPreferences?>(null)
-    val preferences: StateFlow<app.promise.android.domain.NotificationPreferences?> = _preferences.asStateFlow()
+    private val _preferences = MutableStateFlow<NotificationPreferences?>(null)
+    val preferences: StateFlow<NotificationPreferences?> = _preferences.asStateFlow()
 
-    private val _notificationHistory = MutableStateFlow<List<app.promise.android.domain.NotificationHistoryItem>>(emptyList())
-    val notificationHistory: StateFlow<List<app.promise.android.domain.NotificationHistoryItem>> = _notificationHistory.asStateFlow()
+    private val _notificationHistory = MutableStateFlow<List<NotificationHistoryItem>>(emptyList())
+    val notificationHistory: StateFlow<List<NotificationHistoryItem>> = _notificationHistory.asStateFlow()
+
+    // Unread notification history filtered against local read tracking store
+    val unreadHistory: StateFlow<List<NotificationHistoryItem>> = combine(
+        _notificationHistory,
+        notificationReadStore.readIds,
+    ) { history, readIds ->
+        history.filter { !readIds.contains(it.id) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _sessions = MutableStateFlow<List<UserSession>>(emptyList())
     val sessions: StateFlow<List<UserSession>> = _sessions.asStateFlow()
-
-    private val _securityEvents = MutableStateFlow<List<SecurityEventItem>>(emptyList())
-    val securityEvents: StateFlow<List<SecurityEventItem>> = _securityEvents.asStateFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -60,7 +105,33 @@ class ProfileViewModel @Inject constructor(
         loadPreferences()
         loadNotificationHistory()
         loadSessions()
-        loadSecurityEvents()
+    }
+
+    fun markNotificationRead(item: NotificationHistoryItem) {
+        notificationReadStore.markAsRead(item.id)
+        haptics.light()
+    }
+
+    fun markAllNotificationsRead() {
+        val currentUnread = unreadHistory.value
+        if (currentUnread.isNotEmpty()) {
+            notificationReadStore.markAllAsRead(currentUnread.map { it.id })
+            haptics.confirm()
+        }
+    }
+
+    fun openNotification(item: NotificationHistoryItem) {
+        // 1. Mark as read & remove from unread history
+        markNotificationRead(item)
+
+        // 2. Navigate to destination
+        if (item.deepLink.isNotBlank() && item.deepLink != "promise://home") {
+            deepLinkRouter.routeUri(item.deepLink)
+        } else if (item.entityId.isNotBlank()) {
+            deepLinkRouter.routeEntity(item.entityType, item.entityId, item.eventType)
+        } else {
+            deepLinkRouter.routeUri("promise://home")
+        }
     }
 
     fun sendTestNotification() {
@@ -69,7 +140,6 @@ class ProfileViewModel @Inject constructor(
         _testSuccessMessage.value = null
         viewModelScope.launch {
             try {
-                // Ensure device is synced first
                 deviceRegistrationRepository.syncDeviceRegistration()
                 val res = notificationPreferencesRepository.triggerTestNotification()
                 res.onSuccess {
@@ -115,21 +185,12 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun loadSecurityEvents() {
-        viewModelScope.launch {
-            try {
-                _securityEvents.value = authRepository.getSecurityEvents()
-            } catch (_: Throwable) {}
-        }
-    }
-
     fun revokeSession(sessionId: String) {
         viewModelScope.launch {
             try {
                 authRepository.revokeSession(sessionId)
                 haptics.confirm()
                 loadSessions()
-                loadSecurityEvents()
             } catch (t: Throwable) {
                 _errorMessage.value = "Failed to sign out session: ${t.message}"
                 haptics.error()
@@ -143,7 +204,6 @@ class ProfileViewModel @Inject constructor(
                 authRepository.revokeAllSessions(exceptCurrent = true)
                 haptics.confirm()
                 loadSessions()
-                loadSecurityEvents()
             } catch (t: Throwable) {
                 _errorMessage.value = "Failed to sign out other sessions: ${t.message}"
                 haptics.error()
@@ -151,49 +211,7 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun unlinkGoogle(onSuccess: () -> Unit, onError: (String) -> Unit) {
-        viewModelScope.launch {
-            try {
-                authRepository.unlinkGoogle()
-                haptics.confirm()
-                loadSecurityEvents()
-                onSuccess()
-            } catch (t: Throwable) {
-                haptics.error()
-                onError(t.message ?: "Failed to unlink Google account")
-            }
-        }
-    }
-
-    fun requestEmailChange(newEmail: String, currentPassword: String?, onResult: (String) -> Unit, onError: (String) -> Unit) {
-        viewModelScope.launch {
-            try {
-                val detail = authRepository.requestEmailChange(newEmail, currentPassword)
-                haptics.confirm()
-                loadSecurityEvents()
-                onResult(detail)
-            } catch (t: Throwable) {
-                haptics.error()
-                onError(t.message ?: "Failed to request email change")
-            }
-        }
-    }
-
-    fun confirmEmailChange(token: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
-        viewModelScope.launch {
-            try {
-                authRepository.confirmEmailChange(token)
-                haptics.confirm()
-                loadSecurityEvents()
-                onSuccess()
-            } catch (t: Throwable) {
-                haptics.error()
-                onError(t.message ?: "Failed to confirm email change")
-            }
-        }
-    }
-
-    fun updatePreferences(patch: app.promise.android.domain.NotificationPreferencesPatch) {
+    fun updatePreferences(patch: NotificationPreferencesPatch) {
         val current = _preferences.value ?: return
 
         // 1. Optimistic update
@@ -225,7 +243,7 @@ class ProfileViewModel @Inject constructor(
             }.onFailure {
                 // 3. Rollback on failure
                 _preferences.value = current
-                _errorMessage.value = "Failed to update notification preferences"
+                _errorMessage.value = "Couldn't update notification preferences. Try again."
                 haptics.error()
             }
         }
@@ -239,47 +257,6 @@ class ProfileViewModel @Inject constructor(
         if (themeController.mode.value == mode) return
         themeController.setMode(mode)
         haptics.light()
-    }
-
-    fun requestEmailVerification(onResult: (String) -> Unit) {
-        viewModelScope.launch {
-            try {
-                val detail = authRepository.requestEmailVerification()
-                haptics.confirm()
-                onResult(detail)
-            } catch (t: Throwable) {
-                _errorMessage.value = "Failed to send verification email: ${t.message}"
-                haptics.error()
-            }
-        }
-    }
-
-    fun changePassword(oldPass: String, newPass: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
-        viewModelScope.launch {
-            try {
-                authRepository.changePassword(oldPass, newPass)
-                haptics.confirm()
-                loadSecurityEvents()
-                onSuccess()
-            } catch (t: Throwable) {
-                haptics.error()
-                onError(t.message ?: "Failed to change password")
-            }
-        }
-    }
-
-    fun setPassword(newPass: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
-        viewModelScope.launch {
-            try {
-                authRepository.setPassword(newPass)
-                haptics.confirm()
-                loadSecurityEvents()
-                onSuccess()
-            } catch (t: Throwable) {
-                haptics.error()
-                onError(t.message ?: "Failed to set password")
-            }
-        }
     }
 
     fun deleteAccount(onComplete: () -> Unit) {

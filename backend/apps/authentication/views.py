@@ -1,11 +1,15 @@
 from django.conf import settings
+from django.utils import timezone
+from pathlib import Path
 from rest_framework import status
 from rest_framework.decorators import (
     api_view,
     authentication_classes,
+    parser_classes,
     permission_classes,
 )
-from rest_framework.exceptions import NotFound
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -380,3 +384,68 @@ def email_change_confirm(request):
         {"user": UserResponseSerializer(user).data, "detail": "Email address updated and verified successfully."},
         status=status.HTTP_200_OK,
     )
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def upload_profile_photo_view(request):
+    photo_file = request.FILES.get("photo") or request.FILES.get("file")
+    if not photo_file:
+        raise ValidationError("No photo file was provided in the request.")
+
+    if photo_file.size > 5 * 1024 * 1024:
+        raise ValidationError("Photo file size must not exceed 5MB.")
+
+    # Validate image content type / format
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
+    if photo_file.content_type and photo_file.content_type.lower() not in allowed_types:
+        raise ValidationError("Only JPEG, PNG, or WebP image formats are supported.")
+
+    avatars_dir = Path(settings.MEDIA_ROOT) / "avatars"
+    avatars_dir.mkdir(parents=True, exist_ok=True)
+
+    file_name = f"{request.user.id}.jpg"
+    dest_path = avatars_dir / file_name
+
+    with open(dest_path, "wb+") as dest:
+        for chunk in photo_file.chunks():
+            dest.write(chunk)
+
+    timestamp = int(timezone.now().timestamp())
+    request.user.avatar_url = f"/media/avatars/{file_name}?v={timestamp}"
+    request.user.save(update_fields=["avatar_url", "updated_at"])
+
+    return Response(
+        {
+            "user": UserResponseSerializer(request.user).data,
+            "avatar_url": request.user.avatar_url,
+            "detail": "Profile photo updated successfully.",
+        },
+        status=status.HTTP_200_OK,
+    )
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def delete_profile_photo_view(request):
+    avatars_dir = Path(settings.MEDIA_ROOT) / "avatars"
+    file_name = f"{request.user.id}.jpg"
+    dest_path = avatars_dir / file_name
+    if dest_path.exists():
+        try:
+            dest_path.unlink()
+        except OSError:
+            pass
+
+    request.user.avatar_url = ""
+    request.user.save(update_fields=["avatar_url", "updated_at"])
+
+    return Response(
+        {
+            "user": UserResponseSerializer(request.user).data,
+            "detail": "Profile photo removed successfully.",
+        },
+        status=status.HTTP_200_OK,
+    )
+
