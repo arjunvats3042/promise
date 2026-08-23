@@ -47,7 +47,7 @@ class CommitmentDetailViewModel @Inject constructor(
     val action: StateFlow<ActionState> = _action.asStateFlow()
 
     val timeZoneId: String
-        get() = authSession.user.value?.timezone ?: "UTC"
+        get() = authSession.user.value?.timezone ?: "Asia/Kolkata"
 
     init {
         reload()

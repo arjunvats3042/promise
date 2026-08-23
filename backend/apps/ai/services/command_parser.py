@@ -32,7 +32,7 @@ COMMAND_PARSER_SCHEMA = {
 def parse_and_execute_command(
     user,
     natural_query: str,
-    timezone: str = "UTC",
+    timezone: str = "Asia/Kolkata",
     provider: Optional[AIProvider] = None,
 ) -> Dict[str, Any]:
     """Translates natural language to query intent, then safely executes backend filter."""

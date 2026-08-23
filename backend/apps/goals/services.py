@@ -785,6 +785,7 @@ def update_goal(
     tracking_kind=_UNSET,
     target_value=_UNSET,
     target_unit=_UNSET,
+    is_shared=_UNSET,
 ):
     with transaction.atomic():
         goal = _lock_for_owner(actor, goal_id)
@@ -803,6 +804,12 @@ def update_goal(
         next_tracking_kind = goal.tracking_kind
         next_target_value = goal.target_value
         next_target_unit = goal.target_unit
+        next_is_shared = goal.is_shared
+
+        if is_shared is not _UNSET:
+            if not is_shared and goal.is_shared:
+                raise GoalValidationError("Shared goals cannot be converted back to individual goals.")
+            next_is_shared = is_shared
 
         if title is not _UNSET:
             next_title = title.strip() if title else title
@@ -927,6 +934,9 @@ def update_goal(
         if next_target_unit != goal.target_unit:
             goal.target_unit = next_target_unit
             changed.append("target_unit")
+        if next_is_shared != goal.is_shared:
+            goal.is_shared = next_is_shared
+            changed.append("is_shared")
         if not changed:
             return goal
 
@@ -937,6 +947,33 @@ def update_goal(
             event_type=GoalEvent.EventType.UPDATED,
             metadata={"fields": changed},
         )
+        return goal
+
+
+def convert_goal_to_shared(*, actor, goal_id):
+    """Converts an individual goal to a shared goal.
+
+    This is a one-way operation. An already shared goal remains shared.
+    """
+    with transaction.atomic():
+        goal = _lock_for_owner(actor, goal_id)
+        if goal.status in _TERMINAL_STATUSES:
+            raise GoalInvalidTransitionError()
+        if not goal.is_shared:
+            goal.is_shared = True
+            goal.save(update_fields=["is_shared", "updated_at"])
+            _add_event(
+                goal,
+                actor=actor,
+                event_type=GoalEvent.EventType.UPDATED,
+                metadata={"fields": ["is_shared"], "converted_to_shared": True},
+            )
+            try:
+                from apps.analytics.events import EVENT_SHARED_GOAL_CREATED
+                from apps.analytics.services import record_analytics_event
+                record_analytics_event(event_name=EVENT_SHARED_GOAL_CREATED, user=actor)
+            except Exception:
+                pass
         return goal
 
 
@@ -2060,6 +2097,12 @@ def _add_event(goal, *, actor, event_type, metadata=None, check_in=None):
         occurred_at=domain_event.created_at,
     )
 
+    try:
+        from apps.notifications.services import sync_goal_reminders
+        sync_goal_reminders(goal)
+    except Exception as notif_exc:
+        logging.getLogger("promise").warning("Failed to sync goal reminders: %s", notif_exc)
+
     # Server-Side Authoritative Analytics Event Emission
     try:
         from apps.analytics.events import (
@@ -2514,7 +2557,7 @@ def shared_goal_group_summary(goal):
         }
 
     active_ids = {p.id for p in active_participants}
-    tz = ZoneInfo(goal.timezone or "UTC")
+    tz = ZoneInfo(goal.timezone or "Asia/Kolkata")
     today = timezone.now().astimezone(tz).date()
 
     # Current period (week) bounds
@@ -2677,7 +2720,7 @@ def shared_goal_weekly_reflection(goal):
     if not goal.is_shared:
         return None
 
-    tz = ZoneInfo(goal.timezone or "UTC")
+    tz = ZoneInfo(goal.timezone or "Asia/Kolkata")
     today = timezone.now().astimezone(tz).date()
     start_of_week = today - timedelta(days=today.weekday())
     end_of_week = start_of_week + timedelta(days=6)

@@ -86,6 +86,9 @@ fun GoalDto.toDomain(): Goal {
         milestones = milestones.map { it.toDomain() },
         weeklyReflection = weeklyReflection?.toDomain(),
         participantLimit = participantLimit,
+        isSharedField = isShared,
+        unreadChatCount = unreadChatCount,
+        latestChatMessage = latestChatMessage?.toDomain(),
     )
 }
 

@@ -127,6 +127,8 @@ fun ProfileScreen(
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val notificationHistory by viewModel.notificationHistory.collectAsStateWithLifecycle()
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+    val isSendingTest by viewModel.isSendingTest.collectAsStateWithLifecycle()
+    val testSuccessMessage by viewModel.testSuccessMessage.collectAsStateWithLifecycle()
 
     var showLogoutAllDialog by remember { mutableStateOf(false) }
     var showRevokeOtherDialog by remember { mutableStateOf(false) }
@@ -215,6 +217,9 @@ fun ProfileScreen(
                     preferences = preferences,
                     history = notificationHistory,
                     onUpdate = { patch -> viewModel.updatePreferences(patch) },
+                    onSendTest = { viewModel.sendTestNotification() },
+                    isSendingTest = isSendingTest,
+                    testSuccessMessage = testSuccessMessage,
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.section))

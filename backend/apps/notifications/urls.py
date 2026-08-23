@@ -5,6 +5,7 @@ from apps.notifications.views import (
     DeviceRegistrationView,
     NotificationHistoryView,
     NotificationPreferencesView,
+    TestNotificationView,
 )
 
 urlpatterns = [
@@ -12,4 +13,5 @@ urlpatterns = [
     path("devices/<str:device_id>/", DeviceDetailView.as_view(), name="notification-device-detail"),
     path("preferences/", NotificationPreferencesView.as_view(), name="notification-preferences"),
     path("history/", NotificationHistoryView.as_view(), name="notification-history"),
+    path("test/", TestNotificationView.as_view(), name="notification-test"),
 ]

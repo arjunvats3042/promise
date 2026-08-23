@@ -52,6 +52,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -94,12 +95,16 @@ fun HomeScreen(
     val dailyMotivationState by viewModel.dailyMotivationState.collectAsStateWithLifecycle()
     var countPractice by remember { mutableStateOf<HomePractice?>(null) }
     var showThoughtParser by remember { mutableStateOf(false) }
+    var dismissedInvites by remember { mutableStateOf(false) }
+
+    val pendingInvites = (state as? LoadState.Ready)?.value?.pendingInvites.orEmpty()
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.onVisible()
+                dismissedInvites = false
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -130,6 +135,7 @@ fun HomeScreen(
                     onOpenPractice = onOpenPractice,
                     onOpenSearch = onOpenSearch,
                     onOpenThoughtParser = { showThoughtParser = true },
+                    onOpenInvites = { dismissedInvites = false },
                     onComplete = viewModel::completeCommitment,
                     onCheckIn = { practice ->
                         if (practice.trackingKind == GoalTrackingKind.COUNT && !practice.checkedInToday) {
@@ -158,6 +164,21 @@ fun HomeScreen(
                     .statusBarsPadding(),
             )
         }
+    }
+
+    if (!dismissedInvites && pendingInvites.isNotEmpty()) {
+        GoalInvitePopupDialog(
+            invites = pendingInvites,
+            onAccept = { goalId ->
+                viewModel.acceptInvitation(goalId)
+            },
+            onDecline = { goalId ->
+                viewModel.declineInvitation(goalId)
+            },
+            onDismiss = {
+                dismissedInvites = true
+            },
+        )
     }
 
     countPractice?.let { practice ->
@@ -223,6 +244,7 @@ private fun HomeContent(
     onOpenPractice: (String) -> Unit,
     onOpenSearch: () -> Unit = {},
     onOpenThoughtParser: () -> Unit = {},
+    onOpenInvites: () -> Unit = {},
     onComplete: (String) -> Unit,
     onCheckIn: (HomePractice) -> Unit,
     onRetryCommitments: () -> Unit,
@@ -262,6 +284,48 @@ private fun HomeContent(
             Spacer(modifier = Modifier.height(Spacing.md))
             TodayThoughtSection(state = dailyMotivationState)
             Spacer(modifier = Modifier.height(Spacing.sectionGap))
+        }
+
+        // Shared Goal Invites Banner if pending
+        if (model.pendingInvites.isNotEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.md))
+                        .background(colors.accent.copy(alpha = 0.14f))
+                        .border(1.dp, colors.accent.copy(alpha = 0.4f), RoundedCornerShape(Radius.md))
+                        .clickable(onClick = onOpenInvites)
+                        .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "🤝 Shared Goal Invite (${model.pendingInvites.size})",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.accent,
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.xxs))
+                            Text(
+                                text = model.pendingInvites.first().let { "${it.inviterName} invited you to \"${it.title}\"" },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        TextButton(onClick = onOpenInvites) {
+                            Text("Review", color = colors.accent, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
+            }
         }
 
         // Email Verification notice if needed
@@ -869,6 +933,50 @@ fun PracticeRow(
                         )
                     }
                 }
+
+                if (practice.isShared && (practice.unreadChatCount > 0 || practice.latestChatMessage != null)) {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.sm))
+                            .background(if (practice.unreadChatCount > 0) colors.accent.copy(alpha = 0.15f) else colors.surfaceMuted)
+                            .border(
+                                width = 1.dp,
+                                color = if (practice.unreadChatCount > 0) colors.accent.copy(alpha = 0.35f) else androidx.compose.ui.graphics.Color.Transparent,
+                                shape = RoundedCornerShape(Radius.sm),
+                            )
+                            .clickable(onClick = onOpen)
+                            .padding(horizontal = Spacing.xs + 2.dp, vertical = Spacing.xxs),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        Text(
+                            text = "💬",
+                            fontSize = 11.sp,
+                        )
+                        if (practice.unreadChatCount > 0) {
+                            Text(
+                                text = "${practice.unreadChatCount} new",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.accent,
+                            )
+                            Text(
+                                text = "•",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textSecondary,
+                            )
+                        }
+                        Text(
+                            text = practice.latestChatMessage?.let { "${it.senderName}: ${it.text}" } ?: "Group chat",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (practice.unreadChatCount > 0) colors.textPrimary else colors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+
                 if (practice.progressFraction > 0f) {
                     Spacer(modifier = Modifier.height(Spacing.xs))
                     app.promise.android.ui.components.PromiseLinearProgressBar(

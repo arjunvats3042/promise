@@ -92,6 +92,9 @@ fun NotificationPreferencesSection(
     preferences: NotificationPreferences?,
     history: List<NotificationHistoryItem> = emptyList(),
     onUpdate: (NotificationPreferencesPatch) -> Unit,
+    onSendTest: () -> Unit = {},
+    isSendingTest: Boolean = false,
+    testSuccessMessage: String? = null,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -374,6 +377,57 @@ fun NotificationPreferencesSection(
                                     onSave = { start, end ->
                                         onUpdate(NotificationPreferencesPatch(quietHoursStart = start, quietHoursEnd = end))
                                     },
+                                )
+                            }
+                        }
+
+                        // 5. Test Push Notification Action Card
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(Radius.lg))
+                                .background(colors.surfaceMuted)
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(Radius.lg))
+                                .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = Spacing.md)) {
+                                    Text(
+                                        text = "Test Push Notification",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colors.textPrimary,
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Send an immediate test alert to this device to verify delivery",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.textSecondary,
+                                    )
+                                }
+                                TextButton(
+                                    onClick = onSendTest,
+                                    enabled = !isSendingTest,
+                                    modifier = Modifier.heightIn(min = TouchTarget.min),
+                                ) {
+                                    Text(
+                                        text = if (isSendingTest) "Sending..." else "Send Test",
+                                        color = if (isSendingTest) colors.textSecondary else colors.accent,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            }
+
+                            if (testSuccessMessage != null) {
+                                Spacer(modifier = Modifier.height(Spacing.xs))
+                                Text(
+                                    text = testSuccessMessage,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.accent,
                                 )
                             }
                         }

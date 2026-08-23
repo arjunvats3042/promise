@@ -29,7 +29,7 @@ GOAL_BUILDER_SCHEMA = {
 
 def build_goal_suggestion(
     user_prompt: str,
-    timezone: str = "UTC",
+    timezone: str = "Asia/Kolkata",
     provider: Optional[AIProvider] = None,
 ) -> Dict[str, Any]:
     """Generates a structured goal suggestion or asks for clarification."""

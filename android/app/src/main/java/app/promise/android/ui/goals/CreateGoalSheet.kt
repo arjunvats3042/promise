@@ -380,4 +380,4 @@ private fun fieldColors() = OutlinedTextFieldDefaults.colors(
 )
 
 private fun safeZone(id: String): ZoneId =
-    runCatching { ZoneId.of(id) }.getOrDefault(ZoneId.of("UTC"))
+    runCatching { ZoneId.of(id) }.getOrDefault(ZoneId.of("Asia/Kolkata"))

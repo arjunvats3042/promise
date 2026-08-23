@@ -189,7 +189,28 @@ data class GoalDto(
     val weeklyReflection: WeeklyReflectionDto? = null,
     @SerialName("participant_limit")
     val participantLimit: Int = 10,
+    @SerialName("unread_chat_count")
+    val unreadChatCount: Int = 0,
+    @SerialName("latest_chat_message")
+    val latestChatMessage: GoalChatMessageSummaryDto? = null,
 )
+
+@Serializable
+data class GoalChatMessageSummaryDto(
+    val id: String = "",
+    val text: String = "",
+    @SerialName("sender_name") val senderName: String = "",
+    @SerialName("sender_id") val senderId: String = "",
+    @SerialName("created_at") val createdAt: String = "",
+) {
+    fun toDomain(): app.promise.android.domain.GoalChatMessageSummary = app.promise.android.domain.GoalChatMessageSummary(
+        id = id,
+        text = text,
+        senderName = senderName,
+        senderId = senderId,
+        createdAt = createdAt,
+    )
+}
 
 @Serializable
 data class GoalPageDto(

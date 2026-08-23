@@ -8,6 +8,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.resume
 
 @Singleton
 class DeviceRegistrationRepositoryImpl @Inject constructor(
@@ -57,6 +58,34 @@ class DeviceRegistrationRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    override suspend fun syncDeviceRegistration(): Result<Unit> {
+        val token = fetchFirebaseToken() ?: getStoredFcmToken()
+        return if (!token.isNullOrBlank()) {
+            registerDevice(token)
+        } else {
+            Result.success(Unit)
+        }
+    }
+
+    private suspend fun fetchFirebaseToken(): String? = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+        try {
+            com.google.firebase.messaging.FirebaseMessaging.getInstance().token
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        val t = task.result
+                        if (!t.isNullOrBlank()) {
+                            storeFcmToken(t)
+                        }
+                        if (continuation.isActive) continuation.resume(t)
+                    } else {
+                        if (continuation.isActive) continuation.resume(null)
+                    }
+                }
+        } catch (_: Throwable) {
+            if (continuation.isActive) continuation.resume(null)
         }
     }
 

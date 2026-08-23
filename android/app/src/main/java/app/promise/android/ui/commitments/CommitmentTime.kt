@@ -11,7 +11,7 @@ import java.time.format.FormatStyle
 
 object CommitmentTime {
     fun zone(timeZoneId: String): ZoneId {
-        return runCatching { ZoneId.of(timeZoneId) }.getOrDefault(ZoneId.of("UTC"))
+        return runCatching { ZoneId.of(timeZoneId) }.getOrDefault(ZoneId.of("Asia/Kolkata"))
     }
 
     fun endOfLocalDayIso(date: LocalDate, timeZoneId: String): String {

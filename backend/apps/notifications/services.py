@@ -323,9 +323,9 @@ def schedule_weekly_digest(user: User, reference_date: Optional[datetime.date] =
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
     try:
-        tz = ZoneInfo(user.timezone or "UTC")
+        tz = ZoneInfo(user.timezone or "Asia/Kolkata")
     except (ZoneInfoNotFoundError, ValueError):
-        tz = ZoneInfo("UTC")
+        tz = ZoneInfo("Asia/Kolkata")
 
     now = django_timezone.now().astimezone(tz)
     target_date = reference_date or now.date()
@@ -375,3 +375,320 @@ def schedule_security_alert(user: User, event_type: str, metadata: Optional[dict
         identity_key=identity_key,
     )
     return reminder
+
+
+def sync_commitment_reminders(commitment) -> list:
+    """Synchronizes scheduled reminders for a commitment based on its lifecycle and deadline."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    from apps.commitments.models import Commitment
+
+    if commitment.status in (Commitment.Status.COMPLETED, Commitment.Status.CANCELLED):
+        cancel_reminders_for_entity(Reminder.EntityType.COMMITMENT, commitment.id, "RESOLVED")
+        return []
+
+    if commitment.status == Commitment.Status.SNOOZED:
+        cancel_reminders_for_entity(Reminder.EntityType.COMMITMENT, commitment.id, "SNOOZED")
+        if commitment.snoozed_until and commitment.snoozed_until > django_timezone.now():
+            identity_key = f"{commitment.created_by_id}:COMMITMENT:{commitment.id}:commitment.snooze_expired:{commitment.snoozed_until.isoformat()}"
+            reminder, _ = schedule_reminder(
+                user=commitment.created_by,
+                entity_type=Reminder.EntityType.COMMITMENT,
+                entity_id=commitment.id,
+                event_type="commitment.snooze_expired",
+                scheduled_for=commitment.snoozed_until,
+                target_timestamp=commitment.snoozed_until,
+                identity_key=identity_key,
+            )
+            return [reminder]
+        return []
+
+    if commitment.status not in (Commitment.Status.PENDING, Commitment.Status.WAITING):
+        return []
+
+    if not commitment.due_at or commitment.due_precision == Commitment.DuePrecision.NONE:
+        cancel_reminders_for_entity(Reminder.EntityType.COMMITMENT, commitment.id, "NO_DEADLINE")
+        return []
+
+    user = commitment.created_by
+    try:
+        tz = ZoneInfo(user.timezone or "Asia/Kolkata")
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = ZoneInfo("Asia/Kolkata")
+
+    now = django_timezone.now()
+    created_reminders = []
+
+    if commitment.due_precision == Commitment.DuePrecision.DATETIME:
+        # 1. commitment.due_soon (1 hour before deadline)
+        due_soon_time = commitment.due_at - datetime.timedelta(hours=1)
+        if due_soon_time > now:
+            identity_key = f"{user.id}:COMMITMENT:{commitment.id}:commitment.due_soon:{commitment.due_at.isoformat()}"
+            r, _ = schedule_reminder(
+                user=user,
+                entity_type=Reminder.EntityType.COMMITMENT,
+                entity_id=commitment.id,
+                event_type="commitment.due_soon",
+                scheduled_for=due_soon_time,
+                target_timestamp=commitment.due_at,
+                identity_key=identity_key,
+            )
+            created_reminders.append(r)
+
+        # 2. commitment.due_now (at exact deadline)
+        if commitment.due_at >= now:
+            identity_key = f"{user.id}:COMMITMENT:{commitment.id}:commitment.due_now:{commitment.due_at.isoformat()}"
+            r, _ = schedule_reminder(
+                user=user,
+                entity_type=Reminder.EntityType.COMMITMENT,
+                entity_id=commitment.id,
+                event_type="commitment.due_now",
+                scheduled_for=commitment.due_at,
+                target_timestamp=commitment.due_at,
+                identity_key=identity_key,
+            )
+            created_reminders.append(r)
+        elif commitment.is_overdue(now):
+            # Overdue morning reminder (09:15 local time)
+            local_now = now.astimezone(tz)
+            morning_target = local_now.replace(hour=9, minute=15, second=0, microsecond=0)
+            if morning_target <= local_now:
+                sched_dt = (morning_target + datetime.timedelta(days=1)).astimezone(datetime.timezone.utc)
+            else:
+                sched_dt = morning_target.astimezone(datetime.timezone.utc)
+            identity_key = f"{user.id}:COMMITMENT:{commitment.id}:commitment.overdue:{local_now.date().isoformat()}"
+            r, _ = schedule_reminder(
+                user=user,
+                entity_type=Reminder.EntityType.COMMITMENT,
+                entity_id=commitment.id,
+                event_type="commitment.overdue",
+                scheduled_for=sched_dt,
+                target_timestamp=commitment.due_at,
+                identity_key=identity_key,
+            )
+            created_reminders.append(r)
+
+    elif commitment.due_precision == Commitment.DuePrecision.DATE:
+        due_date_local = commitment.due_at.astimezone(tz).date()
+        morning_due = datetime.datetime.combine(due_date_local, datetime.time(9, 0), tzinfo=tz).astimezone(datetime.timezone.utc)
+        if morning_due >= now:
+            identity_key = f"{user.id}:COMMITMENT:{commitment.id}:commitment.due_soon:{due_date_local.isoformat()}"
+            r, _ = schedule_reminder(
+                user=user,
+                entity_type=Reminder.EntityType.COMMITMENT,
+                entity_id=commitment.id,
+                event_type="commitment.due_soon",
+                scheduled_for=morning_due,
+                target_period=due_date_local.isoformat(),
+                identity_key=identity_key,
+            )
+            created_reminders.append(r)
+        elif due_date_local < now.astimezone(tz).date():
+            local_now = now.astimezone(tz)
+            morning_target = local_now.replace(hour=9, minute=15, second=0, microsecond=0)
+            if morning_target <= local_now:
+                sched_dt = (morning_target + datetime.timedelta(days=1)).astimezone(datetime.timezone.utc)
+            else:
+                sched_dt = morning_target.astimezone(datetime.timezone.utc)
+            identity_key = f"{user.id}:COMMITMENT:{commitment.id}:commitment.overdue:{local_now.date().isoformat()}"
+            r, _ = schedule_reminder(
+                user=user,
+                entity_type=Reminder.EntityType.COMMITMENT,
+                entity_id=commitment.id,
+                event_type="commitment.overdue",
+                scheduled_for=sched_dt,
+                target_period=due_date_local.isoformat(),
+                identity_key=identity_key,
+            )
+            created_reminders.append(r)
+
+    return created_reminders
+
+
+def sync_goal_reminders(goal) -> list:
+    """Synchronizes scheduled daily practice and streak protection reminders for a goal."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    from apps.goals.models import Goal, GoalCheckIn
+
+    if goal.status in (Goal.Status.PAUSED, Goal.Status.COMPLETED, Goal.Status.CANCELLED):
+        cancel_reminders_for_entity(Reminder.EntityType.GOAL, goal.id, "PAUSED")
+        return []
+
+    if goal.status != Goal.Status.ACTIVE:
+        return []
+
+    user = goal.created_by
+    prefs = get_or_create_preferences(user)
+    try:
+        tz = ZoneInfo(goal.timezone or user.timezone or "Asia/Kolkata")
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = ZoneInfo("Asia/Kolkata")
+
+    now = django_timezone.now()
+    local_now = now.astimezone(tz)
+    today_local = local_now.date()
+
+    # Recurrence check for today
+    is_scheduled_today = False
+    if goal.recurrence_kind == Goal.RecurrenceKind.DAILY:
+        is_scheduled_today = True
+    elif goal.recurrence_kind == Goal.RecurrenceKind.WEEKLY_DAYS:
+        is_scheduled_today = (today_local.isoweekday() in (goal.weekdays or []))
+    elif goal.recurrence_kind == Goal.RecurrenceKind.N_PER_PERIOD:
+        is_scheduled_today = True
+
+    if not is_scheduled_today:
+        return []
+
+    # Check if already checked in today
+    checked_in_today = GoalCheckIn.objects.filter(
+        goal=goal,
+        period_date=today_local,
+        status=GoalCheckIn.Status.COMPLETED,
+    ).exists()
+
+    if checked_in_today:
+        cancel_reminders_for_entity(Reminder.EntityType.GOAL, goal.id, "ALREADY_CHECKED_IN")
+        return []
+
+    created_reminders = []
+    today_str = today_local.isoformat()
+
+    # Morning Practice Reminder
+    if prefs.goals_daily_reminder:
+        m_time = prefs.goals_daily_reminder_time or datetime.time(8, 30)
+        morning_dt = datetime.datetime.combine(today_local, m_time, tzinfo=tz).astimezone(datetime.timezone.utc)
+        if morning_dt >= now:
+            identity_key = f"{user.id}:GOAL:{goal.id}:goal.today_practice:{today_str}"
+            r, _ = schedule_reminder(
+                user=user,
+                entity_type=Reminder.EntityType.GOAL,
+                entity_id=goal.id,
+                event_type="goal.today_practice",
+                scheduled_for=morning_dt,
+                target_period=today_str,
+                identity_key=identity_key,
+            )
+            created_reminders.append(r)
+
+    # Evening Streak Protection / Check-in Reminder
+    if prefs.goals_evening_reminder:
+        e_time = prefs.goals_evening_reminder_time or datetime.time(20, 30)
+        evening_dt = datetime.datetime.combine(today_local, e_time, tzinfo=tz).astimezone(datetime.timezone.utc)
+        if evening_dt >= now:
+            identity_key = f"{user.id}:GOAL:{goal.id}:goal.streak_protection:{today_str}"
+            r, _ = schedule_reminder(
+                user=user,
+                entity_type=Reminder.EntityType.GOAL,
+                entity_id=goal.id,
+                event_type="goal.streak_protection",
+                scheduled_for=evening_dt,
+                target_period=today_str,
+                identity_key=identity_key,
+            )
+            created_reminders.append(r)
+
+    return created_reminders
+
+
+def sync_all_active_reminders() -> dict:
+    """Scans all active commitments and goals across the database and ensures reminders are scheduled."""
+    from apps.commitments.models import Commitment
+    from apps.goals.models import Goal
+
+    commitments_synced = 0
+    goals_synced = 0
+
+    active_commitments = Commitment.objects.filter(
+        status__in=[Commitment.Status.PENDING, Commitment.Status.WAITING, Commitment.Status.SNOOZED],
+    ).select_related("created_by")
+
+    for commitment in active_commitments:
+        sync_commitment_reminders(commitment)
+        commitments_synced += 1
+
+    active_goals = Goal.objects.filter(
+        status=Goal.Status.ACTIVE,
+    ).select_related("created_by")
+
+    for goal in active_goals:
+        sync_goal_reminders(goal)
+        goals_synced += 1
+
+    return {"commitments_synced": commitments_synced, "goals_synced": goals_synced}
+
+
+def send_test_notification_to_user(user: User, title: str = "Promise Notification", body: str = "Here is your requested notification! ✨") -> dict:
+    """Creates and immediately dispatches a test push notification to all active devices of the user."""
+    from apps.notifications.fcm import get_fcm_client
+    from apps.notifications.models import NotificationDelivery, UserDevice
+
+    now = django_timezone.now()
+    test_id = uuid.uuid4()
+    identity_key = f"{user.id}:SECURITY:{SYSTEM_UUID}:system.test_notification:{test_id.hex}"
+
+    reminder, _ = schedule_reminder(
+        user=user,
+        entity_type=Reminder.EntityType.SECURITY,
+        entity_id=SYSTEM_UUID,
+        event_type="system.test_notification",
+        scheduled_for=now,
+        target_period=test_id.hex,
+        identity_key=identity_key,
+    )
+
+    devices = list(UserDevice.objects.filter(user=user, is_active=True))
+    fcm_client = get_fcm_client()
+    dispatched_count = 0
+
+    payload_data = {
+        "reminder_id": str(reminder.id),
+        "identity_key": reminder.identity_key,
+        "entity_type": reminder.entity_type,
+        "entity_id": str(reminder.entity_id),
+        "event_type": reminder.event_type,
+        "title": title,
+        "body": body,
+        "deep_link": "promise://profile",
+        "channel_id": "channel_system",
+        "priority": "high",
+    }
+
+    for device in devices:
+        delivery, _ = NotificationDelivery.objects.get_or_create(
+            reminder=reminder,
+            user_device=device,
+        )
+        send_res = fcm_client.send(
+            token=device.fcm_token,
+            title=title,
+            body=body,
+            data=payload_data,
+            priority="high",
+        )
+        if send_res.success:
+            delivery.status = NotificationDelivery.DeliveryStatus.SENT
+            delivery.sent_at = now
+            delivery.last_error = ""
+            delivery.save(update_fields=["status", "sent_at", "last_error", "updated_at"])
+            dispatched_count += 1
+        elif send_res.is_unregistered:
+            device.is_active = False
+            device.save(update_fields=["is_active", "updated_at"])
+            delivery.status = NotificationDelivery.DeliveryStatus.CANCELLED
+            delivery.last_error = "registration-token-not-registered"
+            delivery.save(update_fields=["status", "last_error", "updated_at"])
+        else:
+            delivery.last_error = send_res.error
+            delivery.save(update_fields=["last_error", "updated_at"])
+
+    reminder.status = Reminder.ReminderStatus.DISPATCHED
+    reminder.dispatched_at = now
+    reminder.save(update_fields=["status", "dispatched_at", "updated_at"])
+
+    return {
+        "reminder_id": str(reminder.id),
+        "active_devices_count": len(devices),
+        "dispatched_count": dispatched_count,
+        "status": "SENT" if (dispatched_count > 0 or not devices) else "FAILED",
+    }
+

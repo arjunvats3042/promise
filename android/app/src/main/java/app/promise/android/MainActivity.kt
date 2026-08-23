@@ -1,5 +1,8 @@
 package app.promise.android
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -7,10 +10,14 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import app.promise.android.domain.DeviceRegistrationRepository
 import app.promise.android.ui.components.AppUpdateDialog
 import app.promise.android.ui.navigation.PromiseNavHost
 import app.promise.android.ui.theme.AccentSession
@@ -18,6 +25,7 @@ import app.promise.android.ui.theme.PromiseTheme
 import app.promise.android.ui.theme.ThemeController
 import app.promise.android.update.AppUpdateManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -25,13 +33,41 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var themeController: ThemeController
     @Inject lateinit var accentSession: AccentSession
     @Inject lateinit var appUpdateManager: AppUpdateManager
+    @Inject lateinit var deviceRegistrationRepository: DeviceRegistrationRepository
 
     private val handler = Handler(Looper.getMainLooper())
     private var isFirstResume = true
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            lifecycleScope.launch {
+                deviceRegistrationRepository.syncDeviceRegistration()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Request notification permission on Android 13+ (API 33+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        // Sync FCM token on app launch
+        lifecycleScope.launch {
+            deviceRegistrationRepository.syncDeviceRegistration()
+        }
+
         setContent {
             val systemDark = isSystemInDarkTheme()
             LaunchedEffect(systemDark) {

@@ -22,11 +22,14 @@ data class HomePractice(
     val targetValue: Int? = null,
     val periodValue: Int? = null,
     val isShared: Boolean = false,
+    val unreadChatCount: Int = 0,
+    val latestChatMessage: GoalChatMessageSummary? = null,
 )
 
 data class HomeFeed(
     val commitments: List<HomeCommitment>,
     val practices: List<HomePractice>,
+    val pendingInvites: List<GoalInvitePreview> = emptyList(),
     val commitmentsError: ErrorKind? = null,
     val practicesError: ErrorKind? = null,
 )

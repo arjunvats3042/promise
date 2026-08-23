@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import app.promise.android.domain.CreateCommitmentInput
 import app.promise.android.domain.CreateGoalInput
 import app.promise.android.domain.DuePrecision
@@ -117,10 +118,24 @@ fun ThoughtParserSheet(
                 OutlinedTextField(
                     value = thoughtText,
                     onValueChange = {
-                        thoughtText = it
-                        if (errorMessage != null) errorMessage = null
+                        if (it.length <= 500) {
+                            thoughtText = it
+                            if (errorMessage != null) errorMessage = null
+                        }
                     },
                     label = { Text("E.g. I need to submit resume, call doctor, and read 20 mins every day") },
+                    supportingText = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            Text(
+                                text = "${thoughtText.length} / 500",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (thoughtText.length >= 450) colors.accent else colors.textSecondary,
+                            )
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 4,
                     maxLines = 8,
@@ -192,12 +207,61 @@ fun ThoughtParserSheet(
                 }
             } else {
                 val items = parsedItems!!
-                Text(
-                    text = "SELECT ITEMS TO CREATE (${selectedIndices.size}/${items.size})",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.accent,
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
+                if (items.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = Spacing.md),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(36.dp),
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                        Text(
+                            text = "No tasks or habits detected",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = colors.textPrimary,
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Text(
+                            text = "Try describing things you need to do, deadlines, or recurring habits you'd like to build.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textSecondary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(horizontal = Spacing.md),
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xl))
+                        Button(
+                            onClick = {
+                                parsedItems = null
+                                selectedIndices.clear()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(TouchTarget.min),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = colors.accent,
+                                contentColor = colors.surfaceMuted,
+                            ),
+                            shape = RoundedCornerShape(Radius.sm),
+                        ) {
+                            Text(
+                                text = "Try Again",
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "SELECT ITEMS TO CREATE (${selectedIndices.size}/${items.size})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.accent,
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.sm))
 
                 LazyColumn(
                     modifier = Modifier
@@ -343,8 +407,9 @@ fun ThoughtParserSheet(
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(Spacing.lg))
         }
+
+        Spacer(modifier = Modifier.height(Spacing.lg))
     }
+}
 }

@@ -237,7 +237,7 @@ class GoalsListViewModel @Inject constructor(
 
     private suspend fun loadPage(page: Int, replace: Boolean) {
         try {
-            val tz = authSession.user.value?.timezone ?: "UTC"
+            val tz = authSession.user.value?.timezone ?: "Asia/Kolkata"
             val result = repository.list(filter = filter, page = page)
             nextPage = result.nextPage
             _state.update { current ->

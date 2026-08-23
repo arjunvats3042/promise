@@ -38,6 +38,7 @@ from apps.goals.services import (
     accept_invitation,
     cancel_goal,
     complete_goal,
+    convert_goal_to_shared,
     create_goal,
     decline_invitation,
     get_chat_summary,
@@ -278,6 +279,13 @@ def goal_leave(request, goal_id):
         GoalParticipantSerializer(participant).data,
         status=status.HTTP_200_OK,
     )
+
+
+@api_view(["POST"])
+def goal_convert_to_shared(request, goal_id):
+    enforce_goal_write_rate_limit(request.user)
+    goal = convert_goal_to_shared(actor=request.user, goal_id=goal_id)
+    return _goal_response(goal, request)
 
 
 @api_view(["POST"])

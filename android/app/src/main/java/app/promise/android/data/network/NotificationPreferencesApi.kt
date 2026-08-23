@@ -6,6 +6,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.PATCH
+import retrofit2.http.POST
 import retrofit2.http.Query
 
 @Serializable
@@ -68,6 +69,20 @@ data class NotificationHistoryResponseDto(
     @SerialName("results") val results: List<NotificationHistoryItemDto> = emptyList(),
 )
 
+@Serializable
+data class TestNotificationRequestDto(
+    @SerialName("title") val title: String = "Promise Notification",
+    @SerialName("body") val body: String = "Here is your requested notification! ✨",
+)
+
+@Serializable
+data class TestNotificationResponseDto(
+    @SerialName("reminder_id") val reminderId: String = "",
+    @SerialName("active_devices_count") val activeDevicesCount: Int = 0,
+    @SerialName("dispatched_count") val dispatchedCount: Int = 0,
+    @SerialName("status") val status: String = "SENT",
+)
+
 interface NotificationPreferencesApi {
     @GET("notifications/preferences/")
     suspend fun getPreferences(): Response<NotificationPreferencesDto>
@@ -77,4 +92,7 @@ interface NotificationPreferencesApi {
 
     @GET("notifications/history/")
     suspend fun getHistory(@Query("page") page: Int = 1): Response<NotificationHistoryResponseDto>
+
+    @POST("notifications/test/")
+    suspend fun triggerTestNotification(@Body req: TestNotificationRequestDto = TestNotificationRequestDto()): Response<TestNotificationResponseDto>
 }

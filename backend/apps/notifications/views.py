@@ -114,3 +114,18 @@ class NotificationHistoryView(APIView):
         page = paginator.paginate_queryset(reminders, request, view=self)
         serializer = NotificationHistoryItemSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)
+
+
+class TestNotificationView(APIView):
+    """Triggers an immediate test push notification for the calling user."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.notifications.services import send_test_notification_to_user
+
+        title = request.data.get("title") or "Promise Notification"
+        body = request.data.get("body") or "Here is your requested notification! ✨"
+        res = send_test_notification_to_user(request.user, title=title, body=body)
+        return Response(res, status=status.HTTP_200_OK)
+

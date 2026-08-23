@@ -183,9 +183,9 @@ class AuthRepositoryImpl(
             val user = me.user.toDomain()
             memory.setUser(user)
             _session.value = SessionState.Authenticated(user)
-            deviceRegistrationRepository?.getStoredFcmToken()?.let { token ->
-                try { deviceRegistrationRepository.registerDevice(token) } catch (_: Throwable) {}
-            }
+            try {
+                deviceRegistrationRepository?.syncDeviceRegistration()
+            } catch (_: Throwable) {}
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
@@ -332,9 +332,9 @@ class AuthRepositoryImpl(
         memory.setUser(user)
         _session.value = SessionState.Authenticated(user)
         AppLog.d(TAG, "session authenticated")
-        deviceRegistrationRepository?.getStoredFcmToken()?.let { token ->
-            try { deviceRegistrationRepository.registerDevice(token) } catch (_: Throwable) {}
-        }
+        try {
+            deviceRegistrationRepository?.syncDeviceRegistration()
+        } catch (_: Throwable) {}
     }
 
     private suspend fun persistTokens(tokens: TokensDto) {

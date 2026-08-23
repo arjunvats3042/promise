@@ -98,7 +98,7 @@ class GoalDetailViewModel @Inject constructor(
     val lookupState: StateFlow<UserLookupUi> = _lookupState.asStateFlow()
 
     val timeZoneId: String
-        get() = authSession.user.value?.timezone ?: "UTC"
+        get() = authSession.user.value?.timezone ?: "Asia/Kolkata"
 
     init {
         reload()
@@ -210,6 +210,28 @@ class GoalDetailViewModel @Inject constructor(
     fun complete() = runGoalAction(confirmHaptic = true) { repository.complete(goalId) }
 
     fun cancel() = runGoalAction(confirmHaptic = true) { repository.cancel(goalId) }
+
+    fun convertToShared(onConverted: () -> Unit = {}) {
+        if (_action.value is ActionState.InFlight) return
+        viewModelScope.launch {
+            _action.value = ActionState.InFlight
+            try {
+                repository.convertToShared(goalId)
+                _action.value = ActionState.Idle
+                homeFreshness.markDirty()
+                haptics.confirm()
+                loadDetail()
+                appEventBus.emit(AppMutationEvent.GoalCreated(goalId))
+                onConverted()
+            } catch (e: ApiException) {
+                _action.value = ActionState.Failed(e.toErrorKind())
+                haptics.error()
+            } catch (_: Throwable) {
+                _action.value = ActionState.Failed(ErrorKind.Unknown)
+                haptics.error()
+            }
+        }
+    }
 
     fun leave(onLeft: () -> Unit) {
         if (_action.value is ActionState.InFlight) return
@@ -547,7 +569,7 @@ class GoalDetailViewModel @Inject constructor(
     }
 
     private fun safeZone(id: String): ZoneId {
-        return runCatching { ZoneId.of(id) }.getOrDefault(ZoneId.of("UTC"))
+        return runCatching { ZoneId.of(id) }.getOrDefault(ZoneId.of("Asia/Kolkata"))
     }
 }
 

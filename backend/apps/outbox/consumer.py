@@ -66,6 +66,14 @@ def process_commitment_event(envelope):
         envelope["event_type"],
         envelope["aggregate_id"],
     )
+    from apps.commitments.models import Commitment
+    from apps.notifications.services import sync_commitment_reminders
+
+    commitment_id = envelope.get("aggregate_id")
+    if commitment_id:
+        commitment = Commitment.objects.filter(id=commitment_id).first()
+        if commitment:
+            sync_commitment_reminders(commitment)
 
 
 def process_goal_event(envelope):
@@ -75,9 +83,16 @@ def process_goal_event(envelope):
         envelope["event_type"],
         envelope["aggregate_id"],
     )
-    from apps.notifications.services import handle_goal_event
+    from apps.goals.models import Goal
+    from apps.notifications.services import handle_goal_event, sync_goal_reminders
 
     handle_goal_event(envelope)
+
+    goal_id = envelope.get("aggregate_id")
+    if goal_id:
+        goal = Goal.objects.filter(id=goal_id).first()
+        if goal:
+            sync_goal_reminders(goal)
 
 
 def process_and_record(*, consumer_group, envelope, processor):

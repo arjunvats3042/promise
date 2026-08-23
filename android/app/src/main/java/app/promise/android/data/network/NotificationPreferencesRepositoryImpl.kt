@@ -84,6 +84,19 @@ class NotificationPreferencesRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun triggerTestNotification(): Result<Unit> {
+        return try {
+            val response = api.triggerTestNotification()
+            if (response.isSuccessful) {
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Failed to trigger test notification: HTTP ${response.code()}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     private fun NotificationPreferencesDto.toDomain(): NotificationPreferences {
         return NotificationPreferences(
             enabled = enabled,

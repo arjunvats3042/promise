@@ -130,6 +130,14 @@ data class GoalInvitePreview(
     val isExpired: Boolean = false,
 )
 
+data class GoalChatMessageSummary(
+    val id: String,
+    val text: String,
+    val senderName: String,
+    val senderId: String,
+    val createdAt: String,
+)
+
 data class Goal(
     val id: String,
     val title: String,
@@ -162,12 +170,15 @@ data class Goal(
     val milestones: List<GroupMilestone> = emptyList(),
     val weeklyReflection: WeeklyReflection? = null,
     val participantLimit: Int = 10,
+    val isSharedField: Boolean = false,
+    val unreadChatCount: Int = 0,
+    val latestChatMessage: GoalChatMessageSummary? = null,
 ) {
     val isTerminal: Boolean
         get() = status == GoalStatus.COMPLETED || status == GoalStatus.CANCELLED
 
     val isShared: Boolean
-        get() = participants.isNotEmpty() || collectiveProgress != null || membershipRole != null
+        get() = isSharedField || participants.isNotEmpty() || collectiveProgress != null || membershipRole != null
 
     val isOwnerViewer: Boolean
         get() = membershipRole == GoalParticipantRole.OWNER || membershipRole == null

@@ -49,7 +49,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.promise.android.core.ActionState
@@ -72,7 +74,7 @@ import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
 
-private enum class ConfirmKind { Pause, Resume, Complete, Cancel, Leave }
+private enum class ConfirmKind { Pause, Resume, Complete, Cancel, Leave, ConvertToShared }
 
 @Composable
 fun GoalDetailScreen(
@@ -144,6 +146,7 @@ fun GoalDetailScreen(
                         onComplete = { confirm = ConfirmKind.Complete },
                         onCancel = { confirm = ConfirmKind.Cancel },
                         onLeave = { confirm = ConfirmKind.Leave },
+                        onConvertToShared = { confirm = ConfirmKind.ConvertToShared },
                         onManageParticipants = { showParticipants = true },
                         onInviteParticipant = { showInviteParticipant = true },
                         onOpenChat = onOpenChat,
@@ -220,6 +223,19 @@ fun GoalDetailScreen(
             onConfirm = {
                 confirm = null
                 viewModel.leave(onBack)
+            },
+            onDismiss = { confirm = null },
+        )
+        ConfirmKind.ConvertToShared -> ConfirmDialog(
+            title = "Upgrade to Shared Goal?",
+            body = "You'll be able to invite friends, track team streaks, celebrate milestones together, and use group chat.\n\nNote: Once upgraded to a shared goal, it cannot be changed back to an individual goal.",
+            confirmLabel = "Upgrade to Shared Goal",
+            destructive = false,
+            onConfirm = {
+                confirm = null
+                viewModel.convertToShared {
+                    showInviteParticipant = true
+                }
             },
             onDismiss = { confirm = null },
         )
@@ -306,6 +322,7 @@ private fun DetailContent(
     onComplete: () -> Unit,
     onCancel: () -> Unit,
     onLeave: () -> Unit,
+    onConvertToShared: () -> Unit,
     onManageParticipants: () -> Unit,
     onInviteParticipant: () -> Unit,
     onOpenChat: ((String) -> Unit)?,
@@ -441,6 +458,50 @@ private fun DetailContent(
                 onSubmit = onCheckIn,
             )
         }
+        if (!goal.isShared && goal.isOwnerViewer && !goal.isTerminal) {
+            Spacer(modifier = Modifier.height(Spacing.section))
+            app.promise.android.ui.components.PromiseCardSurface(
+                onClick = onConvertToShared,
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            text = "🤝",
+                            fontSize = 24.sp,
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+                        Column {
+                            Text(
+                                text = "Make this a Shared Goal",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.textPrimary,
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.xxs))
+                            Text(
+                                text = "Invite partners, track group streaks & chat",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                            )
+                        }
+                    }
+                    Text(
+                        text = "Upgrade",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.accent,
+                    )
+                }
+            }
+        }
+
         if (goal.isShared) {
             Spacer(modifier = Modifier.height(Spacing.section))
             if (goal.canManageParticipants) {
@@ -496,15 +557,36 @@ private fun DetailContent(
                             )
                             Spacer(modifier = Modifier.width(Spacing.sm))
                             Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Group Conversation",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = colors.textPrimary,
+                                    )
+                                    if (goal.unreadChatCount > 0) {
+                                        Spacer(modifier = Modifier.width(Spacing.xs))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(Radius.sm))
+                                                .background(colors.accent)
+                                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        ) {
+                                            Text(
+                                                text = "${goal.unreadChatCount} NEW",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = colors.surfaceMuted,
+                                                fontSize = 10.sp,
+                                            )
+                                        }
+                                    }
+                                }
                                 Text(
-                                    text = "Group Conversation",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = colors.textPrimary,
-                                )
-                                Text(
-                                    text = "Tap to view and send messages",
+                                    text = goal.latestChatMessage?.let { "${it.senderName}: ${it.text}" } ?: "Tap to view and send messages",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = colors.textSecondary,
+                                    color = if (goal.unreadChatCount > 0) colors.textPrimary else colors.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }

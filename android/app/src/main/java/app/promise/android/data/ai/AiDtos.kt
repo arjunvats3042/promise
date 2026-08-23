@@ -18,13 +18,13 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class AiPromptRequestDto(
     val prompt: String,
-    val timezone: String = "UTC",
+    val timezone: String = "Asia/Kolkata",
 )
 
 @Serializable
 data class AiThoughtRequestDto(
     val thought: String,
-    val timezone: String = "UTC",
+    val timezone: String = "Asia/Kolkata",
 )
 
 @Serializable

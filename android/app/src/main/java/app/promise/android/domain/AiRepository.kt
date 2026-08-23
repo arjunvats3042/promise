@@ -1,9 +1,9 @@
 package app.promise.android.domain
 
 interface AiRepository {
-    suspend fun suggestGoal(prompt: String, timezone: String = "UTC"): GoalSuggestion
-    suspend fun refineCommitment(prompt: String, timezone: String = "UTC"): CommitmentRefinement
-    suspend fun parseThought(thought: String, timezone: String = "UTC"): List<ParsedThoughtItem>
+    suspend fun suggestGoal(prompt: String, timezone: String = "Asia/Kolkata"): GoalSuggestion
+    suspend fun refineCommitment(prompt: String, timezone: String = "Asia/Kolkata"): CommitmentRefinement
+    suspend fun parseThought(thought: String, timezone: String = "Asia/Kolkata"): List<ParsedThoughtItem>
     suspend fun getWeeklyInsights(): WeeklyAiInsights
     suspend fun getDailyMotivation(): DailyMotivationQuote
     suspend fun planCommitments(prompt: String? = null, commitmentIds: List<String> = emptyList()): PlanningSuggestion

@@ -15,6 +15,7 @@ dependencies = [
     "channels>=4.1.0",
     "daphne>=4.1.0",
     "channels_redis>=4.2.0",
+    "firebase-admin>=6.5.0",
 ]
 
 [project.optional-dependencies]

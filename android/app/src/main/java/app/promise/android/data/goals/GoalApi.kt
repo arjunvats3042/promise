@@ -35,6 +35,9 @@ interface GoalApi {
     @POST("goals/{id}/cancel/")
     suspend fun cancel(@Path("id") id: String): GoalDto
 
+    @POST("goals/{id}/convert-to-shared/")
+    suspend fun convertToShared(@Path("id") id: String): GoalDto
+
     @GET("goals/{id}/check-ins/")
     suspend fun listCheckIns(
         @Path("id") id: String,

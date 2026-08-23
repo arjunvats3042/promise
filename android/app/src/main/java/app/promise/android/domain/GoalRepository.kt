@@ -21,6 +21,8 @@ interface GoalRepository {
 
     suspend fun cancel(id: String): Goal
 
+    suspend fun convertToShared(goalId: String): GoalDetail
+
     suspend fun checkIn(id: String, input: CheckInInput): GoalCheckIn
 
     suspend fun listCheckIns(

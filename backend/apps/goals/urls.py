@@ -10,6 +10,7 @@ from apps.goals.views import (
     goal_check_ins,
     goal_collection,
     goal_complete,
+    goal_convert_to_shared,
     goal_detail,
     goal_leave,
     goal_milestones,
@@ -34,6 +35,7 @@ urlpatterns = [
     path("<str:goal_id>/resume/", goal_resume, name="resume"),
     path("<str:goal_id>/complete/", goal_complete, name="complete"),
     path("<str:goal_id>/cancel/", goal_cancel, name="cancel"),
+    path("<str:goal_id>/convert-to-shared/", goal_convert_to_shared, name="convert-to-shared"),
     path("<str:goal_id>/leave/", goal_leave, name="leave"),
     path("<str:goal_id>/check-ins/", goal_check_ins, name="check-ins"),
     path(

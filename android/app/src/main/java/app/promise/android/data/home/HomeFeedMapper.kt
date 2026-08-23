@@ -96,6 +96,8 @@ object HomeFeedMapper {
             targetValue = goal.targetValue,
             periodValue = goal.progress.currentPeriod.value,
             isShared = goal.isShared,
+            unreadChatCount = goal.unreadChatCount,
+            latestChatMessage = goal.latestChatMessage,
         )
     }
 
@@ -108,6 +110,6 @@ object HomeFeedMapper {
     }
 
     private fun zoneId(id: String): ZoneId {
-        return runCatching { ZoneId.of(id) }.getOrDefault(ZoneId.of("UTC"))
+        return runCatching { ZoneId.of(id) }.getOrDefault(ZoneId.of("Asia/Kolkata"))
     }
 }

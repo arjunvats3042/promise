@@ -136,6 +136,14 @@ class GoalRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun convertToShared(goalId: String): GoalDetail {
+        return try {
+            api.convertToShared(goalId).toDetail()
+        } catch (t: Throwable) {
+            throw t.toApiException()
+        }
+    }
+
     override suspend fun listCheckIns(
         id: String,
         startDate: String?,

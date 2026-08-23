@@ -53,4 +53,5 @@ interface NotificationPreferencesRepository {
     suspend fun getPreferences(): Result<NotificationPreferences>
     suspend fun updatePreferences(patch: NotificationPreferencesPatch): Result<NotificationPreferences>
     suspend fun getNotificationHistory(page: Int = 1): Result<List<NotificationHistoryItem>>
+    suspend fun triggerTestNotification(): Result<Unit>
 }

@@ -5,6 +5,7 @@ import time
 from django.core.management.base import BaseCommand
 
 from apps.notifications.dispatcher import dispatch_due_reminders
+from apps.notifications.services import sync_all_active_reminders
 
 logger = logging.getLogger("promise")
 
@@ -48,8 +49,22 @@ class Command(BaseCommand):
 
         logger.info("Starting notification dispatcher (continuous=%s, interval=%.1fs)", continuous, interval)
 
+        # Initial sync of all active commitment and goal reminders
+        try:
+            sync_res = sync_all_active_reminders()
+            logger.info("Initial reminder sync: commitments_synced=%d goals_synced=%d", sync_res["commitments_synced"], sync_res["goals_synced"])
+        except Exception as exc:
+            logger.warning("Initial reminder sync error: %s", exc)
+
+        last_sync_time = time.monotonic()
+
         while not stop_requested:
             try:
+                # Periodic reminder sync every 60 seconds in continuous mode
+                if time.monotonic() - last_sync_time >= 60.0:
+                    sync_all_active_reminders()
+                    last_sync_time = time.monotonic()
+
                 result = dispatch_due_reminders()
                 self.stdout.write(
                     f"dispatched={result.dispatched} suppressed={result.suppressed} "

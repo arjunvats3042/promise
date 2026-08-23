@@ -3,7 +3,7 @@ from rest_framework import serializers
 
 class GoalSuggestionRequestSerializer(serializers.Serializer):
     prompt = serializers.CharField(max_length=1000, required=True, allow_blank=False)
-    timezone = serializers.CharField(max_length=50, default="UTC")
+    timezone = serializers.CharField(max_length=50, default="Asia/Kolkata")
 
 
 class GoalSuggestionResponseSerializer(serializers.Serializer):
@@ -23,7 +23,7 @@ class GoalSuggestionResponseSerializer(serializers.Serializer):
 
 class CommitmentRefinementRequestSerializer(serializers.Serializer):
     prompt = serializers.CharField(max_length=1000, required=True, allow_blank=False)
-    timezone = serializers.CharField(max_length=50, default="UTC")
+    timezone = serializers.CharField(max_length=50, default="Asia/Kolkata")
 
 
 class CommitmentRefinementResponseSerializer(serializers.Serializer):
@@ -39,8 +39,8 @@ class CommitmentRefinementResponseSerializer(serializers.Serializer):
 
 
 class ThoughtParserRequestSerializer(serializers.Serializer):
-    thought = serializers.CharField(max_length=2000, required=True, allow_blank=False)
-    timezone = serializers.CharField(max_length=50, default="UTC")
+    thought = serializers.CharField(max_length=500, required=True, allow_blank=False)
+    timezone = serializers.CharField(max_length=50, default="Asia/Kolkata")
 
 
 class ParsedThoughtItemSerializer(serializers.Serializer):
@@ -72,7 +72,7 @@ class WeeklyInsightsResponseSerializer(serializers.Serializer):
 
 class CommandParserRequestSerializer(serializers.Serializer):
     query = serializers.CharField(max_length=500, required=True, allow_blank=False)
-    timezone = serializers.CharField(max_length=50, default="UTC")
+    timezone = serializers.CharField(max_length=50, default="Asia/Kolkata")
 
 
 class CommandParserResponseSerializer(serializers.Serializer):

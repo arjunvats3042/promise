@@ -39,7 +39,7 @@ class HomeRepositoryImpl @Inject constructor(
                     filter = GoalListFilter.ACTIVE,
                     page = 1,
                     pageSize = GoalRepository.HOME_PAGE_SIZE,
-                ).items.mapNotNull { (it as? GoalListItem.Membership)?.goal }
+                ).items
             }
         }
 
@@ -54,13 +54,16 @@ class HomeRepositoryImpl @Inject constructor(
                 .let { if (it is ApiException) it else it.toApiException() }
         }
 
+        val goalItems = goalsResult.getOrNull().orEmpty()
+        val goals = goalItems.mapNotNull { (it as? GoalListItem.Membership)?.goal }
+        val pendingInvites = goalItems.mapNotNull { (it as? GoalListItem.Invite)?.preview }
+
         HomeFeed(
             commitments = commitmentsResult.getOrNull()
                 ?.let { HomeFeedMapper.commitmentsForHome(it, timeZoneId) }
                 .orEmpty(),
-            practices = goalsResult.getOrNull()
-                ?.let { HomeFeedMapper.practicesForHome(it) }
-                .orEmpty(),
+            practices = HomeFeedMapper.practicesForHome(goals),
+            pendingInvites = pendingInvites,
             commitmentsError = commitmentsError,
             practicesError = practicesError,
         )

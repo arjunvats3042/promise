@@ -438,6 +438,12 @@ def _add_event(commitment, *, actor, event_type, metadata=None):
         occurred_at=domain_event.created_at,
     )
 
+    try:
+        from apps.notifications.services import sync_commitment_reminders
+        sync_commitment_reminders(commitment)
+    except Exception as notif_exc:
+        logging.getLogger("promise").warning("Failed to sync commitment reminders: %s", notif_exc)
+
     # Server-Side Authoritative Analytics Event Emission
     try:
         from apps.analytics.events import (

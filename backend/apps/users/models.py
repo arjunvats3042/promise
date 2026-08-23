@@ -11,7 +11,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=255)
-    timezone = models.CharField(max_length=63, default="UTC")
+    timezone = models.CharField(max_length=63, default="Asia/Kolkata")
     email_verified = models.BooleanField(default=False)
     google_sub = models.CharField(max_length=255, unique=True, null=True, blank=True)
     is_active = models.BooleanField(default=True)

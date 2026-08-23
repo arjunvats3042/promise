@@ -25,6 +25,7 @@ class ProfileViewModel @Inject constructor(
     private val haptics: PromiseHaptics,
     private val authRepository: AuthRepository,
     private val notificationPreferencesRepository: app.promise.android.domain.NotificationPreferencesRepository,
+    private val deviceRegistrationRepository: app.promise.android.domain.DeviceRegistrationRepository,
     private val appEventBus: AppEventBus,
     authSession: AuthSession,
 ) : ViewModel() {
@@ -49,11 +50,43 @@ class ProfileViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private val _isSendingTest = MutableStateFlow(false)
+    val isSendingTest: StateFlow<Boolean> = _isSendingTest.asStateFlow()
+
+    private val _testSuccessMessage = MutableStateFlow<String?>(null)
+    val testSuccessMessage: StateFlow<String?> = _testSuccessMessage.asStateFlow()
+
     init {
         loadPreferences()
         loadNotificationHistory()
         loadSessions()
         loadSecurityEvents()
+    }
+
+    fun sendTestNotification() {
+        if (_isSendingTest.value) return
+        _isSendingTest.value = true
+        _testSuccessMessage.value = null
+        viewModelScope.launch {
+            try {
+                // Ensure device is synced first
+                deviceRegistrationRepository.syncDeviceRegistration()
+                val res = notificationPreferencesRepository.triggerTestNotification()
+                res.onSuccess {
+                    haptics.confirm()
+                    _testSuccessMessage.value = "Test notification sent! Check your notification tray."
+                    loadNotificationHistory()
+                }.onFailure {
+                    haptics.error()
+                    _errorMessage.value = "Failed to send test notification: ${it.message}"
+                }
+            } catch (t: Throwable) {
+                haptics.error()
+                _errorMessage.value = "Error: ${t.message}"
+            } finally {
+                _isSendingTest.value = false
+            }
+        }
     }
 
     fun loadPreferences() {

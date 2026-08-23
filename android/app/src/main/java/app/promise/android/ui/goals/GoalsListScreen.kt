@@ -1,6 +1,7 @@
 package app.promise.android.ui.goals
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -44,13 +45,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.promise.android.core.ActionState
@@ -218,7 +222,7 @@ fun GoalsListScreen(
     if (showCreate) {
         CreateGoalSheet(
             action = createAction,
-            timeZoneId = (state as? LoadState.Ready)?.value?.timeZoneId ?: "UTC",
+            timeZoneId = (state as? LoadState.Ready)?.value?.timeZoneId ?: "Asia/Kolkata",
             onDismiss = {
                 showCreate = false
                 viewModel.clearCreateError()
@@ -239,7 +243,7 @@ fun GoalsListScreen(
         app.promise.android.ui.ai.GoalAiBuilderSheet(
             onDismiss = { showAiBuilder = false },
             onSuggestGoal = { prompt ->
-                val timeZoneId = (state as? LoadState.Ready)?.value?.timeZoneId ?: "UTC"
+                val timeZoneId = (state as? LoadState.Ready)?.value?.timeZoneId ?: "Asia/Kolkata"
                 viewModel.suggestGoal(prompt, timeZoneId)
             },
             onConfirmCreate = { input ->
@@ -353,6 +357,48 @@ fun GoalRow(
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary,
                     )
+                }
+
+                if (goal.isShared && (goal.unreadChatCount > 0 || goal.latestChatMessage != null)) {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.sm))
+                            .background(if (goal.unreadChatCount > 0) colors.accent.copy(alpha = 0.15f) else colors.surfaceMuted)
+                            .border(
+                                width = 1.dp,
+                                color = if (goal.unreadChatCount > 0) colors.accent.copy(alpha = 0.35f) else Color.Transparent,
+                                shape = RoundedCornerShape(Radius.sm),
+                            )
+                            .padding(horizontal = Spacing.xs + 2.dp, vertical = Spacing.xxs),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        Text(
+                            text = "💬",
+                            fontSize = 11.sp,
+                        )
+                        if (goal.unreadChatCount > 0) {
+                            Text(
+                                text = "${goal.unreadChatCount} new",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.accent,
+                            )
+                            Text(
+                                text = "•",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textSecondary,
+                            )
+                        }
+                        Text(
+                            text = goal.latestChatMessage?.let { "${it.senderName}: ${it.text}" } ?: "Group chat",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (goal.unreadChatCount > 0) colors.textPrimary else colors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
             if (streak != null) {

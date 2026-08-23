@@ -178,7 +178,7 @@ fun CommitmentsListScreen(
     if (showCreate) {
         CreateCommitmentSheet(
             action = createAction,
-            timeZoneId = (state as? LoadState.Ready)?.value?.timeZoneId ?: "UTC",
+            timeZoneId = (state as? LoadState.Ready)?.value?.timeZoneId ?: "Asia/Kolkata",
             onDismiss = {
                 showCreate = false
                 viewModel.clearCreateError()
@@ -199,7 +199,7 @@ fun CommitmentsListScreen(
         app.promise.android.ui.ai.CommitmentRefinerSheet(
             onDismiss = { showRefiner = false },
             onRefineCommitment = { prompt ->
-                val timeZoneId = (state as? LoadState.Ready)?.value?.timeZoneId ?: "UTC"
+                val timeZoneId = (state as? LoadState.Ready)?.value?.timeZoneId ?: "Asia/Kolkata"
                 viewModel.refineCommitment(prompt, timeZoneId)
             },
             onConfirmCreate = { input ->

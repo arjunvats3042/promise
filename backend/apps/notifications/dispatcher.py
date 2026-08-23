@@ -51,9 +51,9 @@ def backoff_for_attempt(attempts: int) -> timedelta:
 def is_in_quiet_hours(user_tz: str, quiet_start: datetime.time, quiet_end: datetime.time, now_utc: datetime.datetime) -> bool:
     """Checks whether the current time falls within user's quiet hours."""
     try:
-        tz = ZoneInfo(user_tz)
+        tz = ZoneInfo(user_tz or "Asia/Kolkata")
     except (ZoneInfoNotFoundError, ValueError):
-        tz = ZoneInfo("UTC")
+        tz = ZoneInfo("Asia/Kolkata")
 
     local_dt = now_utc.astimezone(tz)
     current_time = local_dt.time()
@@ -69,9 +69,9 @@ def is_in_quiet_hours(user_tz: str, quiet_start: datetime.time, quiet_end: datet
 def next_quiet_hours_exit(user_tz: str, quiet_end: datetime.time, now_utc: datetime.datetime) -> datetime.datetime:
     """Calculates the next upcoming quiet hours exit instant in UTC."""
     try:
-        tz = ZoneInfo(user_tz)
+        tz = ZoneInfo(user_tz or "Asia/Kolkata")
     except (ZoneInfoNotFoundError, ValueError):
-        tz = ZoneInfo("UTC")
+        tz = ZoneInfo("Asia/Kolkata")
 
     local_dt = now_utc.astimezone(tz)
     exit_today = local_dt.replace(
@@ -327,9 +327,9 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
             from apps.notifications.services import calculate_weekly_digest_summary
             from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
             try:
-                tz = ZoneInfo(user.timezone or "UTC")
+                tz = ZoneInfo(user.timezone or "Asia/Kolkata")
             except (ZoneInfoNotFoundError, ValueError):
-                tz = ZoneInfo("UTC")
+                tz = ZoneInfo("Asia/Kolkata")
             today_local = now.astimezone(tz).date()
             week_start = today_local - timedelta(days=today_local.weekday())
             week_end = week_start + timedelta(days=6)

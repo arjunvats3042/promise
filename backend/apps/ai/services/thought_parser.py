@@ -37,7 +37,7 @@ THOUGHT_PARSER_SCHEMA = {
 
 def parse_thought_into_promises(
     user_thought: str,
-    timezone: str = "UTC",
+    timezone: str = "Asia/Kolkata",
     provider: Optional[AIProvider] = None,
 ) -> Dict[str, Any]:
     """Decomposes a brain dump into proposed commitments and goals with confidence ratings."""

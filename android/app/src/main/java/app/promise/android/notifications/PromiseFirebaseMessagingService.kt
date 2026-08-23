@@ -35,7 +35,16 @@ class PromiseFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        val parsed = NotificationPayloadParser.parse(message.data) ?: return
+        val data = message.data.toMutableMap()
+        message.notification?.let { notif ->
+            if (!data.containsKey("title") && !notif.title.isNullOrBlank()) {
+                data["title"] = notif.title!!
+            }
+            if (!data.containsKey("body") && !notif.body.isNullOrBlank()) {
+                data["body"] = notif.body!!
+            }
+        }
+        val parsed = NotificationPayloadParser.parse(data) ?: return
         val entryPoint = EntryPointAccessors.fromApplication(applicationContext, FcmEntryPoint::class.java)
         val notificationManager = entryPoint.notificationManager()
         notificationManager.show(parsed)

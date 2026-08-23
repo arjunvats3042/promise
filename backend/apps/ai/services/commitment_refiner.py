@@ -26,7 +26,7 @@ COMMITMENT_REFINER_SCHEMA = {
 
 def refine_commitment(
     user_prompt: str,
-    timezone: str = "UTC",
+    timezone: str = "Asia/Kolkata",
     current_time_iso: Optional[str] = None,
     provider: Optional[AIProvider] = None,
 ) -> Dict[str, Any]:

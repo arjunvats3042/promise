@@ -67,7 +67,7 @@ def goal_suggestion_view(request):
 
     result = build_goal_suggestion(
         user_prompt=serializer.validated_data["prompt"],
-        timezone=serializer.validated_data.get("timezone", "UTC"),
+        timezone=serializer.validated_data.get("timezone", getattr(request.user, "timezone", "Asia/Kolkata")),
     )
     return Response(result, status=status.HTTP_200_OK)
 
@@ -82,7 +82,7 @@ def commitment_refinement_view(request):
 
     result = refine_commitment(
         user_prompt=serializer.validated_data["prompt"],
-        timezone=serializer.validated_data.get("timezone", "UTC"),
+        timezone=serializer.validated_data.get("timezone", getattr(request.user, "timezone", "Asia/Kolkata")),
     )
     return Response(result, status=status.HTTP_200_OK)
 
@@ -97,7 +97,7 @@ def thought_parser_view(request):
 
     result = parse_thought_into_promises(
         user_thought=serializer.validated_data["thought"],
-        timezone=serializer.validated_data.get("timezone", "UTC"),
+        timezone=serializer.validated_data.get("timezone", getattr(request.user, "timezone", "Asia/Kolkata")),
     )
     return Response(result, status=status.HTTP_200_OK)
 
@@ -113,7 +113,7 @@ def command_parser_view(request):
     result = parse_and_execute_command(
         user=request.user,
         natural_query=serializer.validated_data["query"],
-        timezone=serializer.validated_data.get("timezone", "UTC"),
+        timezone=serializer.validated_data.get("timezone", getattr(request.user, "timezone", "Asia/Kolkata")),
     )
     return Response(result, status=status.HTTP_200_OK)
 

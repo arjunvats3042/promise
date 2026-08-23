@@ -61,6 +61,7 @@ data class HomeUiModel(
     val initials: String,
     val commitments: List<HomeCommitment>,
     val practices: List<HomePractice>,
+    val pendingInvites: List<app.promise.android.domain.GoalInvitePreview> = emptyList(),
     val commitmentsError: ErrorKind? = null,
     val practicesError: ErrorKind? = null,
     val emailVerified: Boolean = true,
@@ -89,7 +90,7 @@ class HomeViewModel @Inject constructor(
 
     private val loadMutex = Mutex()
 
-    suspend fun parseThought(thought: String, timezone: String = "UTC"): List<ParsedThoughtItem> {
+    suspend fun parseThought(thought: String, timezone: String = "Asia/Kolkata"): List<ParsedThoughtItem> {
         return aiRepository.parseThought(thought, timezone)
     }
 
@@ -227,9 +228,37 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun acceptInvitation(goalId: String) {
+        viewModelScope.launch {
+            try {
+                goalRepository.acceptInvitation(goalId)
+                haptics.confirm()
+                homeFreshness.markDirty()
+                loadMutex.withLock { loadFeed() }
+                appEventBus.emit(AppMutationEvent.InvitationUpdated(goalId))
+            } catch (_: Throwable) {
+                haptics.error()
+            }
+        }
+    }
+
+    fun declineInvitation(goalId: String) {
+        viewModelScope.launch {
+            try {
+                goalRepository.declineInvitation(goalId)
+                haptics.confirm()
+                homeFreshness.markDirty()
+                loadMutex.withLock { loadFeed() }
+                appEventBus.emit(AppMutationEvent.InvitationUpdated(goalId))
+            } catch (_: Throwable) {
+                haptics.error()
+            }
+        }
+    }
+
     private suspend fun loadFeed() {
         val user = authSession.user.value
-        val timeZoneId = user?.timezone?.takeIf { it.isNotBlank() } ?: "UTC"
+        val timeZoneId = user?.timezone?.takeIf { it.isNotBlank() } ?: "Asia/Kolkata"
         val name = user?.name?.takeIf { it.isNotBlank() } ?: "there"
         val zone = CommitmentTime.zone(timeZoneId)
         val now = ZonedDateTime.now(zone)
@@ -268,6 +297,7 @@ class HomeViewModel @Inject constructor(
                     initials = initialsFor(name),
                     commitments = feed.commitments,
                     practices = feed.practices,
+                    pendingInvites = feed.pendingInvites,
                     commitmentsError = feed.commitmentsError,
                     practicesError = feed.practicesError,
                     emailVerified = authSession.user.value?.emailVerified ?: true,

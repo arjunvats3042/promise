@@ -93,6 +93,8 @@ class GoalSerializer(serializers.ModelSerializer):
     is_ended = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
     current_streak = serializers.SerializerMethodField()
+    unread_chat_count = serializers.SerializerMethodField()
+    latest_chat_message = serializers.SerializerMethodField()
 
     class Meta:
         model = Goal
@@ -112,6 +114,7 @@ class GoalSerializer(serializers.ModelSerializer):
             "target_value",
             "target_unit",
             "source",
+            "is_shared",
             "paused_at",
             "completed_at",
             "cancelled_at",
@@ -120,6 +123,8 @@ class GoalSerializer(serializers.ModelSerializer):
             "is_ended",
             "progress",
             "current_streak",
+            "unread_chat_count",
+            "latest_chat_message",
         )
         read_only_fields = fields
 
@@ -141,6 +146,33 @@ class GoalSerializer(serializers.ModelSerializer):
     def get_current_streak(self, obj):
         return goal_streak(obj, participant=self._viewer_participant(obj))
 
+    def get_unread_chat_count(self, obj) -> int:
+        if not obj.is_shared:
+            return 0
+        request = self.context.get("request")
+        if request is None or not getattr(request, "user", None) or not request.user.is_authenticated:
+            return 0
+        try:
+            from apps.goals.services import get_chat_summary
+            summary = get_chat_summary(viewer=request.user, goal_id=obj.id)
+            return summary.get("unread_count", 0)
+        except Exception:
+            return 0
+
+    def get_latest_chat_message(self, obj):
+        if not obj.is_shared:
+            return None
+        latest = obj.chat_messages.select_related("sender").order_by("-created_at", "-id").first()
+        if not latest:
+            return None
+        return {
+            "id": str(latest.id),
+            "text": latest.body,
+            "sender_name": latest.sender.name or "Partner",
+            "sender_id": str(latest.sender_id),
+            "created_at": latest.created_at.isoformat(),
+        }
+
 
 class SharedGoalSerializer(GoalSerializer):
     collective_progress = serializers.SerializerMethodField()
@@ -154,7 +186,6 @@ class SharedGoalSerializer(GoalSerializer):
 
     class Meta(GoalSerializer.Meta):
         fields = GoalSerializer.Meta.fields + (
-            "is_shared",
             "collective_progress",
             "participants",
             "membership_role",
