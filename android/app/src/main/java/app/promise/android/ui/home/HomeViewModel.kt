@@ -37,9 +37,16 @@ import kotlinx.coroutines.flow.debounce
 import app.promise.android.domain.AiRepository
 import app.promise.android.domain.CreateCommitmentInput
 import app.promise.android.domain.CreateGoalInput
+import app.promise.android.domain.DailyMotivationQuote
 import app.promise.android.domain.DuePrecision
 import app.promise.android.domain.ParsedThoughtItem
 import app.promise.android.domain.WeeklyAiInsights
+
+sealed class DailyMotivationUiState {
+    data object Loading : DailyMotivationUiState()
+    data class Success(val quote: DailyMotivationQuote) : DailyMotivationUiState()
+    data class Error(val message: String? = null) : DailyMotivationUiState()
+}
 
 sealed class WeeklyInsightsUiState {
     data object Loading : WeeklyInsightsUiState()
@@ -76,6 +83,9 @@ class HomeViewModel @Inject constructor(
 
     private val _weeklyInsightsState = MutableStateFlow<WeeklyInsightsUiState>(WeeklyInsightsUiState.Loading)
     val weeklyInsightsState: StateFlow<WeeklyInsightsUiState> = _weeklyInsightsState.asStateFlow()
+
+    private val _dailyMotivationState = MutableStateFlow<DailyMotivationUiState>(DailyMotivationUiState.Loading)
+    val dailyMotivationState: StateFlow<DailyMotivationUiState> = _dailyMotivationState.asStateFlow()
 
     private val loadMutex = Mutex()
 
@@ -224,11 +234,25 @@ class HomeViewModel @Inject constructor(
         val zone = CommitmentTime.zone(timeZoneId)
         val now = ZonedDateTime.now(zone)
 
+        // Asynchronously load Daily Motivation quote
+        viewModelScope.launch {
+            try {
+                val quote = aiRepository.getDailyMotivation()
+                _dailyMotivationState.value = DailyMotivationUiState.Success(quote)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                _dailyMotivationState.value = DailyMotivationUiState.Error("Daily motivation unavailable.")
+            }
+        }
+
         // Asynchronously load AI weekly insights; failures never break home screen
         viewModelScope.launch {
             try {
                 val insights = aiRepository.getWeeklyInsights()
                 _weeklyInsightsState.value = WeeklyInsightsUiState.Success(insights)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (_: Throwable) {
                 _weeklyInsightsState.value = WeeklyInsightsUiState.Error("AI insights unavailable.")
             }

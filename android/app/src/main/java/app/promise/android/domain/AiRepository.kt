@@ -5,6 +5,7 @@ interface AiRepository {
     suspend fun refineCommitment(prompt: String, timezone: String = "UTC"): CommitmentRefinement
     suspend fun parseThought(thought: String, timezone: String = "UTC"): List<ParsedThoughtItem>
     suspend fun getWeeklyInsights(): WeeklyAiInsights
+    suspend fun getDailyMotivation(): DailyMotivationQuote
     suspend fun planCommitments(prompt: String? = null, commitmentIds: List<String> = emptyList()): PlanningSuggestion
     suspend fun reflectOnItem(itemType: String, itemId: String? = null, notes: String? = null): ReflectionCoaching
     suspend fun getSharedGoalSummary(goalId: String): SharedGoalAiSummary

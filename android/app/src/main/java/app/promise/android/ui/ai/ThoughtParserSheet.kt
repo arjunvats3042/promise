@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -84,11 +85,12 @@ fun ThoughtParserSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.inset, vertical = Spacing.md),
+                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xl)
+                .imePadding(),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.AutoAwesome,
@@ -102,19 +104,22 @@ fun ThoughtParserSheet(
                     color = colors.textPrimary,
                 )
             }
-            Spacer(modifier = Modifier.height(Spacing.xs))
+            Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = "Paste a brain dump of multiple tasks or habits. AI will decompose it into structured items for your selection.",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
 
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.xl))
 
             if (parsedItems == null) {
                 OutlinedTextField(
                     value = thoughtText,
-                    onValueChange = { thoughtText = it },
+                    onValueChange = {
+                        thoughtText = it
+                        if (errorMessage != null) errorMessage = null
+                    },
                     label = { Text("E.g. I need to submit resume, call doctor, and read 20 mins every day") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 4,
@@ -128,7 +133,7 @@ fun ThoughtParserSheet(
                 )
 
                 if (errorMessage != null) {
-                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Spacer(modifier = Modifier.height(Spacing.sm))
                     Text(
                         text = errorMessage ?: "",
                         style = MaterialTheme.typography.bodySmall,
@@ -136,7 +141,7 @@ fun ThoughtParserSheet(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.lg))
 
                 Button(
                     onClick = {
@@ -152,6 +157,8 @@ fun ThoughtParserSheet(
                                     selectedIndices.clear()
                                     selectedIndices.addAll(items.indices)
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                } catch (_: kotlinx.coroutines.CancellationException) {
+                                    // Ignored silently on lifecycle/sheet cancel
                                 } catch (e: Exception) {
                                     errorMessage = "Could not parse thoughts. Please try again."
                                 } finally {
@@ -177,7 +184,10 @@ fun ThoughtParserSheet(
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        Text("Decompose Thoughts")
+                        Text(
+                            text = "Decompose Thoughts",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
                     }
                 }
             } else {
@@ -187,13 +197,13 @@ fun ThoughtParserSheet(
                     style = MaterialTheme.typography.labelSmall,
                     color = colors.accent,
                 )
-                Spacer(modifier = Modifier.height(Spacing.xs))
+                Spacer(modifier = Modifier.height(Spacing.sm))
 
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(280.dp),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
                     itemsIndexed(items) { index, item ->
                         val isSelected = selectedIndices.contains(index)
@@ -226,38 +236,60 @@ fun ThoughtParserSheet(
                                 )
                                 Spacer(modifier = Modifier.width(Spacing.sm))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                    ) {
                                         Text(
                                             text = item.type.uppercase(),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = colors.accent,
                                         )
-                                        if (item.dueAt != null) {
-                                            Text(
-                                                text = " • Due: ${item.dueAt}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = colors.textSecondary,
-                                            )
-                                        }
+                                        Text(
+                                            text = "• ${item.confidence} confidence",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = colors.textSecondary,
+                                        )
                                     }
                                     Text(
                                         text = item.title,
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = colors.textPrimary,
                                     )
+                                    if (item.description.isNotBlank()) {
+                                        Text(
+                                            text = item.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = colors.textSecondary,
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.lg))
 
                 Button(
                     onClick = {
-                        val selectedItems = items.filterIndexed { index, _ -> selectedIndices.contains(index) }
-                        selectedItems.forEach { item ->
-                            if (item.type == "goal") {
+                        val chosen = items.filterIndexed { index, _ -> selectedIndices.contains(index) }
+                        chosen.forEach { item ->
+                            if (item.type == "commitment") {
+                                onCreateCommitment(
+                                    CreateCommitmentInput(
+                                        title = item.title,
+                                        description = item.description,
+                                        dueAt = item.dueAt,
+                                        duePrecision = when (item.duePrecision?.uppercase()) {
+                                            "MINUTE" -> DuePrecision.DATETIME
+                                            "HOUR" -> DuePrecision.DATETIME
+                                            "DAY" -> DuePrecision.DATE
+                                            else -> DuePrecision.NONE
+                                        },
+                                    ),
+                                )
+                            } else {
                                 onCreateGoal(
                                     CreateGoalInput(
                                         title = item.title,
@@ -271,25 +303,10 @@ fun ThoughtParserSheet(
                                         trackingKind = if (item.trackingKind?.uppercase() == "COUNT") GoalTrackingKind.COUNT else GoalTrackingKind.BINARY,
                                         targetValue = item.targetValue?.toInt(),
                                         targetUnit = item.targetUnit,
-                                    )
-                                )
-                            } else {
-                                onCreateCommitment(
-                                    CreateCommitmentInput(
-                                        title = item.title,
-                                        description = item.description,
-                                        dueAt = item.dueAt,
-                                        duePrecision = when (item.duePrecision?.uppercase()) {
-                                            "MINUTE" -> DuePrecision.DATETIME
-                                            "HOUR" -> DuePrecision.DATETIME
-                                            "DAY" -> DuePrecision.DATE
-                                            else -> DuePrecision.NONE
-                                        },
-                                    )
+                                    ),
                                 )
                             }
                         }
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         onDismiss()
                     },
                     enabled = selectedIndices.isNotEmpty(),
@@ -304,20 +321,30 @@ fun ThoughtParserSheet(
                 ) {
                     Icon(imageVector = Icons.Outlined.Check, contentDescription = null)
                     Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("Confirm & Create ${selectedIndices.size} Items")
+                    Text(
+                        text = "Create ${selectedIndices.size} Item(s)",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.xs))
+                Spacer(modifier = Modifier.height(Spacing.sm))
 
                 TextButton(
-                    onClick = { parsedItems = null },
+                    onClick = {
+                        parsedItems = null
+                        selectedIndices.clear()
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Edit brain dump", color = colors.textSecondary)
+                    Text(
+                        text = "Edit thoughts",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
         }
     }
 }

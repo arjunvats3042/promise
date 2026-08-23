@@ -17,11 +17,21 @@ fun HttpException.toApiException(json: Json = NetworkJson.json): ApiException {
 }
 
 fun Throwable.toApiException(json: Json = NetworkJson.json): ApiException {
+    if (this is kotlinx.coroutines.CancellationException || this is java.util.concurrent.CancellationException) {
+        throw this
+    }
     return when (this) {
         is ApiException -> this
         is HttpException -> toApiException(json)
         is SocketTimeoutException -> ApiException.timeout(this)
-        is IOException -> ApiException.network(this)
+        is IOException -> {
+            if (message?.contains("Canceled", ignoreCase = true) == true ||
+                message?.contains("Socket closed", ignoreCase = true) == true
+            ) {
+                throw kotlinx.coroutines.CancellationException("Request cancelled", this)
+            }
+            ApiException.network(this)
+        }
         else -> ApiException.unknown(this)
     }
 }

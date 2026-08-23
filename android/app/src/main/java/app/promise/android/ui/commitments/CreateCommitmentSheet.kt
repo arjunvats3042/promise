@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -73,7 +75,11 @@ fun CreateCommitmentSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
     ) {
-        Column(modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.md)) {
+        Column(
+            modifier = Modifier
+                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xl)
+                .verticalScroll(rememberScrollState()),
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -81,7 +87,7 @@ fun CreateCommitmentSheet(
             ) {
                 Text(
                     text = "New commitment",
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
                 if (onOpenRefiner != null) {
@@ -98,7 +104,7 @@ fun CreateCommitmentSheet(
                             tint = colors.accent,
                             modifier = Modifier.size(18.dp),
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(Spacing.xs))
                         Text(
                             text = "Refine with AI",
                             color = colors.accent,
@@ -108,8 +114,9 @@ fun CreateCommitmentSheet(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
             FieldLabel("Title")
+            Spacer(modifier = Modifier.height(Spacing.xs))
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -121,8 +128,9 @@ fun CreateCommitmentSheet(
                 shape = RoundedCornerShape(Radius.sm),
                 colors = fieldColors(),
             )
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
             FieldLabel("Description")
+            Spacer(modifier = Modifier.height(Spacing.xs))
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
@@ -133,11 +141,12 @@ fun CreateCommitmentSheet(
                 shape = RoundedCornerShape(Radius.sm),
                 colors = fieldColors(),
             )
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
             FieldLabel("Due")
+            Spacer(modifier = Modifier.height(Spacing.xs))
             RowDueModes(dueMode = dueMode, onSelect = { dueMode = it }, enabled = !submitting)
             if (dueMode != DueMode.None) {
-                Spacer(modifier = Modifier.height(Spacing.sm))
+                Spacer(modifier = Modifier.height(Spacing.md))
                 FieldLabel("Date")
                 PromiseDateField(
                     date = dueDate,

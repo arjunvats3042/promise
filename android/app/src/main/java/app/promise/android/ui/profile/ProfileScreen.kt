@@ -42,8 +42,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.promise.android.BuildConfig
 import app.promise.android.domain.UserSession
 import app.promise.android.ui.auth.GreetingClock
 import app.promise.android.ui.components.PromiseGreetingText
@@ -67,43 +69,51 @@ data class FaqItem(
 val PROMISE_FAQS = listOf(
     FaqItem(
         question = "1. What is Promise?",
-        answer = "Promise helps you track recurring practices and one-time commitments with clarity and focus.",
+        answer = "Promise is a focused workspace combining one-time deadline commitments, daily recurring practice routines, and shared partner accountability.",
     ),
     FaqItem(
-        question = "2. What is a Commitment?",
-        answer = "A commitment is a specific one-time promise with a clear due date and target.",
+        question = "2. What is the difference between a Goal and a Commitment?",
+        answer = "A Commitment is a single promise with a specific due date. A Goal is an ongoing recurring practice to build long-term consistency.",
     ),
     FaqItem(
-        question = "3. What is a Goal?",
-        answer = "A goal is a recurring practice or routine that helps you build long-term consistency.",
+        question = "3. How does Thought → Promise work?",
+        answer = "Enter a natural thought or brain dump into the AI assistant to instantly convert it into structured commitments or recurring goals.",
     ),
     FaqItem(
-        question = "4. How do Shared Goals work?",
-        answer = "Shared goals let you partner with friends or teammates to stay accountable together.",
+        question = "4. How do Shared Goals help with accountability?",
+        answer = "Partner with friends on mutual goals to share check-in activity and group chat while keeping individual privacy intact.",
     ),
     FaqItem(
-        question = "5. How do notifications work?",
-        answer = "Notifications remind you of upcoming commitments and practice check-ins.",
+        question = "5. What are Weekly Insights?",
+        answer = "Weekly Insights provide visual analytics on your completion rates and time-of-day momentum patterns to help optimize your routines.",
     ),
     FaqItem(
-        question = "6. Can I use Promise with friends?",
-        answer = "Yes, you can invite friends to shared goals and track progress together.",
+        question = "6. How do Smart Reminders work?",
+        answer = "Configure customizable alerts for upcoming deadlines, exact due moments, morning routines, evening check-ins, and overnight quiet hours.",
     ),
     FaqItem(
-        question = "7. What does AI do?",
-        answer = "AI acts as an assistant to help you structure goals, refine commitments, and summarize chat history.",
+        question = "7. What does Promise AI actually do?",
+        answer = "AI helps structure goals, refine commitments, parse thoughts, and summarize long group chats. It never takes actions without your confirmation.",
     ),
     FaqItem(
         question = "8. Does AI create things automatically?",
-        answer = "No, AI only provides suggestions. Nothing is created or saved until you explicitly confirm.",
+        answer = "No. AI only provides structured suggestions. Nothing is saved or scheduled until you review and confirm.",
     ),
     FaqItem(
-        question = "9. What data does Promise send to AI?",
-        answer = "Only the text prompts or chat context you explicitly choose to summarize or refine.",
+        question = "9. What information is sent to AI?",
+        answer = "Only the specific prompt or chat context you choose to process is sent to Google Gemini for processing.",
     ),
     FaqItem(
-        question = "10. How do I delete my account?",
-        answer = "You can delete your account anytime under Security & Account on this screen.",
+        question = "10. How is my account/data protected?",
+        answer = "Your data is securely authenticated via Google Sign-In with protected session management and instant account deletion support.",
+    ),
+    FaqItem(
+        question = "11. How do I control notifications?",
+        answer = "Customize master toggles, specific reminder categories, anchor times, and quiet hours under Notifications & Reminders above.",
+    ),
+    FaqItem(
+        question = "12. How do I delete my account?",
+        answer = "You can permanently delete your account, cancel all active commitments and goals, and sign out at any time from this screen.",
     ),
 )
 
@@ -345,11 +355,13 @@ fun ProfileScreen(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(Radius.lg))
                         .background(colors.surfaceMuted)
-                        .padding(Spacing.md),
+                        .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
                 ) {
                     PROMISE_FAQS.forEachIndexed { index, item ->
                         if (index > 0) {
+                            Spacer(modifier = Modifier.height(Spacing.sm))
                             PromiseHairlineDivider()
+                            Spacer(modifier = Modifier.height(Spacing.sm))
                         }
                         FaqAccordionRow(
                             item = item,
@@ -361,7 +373,7 @@ fun ProfileScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.section))
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
                 // Appearance Section
                 Text(
@@ -434,6 +446,51 @@ fun ProfileScreen(
                         text = "Delete account",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.xxl))
+
+                // Techy Developer Signature Footer
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = Spacing.md),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(colors.accent),
+                        )
+                        Text(
+                            text = "PROMISE CORE v${BuildConfig.VERSION_NAME} // BUILD 3042",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = colors.textSecondary,
+                            letterSpacing = 1.2.sp,
+                        )
+                    }
+                    Text(
+                        text = "ARCHITECTED & CRAFTED BY ARJUN VATS",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        color = colors.textSecondary.copy(alpha = 0.7f),
+                        letterSpacing = 1.0.sp,
+                    )
+                    Text(
+                        text = "SYSTEM STATUS: OPERATIONAL",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        color = colors.success,
+                        letterSpacing = 0.8.sp,
                     )
                 }
             }
@@ -619,11 +676,12 @@ fun FaqAccordionRow(
         ) {
             Text(
                 text = item.question,
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
                 modifier = Modifier.weight(1f),
             )
+            Spacer(modifier = Modifier.width(Spacing.sm))
             Icon(
                 imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                 contentDescription = null,
@@ -631,11 +689,12 @@ fun FaqAccordionRow(
             )
         }
         if (expanded) {
+            Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = item.answer,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
-                modifier = Modifier.padding(bottom = Spacing.xs),
+                modifier = Modifier.padding(bottom = Spacing.md),
             )
         }
     }

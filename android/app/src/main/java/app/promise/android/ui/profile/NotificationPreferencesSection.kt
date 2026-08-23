@@ -19,10 +19,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -36,7 +37,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,16 +45,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
 import app.promise.android.domain.NotificationHistoryItem
 import app.promise.android.domain.NotificationPreferences
 import app.promise.android.domain.NotificationPreferencesPatch
+import app.promise.android.ui.components.PromiseHairlineDivider
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
+import app.promise.android.ui.theme.TouchTarget
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
@@ -69,8 +72,6 @@ fun NotificationPreferencesSection(
     val colors = PromiseThemeColors.current
     val isOsPermissionGranted = remember { NotificationManagerCompat.from(context).areNotificationsEnabled() }
     var selectedTab by remember { mutableIntStateOf(0) }
-
-    val prefs = preferences ?: return
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
@@ -125,7 +126,7 @@ fun NotificationPreferencesSection(
             indicator = { tabPositions ->
                 TabRowDefaults.SecondaryIndicator(
                     modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                    color = MaterialTheme.colorScheme.primary,
+                    color = colors.accent,
                 )
             },
             modifier = Modifier
@@ -135,6 +136,7 @@ fun NotificationPreferencesSection(
             Tab(
                 selected = selectedTab == 0,
                 onClick = { selectedTab = 0 },
+                modifier = Modifier.heightIn(min = TouchTarget.min),
                 text = {
                     Text(
                         "Preferences",
@@ -146,6 +148,7 @@ fun NotificationPreferencesSection(
             Tab(
                 selected = selectedTab == 1,
                 onClick = { selectedTab = 1 },
+                modifier = Modifier.heightIn(min = TouchTarget.min),
                 text = {
                     Text(
                         if (history.isNotEmpty()) "History (${history.size})" else "History",
@@ -156,128 +159,178 @@ fun NotificationPreferencesSection(
             )
         }
 
-        Spacer(modifier = Modifier.height(Spacing.sm))
+        Spacer(modifier = Modifier.height(Spacing.md))
 
-        if (selectedTab == 0) {
+        if (preferences == null) {
+            // Skeleton loading state while preferences fetch asynchronously
+            NotificationPreferencesSkeleton()
+        } else if (selectedTab == 0) {
             // Preferences View
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.md))
+                    .clip(RoundedCornerShape(Radius.lg))
                     .background(colors.surfaceMuted)
-                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                    .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
             ) {
+                // NOTIFICATIONS - Master Toggle
+                Text(
+                    text = "NOTIFICATIONS",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.accent,
+                    letterSpacing = 1.2.sp,
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
                 PreferenceSwitchRow(
-                    title = "Reminders",
-                    subtitle = "Timely prompts for promises & practices",
-                    checked = prefs.enabled,
+                    title = "Allow Notifications",
+                    subtitle = "Master switch for all push notifications and reminders",
+                    checked = preferences.enabled,
                     onCheckedChange = { onUpdate(NotificationPreferencesPatch(enabled = it)) },
                 )
 
                 AnimatedVisibility(
-                    visible = prefs.enabled,
+                    visible = preferences.enabled,
                     enter = expandVertically() + fadeIn(),
                     exit = shrinkVertically() + fadeOut(),
                 ) {
                     Column {
-                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                        PromiseHairlineDivider()
+                        Spacer(modifier = Modifier.height(Spacing.md))
+
+                        // REMINDERS Section
                         Text(
-                            text = "COMMITMENTS",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = "REMINDERS",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
                             color = colors.textSecondary,
+                            letterSpacing = 1.0.sp,
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        Spacer(modifier = Modifier.height(Spacing.xs))
                         PreferenceSwitchRow(
-                            title = "Before deadlines",
-                            subtitle = "Remind me before a commitment is due",
-                            checked = prefs.commitmentsDueSoon,
+                            title = "Due Soon",
+                            subtitle = "Prompts before upcoming commitment deadlines",
+                            checked = preferences.commitmentsDueSoon,
                             onCheckedChange = { onUpdate(NotificationPreferencesPatch(commitmentsDueSoon = it)) },
                         )
                         PreferenceSwitchRow(
-                            title = "At deadline",
-                            subtitle = "Alert me at the exact moment",
-                            checked = prefs.commitmentsDueNow,
+                            title = "Due Now",
+                            subtitle = "Alert at the exact moment a commitment is due",
+                            checked = preferences.commitmentsDueNow,
                             onCheckedChange = { onUpdate(NotificationPreferencesPatch(commitmentsDueNow = it)) },
                         )
                         PreferenceSwitchRow(
-                            title = "Unfinished review",
-                            subtitle = "Gentle reminder if a promise is past due",
-                            checked = prefs.commitmentsOverdue,
+                            title = "Overdue",
+                            subtitle = "Gentle prompts for unfinished commitments",
+                            checked = preferences.commitmentsOverdue,
                             onCheckedChange = { onUpdate(NotificationPreferencesPatch(commitmentsOverdue = it)) },
                         )
-
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        Text(
-                            text = "PRACTICES",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.textSecondary,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
                         PreferenceSwitchRow(
-                            title = "Daily practice",
-                            subtitle = "Morning prompt for active goals",
-                            checked = prefs.goalsTodayPractice,
+                            title = "Morning Practice",
+                            subtitle = "Daily morning prompt for active goals",
+                            checked = preferences.goalsTodayPractice,
                             onCheckedChange = { onUpdate(NotificationPreferencesPatch(goalsTodayPractice = it)) },
                         )
+                        if (preferences.goalsTodayPractice) {
+                            TimePickerInlineRow(
+                                label = "Morning Practice Time",
+                                isoTime = preferences.morningAnchorTime,
+                                defaultHour = 8,
+                                defaultMin = 30,
+                                onSave = { timeStr ->
+                                    onUpdate(NotificationPreferencesPatch(morningAnchorTime = timeStr))
+                                },
+                            )
+                        }
                         PreferenceSwitchRow(
-                            title = "Streak protection",
-                            subtitle = "Evening check-in to keep momentum",
-                            checked = prefs.goalsStreakProtection,
+                            title = "Evening Check-In",
+                            subtitle = "Evening reflection and streak momentum",
+                            checked = preferences.goalsStreakProtection,
                             onCheckedChange = { onUpdate(NotificationPreferencesPatch(goalsStreakProtection = it)) },
                         )
+                        if (preferences.goalsStreakProtection) {
+                            TimePickerInlineRow(
+                                label = "Evening Check-In Time",
+                                isoTime = preferences.eveningAnchorTime,
+                                defaultHour = 20,
+                                defaultMin = 30,
+                                onSave = { timeStr ->
+                                    onUpdate(NotificationPreferencesPatch(eveningAnchorTime = timeStr))
+                                },
+                            )
+                        }
 
-                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                        PromiseHairlineDivider()
+                        Spacer(modifier = Modifier.height(Spacing.md))
+
+                        // SHARED GOALS Section
                         Text(
                             text = "SHARED GOALS",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
                             color = colors.textSecondary,
+                            letterSpacing = 1.0.sp,
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        Spacer(modifier = Modifier.height(Spacing.xs))
                         PreferenceSwitchRow(
-                            title = "Group activity",
-                            subtitle = "When participants join, leave, or ownership changes",
-                            checked = prefs.sharedGoalsActivity,
-                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(sharedGoalsActivity = it)) },
-                        )
-                        PreferenceSwitchRow(
-                            title = "Group chat messages",
+                            title = "Shared Goal Chat",
                             subtitle = "Messages from shared goal companions",
-                            checked = prefs.sharedGoalsChat,
+                            checked = preferences.sharedGoalsChat,
                             onCheckedChange = { onUpdate(NotificationPreferencesPatch(sharedGoalsChat = it)) },
                         )
-
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        Text(
-                            text = "WEEKLY DIGEST",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.textSecondary,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
                         PreferenceSwitchRow(
-                            title = "Sunday recap",
-                            subtitle = "Opt-in weekly summary of completed commitments & practices",
-                            checked = prefs.weeklyDigestEnabled,
+                            title = "Shared Goal Activity",
+                            subtitle = "When partners join, complete check-ins, or leave",
+                            checked = preferences.sharedGoalsActivity,
+                            onCheckedChange = { onUpdate(NotificationPreferencesPatch(sharedGoalsActivity = it)) },
+                        )
+
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                        PromiseHairlineDivider()
+                        Spacer(modifier = Modifier.height(Spacing.md))
+
+                        // WEEKLY Section
+                        Text(
+                            text = "WEEKLY",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textSecondary,
+                            letterSpacing = 1.0.sp,
+                        )
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        PreferenceSwitchRow(
+                            title = "Weekly Digest",
+                            subtitle = "Sunday recap of completed commitments & practices",
+                            checked = preferences.weeklyDigestEnabled,
                             onCheckedChange = { onUpdate(NotificationPreferencesPatch(weeklyDigestEnabled = it)) },
                         )
 
-                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                        PromiseHairlineDivider()
+                        Spacer(modifier = Modifier.height(Spacing.md))
+
+                        // QUIET HOURS Section
                         Text(
                             text = "QUIET HOURS",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
                             color = colors.textSecondary,
+                            letterSpacing = 1.0.sp,
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        Spacer(modifier = Modifier.height(Spacing.xs))
                         PreferenceSwitchRow(
-                            title = "Pause during rest",
-                            subtitle = "Silence non-urgent alerts during sleep",
-                            checked = prefs.quietHoursEnabled,
+                            title = "Enable Quiet Hours",
+                            subtitle = "Silence non-urgent alerts during rest",
+                            checked = preferences.quietHoursEnabled,
                             onCheckedChange = { onUpdate(NotificationPreferencesPatch(quietHoursEnabled = it)) },
                         )
 
-                        if (prefs.quietHoursEnabled) {
+                        if (preferences.quietHoursEnabled) {
                             QuietHoursTimePickerRow(
-                                startIso = prefs.quietHoursStart,
-                                endIso = prefs.quietHoursEnd,
+                                startIso = preferences.quietHoursStart,
+                                endIso = preferences.quietHoursEnd,
                                 onSave = { start, end ->
                                     onUpdate(NotificationPreferencesPatch(quietHoursStart = start, quietHoursEnd = end))
                                 },
@@ -291,17 +344,32 @@ fun NotificationPreferencesSection(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.md))
+                    .clip(RoundedCornerShape(Radius.lg))
                     .background(colors.surfaceMuted)
-                    .padding(Spacing.md),
+                    .padding(Spacing.cardPadding),
             ) {
+                Text(
+                    text = "RECENT NOTIFICATIONS",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textSecondary,
+                    letterSpacing = 1.0.sp,
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+
                 if (history.isEmpty()) {
-                    Text(
-                        text = "No recent notifications.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.textSecondary,
-                        modifier = Modifier.padding(vertical = Spacing.md),
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = Spacing.xl),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "No recent notifications",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textSecondary,
+                        )
+                    }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         history.forEach { item ->
@@ -315,6 +383,195 @@ fun NotificationPreferencesSection(
 }
 
 @Composable
+private fun PreferenceSwitchRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = PromiseThemeColors.current
+    val stateText = if (checked) "Enabled" else "Disabled"
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = TouchTarget.min)
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .semantics {
+                contentDescription = "$title, $subtitle. $stateText"
+            }
+            .padding(vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = Spacing.md),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = colors.textPrimary,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = colors.onPrimaryControl,
+                checkedTrackColor = colors.primaryControl,
+                uncheckedThumbColor = colors.textSecondary,
+                uncheckedTrackColor = colors.surfaceRaised,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun TimePickerInlineRow(
+    label: String,
+    isoTime: String,
+    defaultHour: Int,
+    defaultMin: Int,
+    onSave: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val colors = PromiseThemeColors.current
+    val time = parseLocalTime(isoTime, defaultHour, defaultMin)
+    val formatted = formatTime(time)
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = TouchTarget.min)
+            .clickable {
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        val timeStr = String.format("%02d:%02d:00", hour, minute)
+                        onSave(timeStr)
+                    },
+                    time.hour,
+                    time.minute,
+                    false,
+                ).show()
+            }
+            .semantics {
+                contentDescription = "$label, current time $formatted. Double tap to change."
+            }
+            .padding(vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.textSecondary,
+        )
+        Text(
+            text = formatted,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.accent,
+        )
+    }
+}
+
+@Composable
+private fun QuietHoursTimePickerRow(
+    startIso: String,
+    endIso: String,
+    onSave: (String, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val colors = PromiseThemeColors.current
+
+    val startTime = parseLocalTime(startIso, 22, 0)
+    val endTime = parseLocalTime(endIso, 8, 0)
+    val formatted = "${formatTime(startTime)} – ${formatTime(endTime)}"
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = TouchTarget.min)
+            .clickable {
+                showQuietHoursDialogs(context, startTime, endTime, onSave)
+            }
+            .semantics {
+                contentDescription = "Quiet hours active from $formatted. Double tap to edit."
+            }
+            .padding(vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column {
+            Text(
+                text = "Active Range",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.textSecondary,
+            )
+            Text(
+                text = formatted,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.accent,
+            )
+        }
+        TextButton(
+            onClick = { showQuietHoursDialogs(context, startTime, endTime, onSave) },
+            modifier = Modifier.heightIn(min = TouchTarget.min),
+        ) {
+            Text("Edit", style = MaterialTheme.typography.labelMedium, color = colors.accent)
+        }
+    }
+}
+
+private fun showQuietHoursDialogs(
+    context: Context,
+    initialStart: LocalTime,
+    initialEnd: LocalTime,
+    onSave: (String, String) -> Unit,
+) {
+    var selectedStart = initialStart
+
+    TimePickerDialog(
+        context,
+        { _, startHour, startMinute ->
+            selectedStart = LocalTime.of(startHour, startMinute)
+            TimePickerDialog(
+                context,
+                { _, endHour, endMinute ->
+                    val selectedEnd = LocalTime.of(endHour, endMinute)
+                    val startStr = String.format("%02d:%02d:00", selectedStart.hour, selectedStart.minute)
+                    val endStr = String.format("%02d:%02d:00", selectedEnd.hour, selectedEnd.minute)
+                    onSave(startStr, endStr)
+                },
+                initialEnd.hour,
+                initialEnd.minute,
+                false,
+            ).show()
+        },
+        initialStart.hour,
+        initialStart.minute,
+        false,
+    ).show()
+}
+
+@Composable
 private fun NotificationHistoryCard(
     item: NotificationHistoryItem,
     modifier: Modifier = Modifier,
@@ -325,9 +582,9 @@ private fun NotificationHistoryCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.sm))
-            .background(MaterialTheme.colorScheme.background)
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(Radius.sm))
-            .padding(Spacing.sm),
+            .background(colors.surfaceRaised)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), RoundedCornerShape(Radius.sm))
+            .padding(Spacing.cardPadding),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -337,13 +594,13 @@ private fun NotificationHistoryCard(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(Radius.sm))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                    .background(colors.accent.copy(alpha = 0.15f))
                     .padding(horizontal = Spacing.xs, vertical = 2.dp),
             ) {
                 Text(
                     text = item.category,
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = colors.accent,
                 )
             }
             Text(
@@ -370,143 +627,61 @@ private fun NotificationHistoryCard(
     }
 }
 
-private fun formatHistoryDate(isoString: String): String {
-    return try {
-        val parts = isoString.split("T")
-        if (parts.size >= 2) {
-            val date = parts[0]
-            val time = parts[1].substring(0, 5)
-            "$date $time"
-        } else {
-            isoString
-        }
-    } catch (_: Exception) {
-        isoString
-    }
-}
-
 @Composable
-private fun PreferenceSwitchRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+private fun NotificationPreferencesSkeleton(
     modifier: Modifier = Modifier,
 ) {
     val colors = PromiseThemeColors.current
 
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .toggleable(
-                value = checked,
-                role = Role.Switch,
-                onValueChange = onCheckedChange,
-            )
-            .padding(vertical = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(colors.surfaceMuted)
+            .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
     ) {
-        Column(modifier = Modifier.weight(1f).padding(end = Spacing.md)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = colors.textPrimary,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
-            )
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                uncheckedThumbColor = colors.textSecondary,
-                uncheckedTrackColor = colors.surfaceMuted,
-            ),
+        Box(
+            modifier = Modifier
+                .width(100.dp)
+                .height(14.dp)
+                .clip(RoundedCornerShape(Radius.sm))
+                .background(colors.surfaceRaised),
         )
-    }
-}
-
-@Composable
-private fun QuietHoursTimePickerRow(
-    startIso: String,
-    endIso: String,
-    onSave: (String, String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    val colors = PromiseThemeColors.current
-
-    val startTime = parseLocalTime(startIso, 22, 0)
-    val endTime = parseLocalTime(endIso, 8, 0)
-
-    val formatted = "${formatTime(startTime)} – ${formatTime(endTime)}"
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable {
-                showQuietHoursDialogs(context, startTime, endTime, onSave)
+        Spacer(modifier = Modifier.height(Spacing.md))
+        repeat(4) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.sm),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .width(140.dp)
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(Radius.sm))
+                            .background(colors.surfaceRaised),
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.xxs))
+                    Box(
+                        modifier = Modifier
+                            .width(200.dp)
+                            .height(12.dp)
+                            .clip(RoundedCornerShape(Radius.sm))
+                            .background(colors.surfaceRaised.copy(alpha = 0.6f)),
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(width = 44.dp, height = 24.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(colors.surfaceRaised),
+                )
             }
-            .padding(vertical = Spacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Column {
-            Text(
-                text = "Active hours",
-                style = MaterialTheme.typography.bodyMedium,
-                color = colors.textPrimary,
-            )
-            Text(
-                text = formatted,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        TextButton(onClick = { showQuietHoursDialogs(context, startTime, endTime, onSave) }) {
-            Text("Edit", style = MaterialTheme.typography.labelMedium)
         }
     }
-}
-
-private fun showQuietHoursDialogs(
-    context: Context,
-    initialStart: LocalTime,
-    initialEnd: LocalTime,
-    onSave: (String, String) -> Unit,
-) {
-    var selectedStart = initialStart
-    var selectedEnd = initialEnd
-
-    // Step 1: Pick start time
-    TimePickerDialog(
-        context,
-        { _, startHour, startMinute ->
-            selectedStart = LocalTime.of(startHour, startMinute)
-            // Step 2: Pick end time, then save both together
-            TimePickerDialog(
-                context,
-                { _, endHour, endMinute ->
-                    selectedEnd = LocalTime.of(endHour, endMinute)
-                    val startStr = String.format("%02d:%02d:00", selectedStart.hour, selectedStart.minute)
-                    val endStr = String.format("%02d:%02d:00", selectedEnd.hour, selectedEnd.minute)
-                    onSave(startStr, endStr)
-                },
-                initialEnd.hour,
-                initialEnd.minute,
-                false,
-            ).show()
-        },
-        initialStart.hour,
-        initialStart.minute,
-        false,
-    ).show()
 }
 
 private fun parseLocalTime(iso: String, defaultHour: Int, defaultMin: Int): LocalTime {
@@ -521,4 +696,19 @@ private fun parseLocalTime(iso: String, defaultHour: Int, defaultMin: Int): Loca
 private fun formatTime(time: LocalTime): String {
     val formatter = DateTimeFormatter.ofPattern("h:mm a")
     return time.format(formatter)
+}
+
+private fun formatHistoryDate(isoString: String): String {
+    return try {
+        val parts = isoString.split("T")
+        if (parts.size >= 2) {
+            val date = parts[0]
+            val time = parts[1].substring(0, 5)
+            "$date $time"
+        } else {
+            isoString
+        }
+    } catch (_: Exception) {
+        isoString
+    }
 }

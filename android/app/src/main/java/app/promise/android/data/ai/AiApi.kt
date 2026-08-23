@@ -18,6 +18,9 @@ interface AiApi {
     @GET("ai/insights/weekly/")
     suspend fun getWeeklyInsights(): WeeklyAiInsightsDto
 
+    @GET("ai/motivation/today/")
+    suspend fun getDailyMotivation(): DailyMotivationQuoteDto
+
     @POST("ai/planner/")
     suspend fun planCommitments(@Body request: PlannerRequestDto): PlannerResponseDto
 

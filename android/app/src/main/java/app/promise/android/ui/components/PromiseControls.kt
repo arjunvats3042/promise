@@ -142,7 +142,11 @@ fun PromisePrimaryButton(
             )
             Spacer(modifier = Modifier.width(Spacing.sm))
         }
-        Text(text)
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 

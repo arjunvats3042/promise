@@ -7,14 +7,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,6 +64,7 @@ fun GoalAiBuilderSheet(
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scrollState = rememberScrollState()
 
     var promptText by remember { mutableStateOf("") }
     var clarificationAnswer by remember { mutableStateOf("") }
@@ -76,11 +80,13 @@ fun GoalAiBuilderSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.inset, vertical = Spacing.md),
+                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xl)
+                .imePadding()
+                .verticalScroll(scrollState),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.AutoAwesome,
@@ -94,19 +100,22 @@ fun GoalAiBuilderSheet(
                     color = colors.textPrimary,
                 )
             }
-            Spacer(modifier = Modifier.height(Spacing.xs))
+            Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = "Describe your habit or practice. AI will suggest a structured goal for your review and confirmation.",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
 
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.xl))
 
             if (suggestion == null) {
                 OutlinedTextField(
                     value = promptText,
-                    onValueChange = { promptText = it },
+                    onValueChange = {
+                        promptText = it
+                        if (errorMessage != null) errorMessage = null
+                    },
                     label = { Text("E.g. Read 30 minutes every weekday") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
@@ -120,7 +129,7 @@ fun GoalAiBuilderSheet(
                 )
 
                 if (errorMessage != null) {
-                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Spacer(modifier = Modifier.height(Spacing.sm))
                     Text(
                         text = errorMessage ?: "",
                         style = MaterialTheme.typography.bodySmall,
@@ -128,7 +137,7 @@ fun GoalAiBuilderSheet(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.lg))
 
                 Button(
                     onClick = {
@@ -141,6 +150,8 @@ fun GoalAiBuilderSheet(
                                 try {
                                     suggestion = onSuggestGoal(query)
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                } catch (_: kotlinx.coroutines.CancellationException) {
+                                    // Ignored silently on lifecycle/sheet cancel
                                 } catch (e: Exception) {
                                     errorMessage = "Could not generate suggestion. Please try again."
                                 } finally {
@@ -166,7 +177,10 @@ fun GoalAiBuilderSheet(
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        Text("Generate Suggestion")
+                        Text(
+                            text = "Generate Suggestion",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
                     }
                 }
             } else if (suggestion!!.status == "NEEDS_CLARIFICATION") {
@@ -178,10 +192,10 @@ fun GoalAiBuilderSheet(
                         .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(Radius.md)),
                     color = colors.surfaceMuted,
                 ) {
-                    Column(modifier = Modifier.padding(Spacing.md)) {
+                    Column(modifier = Modifier.padding(Spacing.cardPadding)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Outlined.HelpOutline,
+                                imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
                                 contentDescription = null,
                                 tint = colors.accent,
                                 modifier = Modifier.size(20.dp),
@@ -193,7 +207,7 @@ fun GoalAiBuilderSheet(
                                 color = colors.accent,
                             )
                         }
-                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Spacer(modifier = Modifier.height(Spacing.cardTitleBottom))
                         Text(
                             text = sug.clarificationQuestion ?: "How often would you like to practice this goal?",
                             style = MaterialTheme.typography.bodyLarge,
@@ -202,7 +216,7 @@ fun GoalAiBuilderSheet(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.lg))
 
                 OutlinedTextField(
                     value = clarificationAnswer,
@@ -217,7 +231,7 @@ fun GoalAiBuilderSheet(
                     ),
                 )
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.lg))
 
                 Button(
                     onClick = {
@@ -253,17 +267,24 @@ fun GoalAiBuilderSheet(
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        Text("Continue with Details")
+                        Text(
+                            text = "Continue with Details",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.xs))
+                Spacer(modifier = Modifier.height(Spacing.sm))
 
                 TextButton(
                     onClick = { suggestion = null },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Start over", color = colors.textSecondary)
+                    Text(
+                        text = "Start over",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
                 }
             } else {
                 val sug = suggestion!!
@@ -274,44 +295,36 @@ fun GoalAiBuilderSheet(
                         .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(Radius.md)),
                     color = colors.surfaceMuted,
                 ) {
-                    Column(modifier = Modifier.padding(Spacing.md)) {
+                    Column(modifier = Modifier.padding(Spacing.cardPadding)) {
                         Text(
                             text = "SUGGESTED GOAL",
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.accent,
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        Spacer(modifier = Modifier.height(Spacing.cardTitleBottom))
                         Text(
                             text = sug.title,
                             style = MaterialTheme.typography.titleMedium,
                             color = colors.textPrimary,
                         )
                         if (sug.description.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(Spacing.xxs))
+                            Spacer(modifier = Modifier.height(Spacing.cardSubtitleBottom))
                             Text(
                                 text = sug.description,
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = colors.textSecondary,
                             )
                         }
-                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Spacer(modifier = Modifier.height(Spacing.cardSubtitleBottom))
                         Text(
                             text = "Cadence: ${sug.recurrenceKind} • Tracking: ${sug.trackingKind}",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
                         )
-                        if (sug.reasoning.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(Spacing.xs))
-                            Text(
-                                text = "“${sug.reasoning}”",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary,
-                            )
-                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.lg))
 
                 Button(
                     onClick = {
@@ -342,20 +355,27 @@ fun GoalAiBuilderSheet(
                 ) {
                     Icon(imageVector = Icons.Outlined.Check, contentDescription = null)
                     Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("Confirm & Create Goal")
+                    Text(
+                        text = "Confirm & Create Goal",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.xs))
+                Spacer(modifier = Modifier.height(Spacing.sm))
 
                 TextButton(
                     onClick = { suggestion = null },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Edit prompt", color = colors.textSecondary)
+                    Text(
+                        text = "Edit prompt",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
         }
     }
 }

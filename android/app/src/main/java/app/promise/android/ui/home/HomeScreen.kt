@@ -53,6 +53,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -90,6 +91,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val weeklyInsightsState by viewModel.weeklyInsightsState.collectAsStateWithLifecycle()
+    val dailyMotivationState by viewModel.dailyMotivationState.collectAsStateWithLifecycle()
     var countPractice by remember { mutableStateOf<HomePractice?>(null) }
     var showThoughtParser by remember { mutableStateOf(false) }
 
@@ -122,6 +124,7 @@ fun HomeScreen(
                 HomeContent(
                     model = s.value,
                     weeklyInsightsState = weeklyInsightsState,
+                    dailyMotivationState = dailyMotivationState,
                     onOpenProfile = onOpenProfile,
                     onOpenCommitment = onOpenCommitment,
                     onOpenPractice = onOpenPractice,
@@ -214,6 +217,7 @@ private fun HomeError(
 private fun HomeContent(
     model: HomeUiModel,
     weeklyInsightsState: WeeklyInsightsUiState,
+    dailyMotivationState: DailyMotivationUiState,
     onOpenProfile: () -> Unit,
     onOpenCommitment: (String) -> Unit,
     onOpenPractice: (String) -> Unit,
@@ -244,7 +248,7 @@ private fun HomeContent(
     ) {
         // 1. HEADER
         item {
-            Spacer(modifier = Modifier.height(Spacing.lg))
+            Spacer(modifier = Modifier.height(Spacing.xl))
             HomeHeader(
                 greeting = model.greeting,
                 userName = model.userName,
@@ -253,9 +257,11 @@ private fun HomeContent(
                 onOpenProfile = onOpenProfile,
                 onOpenSearch = onOpenSearch,
             )
-            Spacer(modifier = Modifier.height(Spacing.md))
-            PromiseHairlineDivider()
             Spacer(modifier = Modifier.height(Spacing.lg))
+            PromiseHairlineDivider()
+            Spacer(modifier = Modifier.height(Spacing.md))
+            TodayThoughtSection(state = dailyMotivationState)
+            Spacer(modifier = Modifier.height(Spacing.sectionGap))
         }
 
         // Email Verification notice if needed
@@ -268,15 +274,16 @@ private fun HomeContent(
                         .background(colors.warning.copy(alpha = 0.12f))
                         .border(1.dp, colors.warning.copy(alpha = 0.35f), RoundedCornerShape(Radius.md))
                         .clickable(onClick = onOpenProfile)
-                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                        .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
                 ) {
                     Column {
                         Text(
                             text = "Verify your email address",
                             style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
                             color = colors.textPrimary,
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(Spacing.cardTitleBottom))
                         Text(
                             text = "Tap to visit Profile & Security to send a verification link.",
                             style = MaterialTheme.typography.bodySmall,
@@ -284,7 +291,7 @@ private fun HomeContent(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
             }
         }
 
@@ -292,10 +299,10 @@ private fun HomeContent(
         item {
             Text(
                 text = "Today",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 color = colors.textPrimary,
             )
-            Spacer(modifier = Modifier.height(Spacing.xs))
+            Spacer(modifier = Modifier.height(Spacing.sectionHeaderBottom))
         }
 
         when {
@@ -305,7 +312,7 @@ private fun HomeContent(
                         message = model.commitmentsError.toUserMessage(),
                         onRetry = onRetryCommitments,
                     )
-                    Spacer(modifier = Modifier.height(Spacing.section))
+                    Spacer(modifier = Modifier.height(Spacing.sectionGap))
                 }
             }
             model.commitments.isEmpty() -> {
@@ -315,21 +322,22 @@ private fun HomeContent(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(Radius.md))
                             .background(colors.surfaceMuted)
-                            .padding(Spacing.md),
+                            .padding(Spacing.cardPadding),
                     ) {
                         Text(
                             text = "Nothing due today.",
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                             color = colors.textPrimary,
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        Spacer(modifier = Modifier.height(Spacing.cardTitleBottom))
                         Text(
                             text = "Open Commitments when you’re ready to schedule.",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
                         )
                     }
-                    Spacer(modifier = Modifier.height(Spacing.section))
+                    Spacer(modifier = Modifier.height(Spacing.sectionGap))
                 }
             }
             else -> {
@@ -341,7 +349,7 @@ private fun HomeContent(
                         onComplete = { onComplete(commitment.id) },
                     )
                 }
-                item { Spacer(modifier = Modifier.height(Spacing.section)) }
+                item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
             }
         }
 
@@ -349,10 +357,10 @@ private fun HomeContent(
         item {
             Text(
                 text = "Your Practice",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 color = colors.textPrimary,
             )
-            Spacer(modifier = Modifier.height(Spacing.xs))
+            Spacer(modifier = Modifier.height(Spacing.sectionHeaderBottom))
         }
 
         when {
@@ -362,7 +370,7 @@ private fun HomeContent(
                         message = model.practicesError.toUserMessage(),
                         onRetry = onRetryPractices,
                     )
-                    Spacer(modifier = Modifier.height(Spacing.section))
+                    Spacer(modifier = Modifier.height(Spacing.sectionGap))
                 }
             }
             personalPractices.isEmpty() -> {
@@ -372,21 +380,22 @@ private fun HomeContent(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(Radius.md))
                             .background(colors.surfaceMuted)
-                            .padding(Spacing.md),
+                            .padding(Spacing.cardPadding),
                     ) {
                         Text(
                             text = "No active personal practices yet.",
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
                             color = colors.textPrimary,
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        Spacer(modifier = Modifier.height(Spacing.cardTitleBottom))
                         Text(
                             text = "Create goals in the Goals tab to build daily consistency.",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
                         )
                     }
-                    Spacer(modifier = Modifier.height(Spacing.section))
+                    Spacer(modifier = Modifier.height(Spacing.sectionGap))
                 }
             }
             else -> {
@@ -398,7 +407,7 @@ private fun HomeContent(
                         onCheckIn = { onCheckIn(practice) },
                     )
                 }
-                item { Spacer(modifier = Modifier.height(Spacing.section)) }
+                item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
             }
         }
 
@@ -407,10 +416,10 @@ private fun HomeContent(
             item {
                 Text(
                     text = "Shared Practice",
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.height(Spacing.xs))
+                Spacer(modifier = Modifier.height(Spacing.sectionHeaderBottom))
             }
             items(sharedPractices, key = { it.id }) { practice ->
                 PracticeRow(
@@ -420,17 +429,17 @@ private fun HomeContent(
                     onCheckIn = { onCheckIn(practice) },
                 )
             }
-            item { Spacer(modifier = Modifier.height(Spacing.section)) }
+            item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
         }
 
         // 5. AI ASSISTANTS
         item {
             Text(
                 text = "AI Assistant",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.titleLarge,
                 color = colors.textPrimary,
             )
-            Spacer(modifier = Modifier.height(Spacing.sm))
+            Spacer(modifier = Modifier.height(Spacing.sectionHeaderBottom))
 
             Surface(
                 onClick = onOpenThoughtParser,
@@ -442,24 +451,24 @@ private fun HomeContent(
                 color = colors.surfaceMuted,
             ) {
                 Row(
-                    modifier = Modifier.padding(Spacing.md),
+                    modifier = Modifier.padding(Spacing.cardPadding),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.AutoAwesome,
                         contentDescription = null,
                         tint = colors.accent,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(22.dp),
                     )
-                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Spacer(modifier = Modifier.width(Spacing.md))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Thought → Promise",
-                            style = MaterialTheme.typography.titleSmall,
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = colors.textPrimary,
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(Spacing.cardTitleBottom))
                         Text(
                             text = "Turn a brain dump into commitments & goals using AI",
                             style = MaterialTheme.typography.bodySmall,
@@ -469,9 +478,9 @@ private fun HomeContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.sm))
+            Spacer(modifier = Modifier.height(Spacing.lg))
             WeeklyInsightsCard(state = weeklyInsightsState)
-            Spacer(modifier = Modifier.height(Spacing.xxl))
+            Spacer(modifier = Modifier.height(Spacing.xxxl))
         }
     }
 }
@@ -493,6 +502,80 @@ private fun SectionError(
         modifier = Modifier.heightIn(min = TouchTarget.min),
     ) {
         Text("Try again", color = colors.accent)
+    }
+}
+
+@Composable
+private fun TodayThoughtSection(
+    state: DailyMotivationUiState,
+    modifier: Modifier = Modifier,
+) {
+    val colors = PromiseThemeColors.current
+
+    when (state) {
+        is DailyMotivationUiState.Loading -> {
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(colors.surfaceMuted.copy(alpha = 0.5f))
+                    .padding(horizontal = Spacing.cardPadding, vertical = Spacing.sm),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(80.dp)
+                            .height(12.dp)
+                            .clip(RoundedCornerShape(Radius.sm))
+                            .background(colors.surfaceRaised),
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.sm))
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(12.dp)
+                            .clip(RoundedCornerShape(Radius.sm))
+                            .background(colors.surfaceRaised.copy(alpha = 0.6f)),
+                    )
+                }
+            }
+        }
+        is DailyMotivationUiState.Error -> {
+            // Hidden gracefully when error
+        }
+        is DailyMotivationUiState.Success -> {
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(colors.surfaceMuted)
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f), RoundedCornerShape(Radius.md))
+                    .padding(horizontal = Spacing.cardPadding, vertical = Spacing.sm + 2.dp)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "Today's Thought: ${state.quote.quote}"
+                    },
+            ) {
+                Column {
+                    Text(
+                        text = "TODAY'S THOUGHT",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textSecondary,
+                        letterSpacing = 1.0.sp,
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.xxs))
+                    Text(
+                        text = "“${state.quote.quote}”",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Normal,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        color = colors.textPrimary,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -650,7 +733,7 @@ fun CommitmentTodayRow(
     val commitmentDesc = "${commitment.title}, $statusText, ${commitment.dueLabel}"
 
     Row(
-        modifier = animModifier.padding(vertical = Spacing.sm),
+        modifier = animModifier.padding(vertical = Spacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(
@@ -675,6 +758,7 @@ fun CommitmentTodayRow(
                 tint = if (commitment.isCompleted) colors.success else colors.textSecondary,
             )
         }
+        Spacer(modifier = Modifier.width(Spacing.xs))
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -685,14 +769,14 @@ fun CommitmentTodayRow(
         ) {
             Text(
                 text = commitment.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary.copy(
                     alpha = if (commitment.isCompleted) Alpha.CompletedTitle else 1f,
                 ),
                 textDecoration = if (commitment.isCompleted) TextDecoration.LineThrough else null,
             )
-            Spacer(modifier = Modifier.height(Spacing.hairlineGap))
+            Spacer(modifier = Modifier.height(Spacing.xs))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (commitment.isOverdue) {
                     Box(
@@ -742,7 +826,7 @@ fun PracticeRow(
     }
 
     Column(
-        modifier = animModifier.padding(vertical = Spacing.sm),
+        modifier = animModifier.padding(vertical = Spacing.md),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -759,9 +843,10 @@ fun PracticeRow(
                 Text(
                     text = practice.title,
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     color = colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.height(Spacing.xxs))
+                Spacer(modifier = Modifier.height(Spacing.xs))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.xs),

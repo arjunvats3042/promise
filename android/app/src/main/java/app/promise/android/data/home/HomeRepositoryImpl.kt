@@ -74,10 +74,16 @@ class HomeRepositoryImpl @Inject constructor(
         goalRepository.checkIn(id, input)
     }
 
-    private fun Throwable.toHomeError(): ErrorKind {
+    private fun Throwable.toHomeError(): ErrorKind? {
+        if (this is kotlinx.coroutines.CancellationException || this is java.util.concurrent.CancellationException) {
+            return null
+        }
+        if (this is java.io.IOException && message?.contains("Canceled", ignoreCase = true) == true) {
+            return null
+        }
         return when (this) {
             is ApiException -> toErrorKind()
-            else -> toApiException().toErrorKind()
+            else -> runCatching { toApiException().toErrorKind() }.getOrNull()
         }
     }
 }

@@ -1,6 +1,7 @@
-from datetime import datetime, timedelta, timezone as tz
+import logging
 import time
-from typing import Any, Dict, Optional
+from datetime import datetime, timedelta, timezone as tz
+from typing import Any, Dict, List, Optional
 
 from django.db.models import Q
 
@@ -11,6 +12,8 @@ from apps.ai.providers.gemini import GeminiProvider
 from apps.ai.routing import get_model_for_feature
 from apps.commitments.models import Commitment
 from apps.goals.models import Goal, GoalCheckIn
+
+logger = logging.getLogger("promise")
 
 INSIGHTS_SCHEMA = {
     "type": "OBJECT",
@@ -26,11 +29,64 @@ INSIGHTS_SCHEMA = {
 }
 
 
+def generate_deterministic_fallback_insights(facts: Dict[str, Any]) -> Dict[str, Any]:
+    """Constructs factual, concise insights entirely from calculated backend metrics when AI is unavailable."""
+    total = facts.get("commitments_total", 0)
+    completed = facts.get("commitments_completed", 0)
+    rate_pct = int(round(facts.get("commitment_completion_rate", 0.0) * 100))
+    slots = facts.get("completion_time_slots", {})
+    morning = slots.get("morning_before_12pm", 0)
+    afternoon = slots.get("afternoon_12pm_to_6pm", 0)
+    evening = slots.get("evening_after_6pm", 0)
+    check_ins = facts.get("check_ins_past_7_days", 0)
+    active_goals = facts.get("active_goals_count", 0)
+
+    patterns: List[str] = []
+
+    if total == 0 and check_ins == 0:
+        summary = "No commitments or check-ins recorded in the past 7 days."
+        patterns = ["Create a commitment or practice goal to begin tracking weekly patterns."]
+        suggestion = "Start with one small daily commitment."
+    elif total > 0 and completed == total:
+        summary = f"All {total} commitments were completed this week."
+        patterns.append(f"100% completion rate achieved across {total} commitments.")
+        if check_ins > 0:
+            patterns.append(f"{check_ins} practice check-ins completed.")
+        suggestion = "Maintain this steady consistency."
+    elif total > 0:
+        summary = f"{completed} of {total} commitments were completed this week ({rate_pct}% completion rate)."
+        # Identify top time slot
+        max_slot = "evening"
+        max_val = evening
+        if morning > max_val:
+            max_slot = "morning"
+            max_val = morning
+        if afternoon > max_val:
+            max_slot = "afternoon"
+            max_val = afternoon
+
+        if max_val > 0:
+            patterns.append(f"Evening commitments had the highest completion count." if max_slot == "evening" else f"Most completions occurred in the {max_slot}.")
+        if check_ins > 0:
+            patterns.append(f"{check_ins} practice check-ins logged across active goals.")
+        suggestion = "Consistent daily execution supports long-term momentum."
+    else:
+        summary = f"{check_ins} practice check-ins logged across {active_goals} active goals."
+        patterns.append(f"Active engagement with {active_goals} practice goals.")
+        suggestion = "Add focused commitments to complement your practice goals."
+
+    return {
+        "summary": summary,
+        "observed_patterns": patterns,
+        "constructive_suggestion": suggestion,
+    }
+
+
 def generate_weekly_insights(
     user,
     provider: Optional[AIProvider] = None,
 ) -> Dict[str, Any]:
-    """Extracts factual weekly metrics for the user and generates a strictly grounded AI summary."""
+    """Extracts factual weekly metrics and generates a strictly grounded AI summary with deterministic fallback."""
     now = datetime.now(tz=tz.utc)
     seven_days_ago = now - timedelta(days=7)
 
@@ -98,6 +154,8 @@ def generate_weekly_insights(
     start_time = time.time()
     success = False
     failure_category = None
+    is_fallback = False
+    insights_content: Dict[str, Any]
 
     try:
         ai_response = provider.generate_structured(
@@ -105,15 +163,29 @@ def generate_weekly_insights(
             schema=INSIGHTS_SCHEMA,
             system_prompt=INSIGHTS_PROMPT_V1,
             model=model,
+            feature="insights",
         )
-        success = True
-        return {
-            "facts": facts,
-            "insights": ai_response,
-        }
-    except Exception as e:
-        failure_category = e.__class__.__name__
-        raise
+        if (
+            isinstance(ai_response, dict)
+            and isinstance(ai_response.get("summary"), str)
+            and ai_response["summary"].strip()
+        ):
+            insights_content = {
+                "summary": ai_response["summary"].strip(),
+                "observed_patterns": ai_response.get("observed_patterns", []) if isinstance(ai_response.get("observed_patterns"), list) else [],
+                "constructive_suggestion": str(ai_response.get("constructive_suggestion", "")).strip(),
+            }
+            success = True
+        else:
+            raise ValueError("Malformed AI insights response structure")
+    except Exception as exc:
+        failure_category = exc.__class__.__name__
+        is_fallback = True
+        logger.warning(
+            "Gemini failed to generate weekly insights, using deterministic fallback",
+            extra={"error": str(exc), "user_id": str(getattr(user, "id", "anonymous"))},
+        )
+        insights_content = generate_deterministic_fallback_insights(facts)
     finally:
         latency_ms = int((time.time() - start_time) * 1000)
         record_ai_metric(
@@ -124,3 +196,12 @@ def generate_weekly_insights(
             success=success,
             failure_category=failure_category,
         )
+
+    return {
+        "facts": facts,
+        "insights": insights_content,
+        "is_fallback": is_fallback,
+        "generated_at": now.isoformat(),
+        "period_start": seven_days_ago.isoformat(),
+        "period_end": now.isoformat(),
+    }

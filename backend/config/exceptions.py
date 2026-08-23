@@ -56,6 +56,13 @@ def _stringify_details(data):
 
 
 def api_exception_handler(exc, context):
+    from apps.ai.exceptions import AiServiceError
+    if isinstance(exc, AiServiceError):
+        return Response(
+            _error_payload(exc.code, exc.message),
+            status=exc.status_code,
+        )
+
     if isinstance(exc, ApplicationAPIError):
         response = Response(
             _error_payload(exc.error_code, exc.public_message),

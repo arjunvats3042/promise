@@ -44,11 +44,26 @@ suspend fun launchGoogleSignIn(
         } else {
             onError("Unsupported credential type returned.")
         }
+    } catch (_: kotlinx.coroutines.CancellationException) {
+        onCancelled()
+    } catch (_: java.util.concurrent.CancellationException) {
+        onCancelled()
     } catch (_: GetCredentialCancellationException) {
         onCancelled()
     } catch (e: GetCredentialException) {
-        onError(e.localizedMessage ?: "Google sign in failed")
+        if (e.message?.contains("cancel", ignoreCase = true) == true) {
+            onCancelled()
+        } else {
+            onError(e.localizedMessage ?: "Google sign in failed")
+        }
     } catch (t: Throwable) {
-        onError(t.localizedMessage ?: "Google sign in failed")
+        if (t is kotlinx.coroutines.CancellationException ||
+            t is java.util.concurrent.CancellationException ||
+            t.message?.contains("cancel", ignoreCase = true) == true
+        ) {
+            onCancelled()
+        } else {
+            onError(t.localizedMessage ?: "Google sign in failed")
+        }
     }
 }

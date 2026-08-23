@@ -1,5 +1,6 @@
 from django.urls import include, path
 
+from apps.ai.views import daily_motivation_view
 from config.views import api_not_found, health, ready
 
 v1_urlpatterns = [
@@ -12,6 +13,7 @@ v1_urlpatterns = [
     path("notifications/", include("apps.notifications.urls")),
     path("search/", include("apps.search.urls")),
     path("ai/", include("apps.ai.urls")),
+    path("motivation/today/", daily_motivation_view),
     path("analytics/", include("apps.analytics.urls")),
     path("<path:resource>", api_not_found),  # keep last
 ]

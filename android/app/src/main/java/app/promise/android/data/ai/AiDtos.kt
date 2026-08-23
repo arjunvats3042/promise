@@ -1,6 +1,7 @@
 package app.promise.android.data.ai
 
 import app.promise.android.domain.CommitmentRefinement
+import app.promise.android.domain.DailyMotivationQuote
 import app.promise.android.domain.GoalChatAiSummary
 import app.promise.android.domain.GoalSuggestion
 import app.promise.android.domain.ParsedThoughtItem
@@ -117,11 +118,20 @@ data class ThoughtParserResponseDto(
 )
 
 @Serializable
+data class CompletionTimeSlotsDto(
+    @SerialName("morning_before_12pm") val morningBefore12pm: Int = 0,
+    @SerialName("afternoon_12pm_to_6pm") val afternoon12pmTo6pm: Int = 0,
+    @SerialName("evening_after_6pm") val eveningAfter6pm: Int = 0,
+)
+
+@Serializable
 data class WeeklyAiFactsDto(
     val period: String = "past_7_days",
     @SerialName("commitments_total") val commitmentsTotal: Int = 0,
     @SerialName("commitments_completed") val commitmentsCompleted: Int = 0,
     @SerialName("commitments_overdue") val commitmentsOverdue: Int = 0,
+    @SerialName("commitment_completion_rate") val commitmentCompletionRate: Double = 0.0,
+    @SerialName("completion_time_slots") val completionTimeSlots: CompletionTimeSlotsDto = CompletionTimeSlotsDto(),
     @SerialName("active_goals_count") val activeGoalsCount: Int = 0,
     @SerialName("check_ins_past_7_days") val checkInsPast7Days: Int = 0,
 )
@@ -130,20 +140,28 @@ data class WeeklyAiFactsDto(
 data class WeeklyAiInsightsContentDto(
     val summary: String,
     @SerialName("observed_patterns") val observedPatterns: List<String> = emptyList(),
-    @SerialName("constructive_suggestion") val constructiveSuggestion: String,
+    @SerialName("constructive_suggestion") val constructiveSuggestion: String = "",
 )
 
 @Serializable
 data class WeeklyAiInsightsDto(
     val facts: WeeklyAiFactsDto,
     val insights: WeeklyAiInsightsContentDto,
+    @SerialName("is_fallback") val isFallback: Boolean = false,
+    @SerialName("generated_at") val generatedAt: String? = null,
+    @SerialName("period_start") val periodStart: String? = null,
+    @SerialName("period_end") val periodEnd: String? = null,
 ) {
     fun toDomain(): WeeklyAiInsights = WeeklyAiInsights(
         facts = WeeklyAiFacts(
             period = facts.period,
             totalCommitments = facts.commitmentsTotal,
             completedCommitments = facts.commitmentsCompleted,
-            missedCommitments = facts.commitmentsOverdue,
+            overdueCommitments = facts.commitmentsOverdue,
+            completionRate = facts.commitmentCompletionRate,
+            morningCompletions = facts.completionTimeSlots.morningBefore12pm,
+            afternoonCompletions = facts.completionTimeSlots.afternoon12pmTo6pm,
+            eveningCompletions = facts.completionTimeSlots.eveningAfter6pm,
             activeGoalsCount = facts.activeGoalsCount,
             checkInsPast7Days = facts.checkInsPast7Days,
         ),
@@ -152,8 +170,32 @@ data class WeeklyAiInsightsDto(
             observedPatterns = insights.observedPatterns,
             constructiveSuggestion = insights.constructiveSuggestion,
         ),
+        isFallback = isFallback,
+        generatedAt = generatedAt,
+        periodStart = periodStart,
+        periodEnd = periodEnd,
     )
 }
+
+@Serializable
+data class DailyMotivationQuoteDto(
+    val id: String,
+    val date: String,
+    val quote: String,
+    val provider: String = "gemini",
+    val model: String = "gemini-3.6-flash",
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+) {
+    fun toDomain(): DailyMotivationQuote = DailyMotivationQuote(
+        id = id,
+        date = date,
+        quote = quote,
+        provider = provider,
+        model = model,
+    )
+}
+
 
 @Serializable
 data class PlannerRequestDto(

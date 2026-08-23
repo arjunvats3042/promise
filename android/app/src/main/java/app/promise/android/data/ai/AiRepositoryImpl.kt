@@ -3,6 +3,7 @@ package app.promise.android.data.ai
 import app.promise.android.data.network.toApiException
 import app.promise.android.domain.AiRepository
 import app.promise.android.domain.CommitmentRefinement
+import app.promise.android.domain.DailyMotivationQuote
 import app.promise.android.domain.GoalChatAiSummary
 import app.promise.android.domain.GoalSuggestion
 import app.promise.android.domain.ParsedThoughtItem
@@ -38,6 +39,12 @@ class AiRepositoryImpl @Inject constructor(
 
     override suspend fun getWeeklyInsights(): WeeklyAiInsights = try {
         api.getWeeklyInsights().toDomain()
+    } catch (e: Exception) {
+        throw e.toApiException()
+    }
+
+    override suspend fun getDailyMotivation(): DailyMotivationQuote = try {
+        api.getDailyMotivation().toDomain()
     } catch (e: Exception) {
         throw e.toApiException()
     }

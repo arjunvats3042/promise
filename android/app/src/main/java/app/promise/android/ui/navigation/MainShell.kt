@@ -151,6 +151,7 @@ fun MainShell(
                     HorizontalPager(
                         state = pagerState,
                         userScrollEnabled = !reduceMotion,
+                        beyondViewportPageCount = 1,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding),

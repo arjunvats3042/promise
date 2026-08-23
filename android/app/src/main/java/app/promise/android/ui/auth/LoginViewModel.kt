@@ -82,12 +82,14 @@ class LoginViewModel @Inject constructor(
 
     fun submitGoogleLogin(idToken: String) {
         if (_action.value is ActionState.InFlight) return
+        _action.value = ActionState.InFlight
         viewModelScope.launch {
-            _action.value = ActionState.InFlight
             try {
                 authRepository.googleLogin(idToken)
                 _action.value = ActionState.Idle
                 haptics.confirm()
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                _action.value = ActionState.Idle
             } catch (e: ApiException) {
                 val kind = e.toErrorKind()
                 _action.value = ActionState.Failed(kind)

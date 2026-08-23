@@ -47,11 +47,24 @@ data class ParsedThoughtItem(
 )
 
 @Serializable
+data class DailyMotivationQuote(
+    val id: String,
+    val date: String,
+    val quote: String,
+    val provider: String = "gemini",
+    val model: String = "gemini-3.6-flash",
+)
+
+@Serializable
 data class WeeklyAiFacts(
     val period: String = "past_7_days",
     val totalCommitments: Int = 0,
     val completedCommitments: Int = 0,
-    val missedCommitments: Int = 0,
+    val overdueCommitments: Int = 0,
+    val completionRate: Double = 0.0,
+    val morningCompletions: Int = 0,
+    val afternoonCompletions: Int = 0,
+    val eveningCompletions: Int = 0,
     val activeGoalsCount: Int = 0,
     val checkInsPast7Days: Int = 0,
 )
@@ -60,13 +73,17 @@ data class WeeklyAiFacts(
 data class WeeklyAiInsightsContent(
     val summary: String,
     val observedPatterns: List<String> = emptyList(),
-    val constructiveSuggestion: String,
+    val constructiveSuggestion: String = "",
 )
 
 @Serializable
 data class WeeklyAiInsights(
     val facts: WeeklyAiFacts,
     val insights: WeeklyAiInsightsContent,
+    val isFallback: Boolean = false,
+    val generatedAt: String? = null,
+    val periodStart: String? = null,
+    val periodEnd: String? = null,
 )
 
 @Serializable

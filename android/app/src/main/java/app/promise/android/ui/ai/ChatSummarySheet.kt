@@ -54,6 +54,8 @@ fun ChatSummarySheet(
     LaunchedEffect(goalId) {
         try {
             summaryResult = onFetchSummary(goalId)
+        } catch (_: kotlinx.coroutines.CancellationException) {
+            // Ignored silently on lifecycle/sheet cancel
         } catch (e: Exception) {
             errorMessage = "Could not summarize chat. Please try again."
         } finally {
@@ -69,11 +71,11 @@ fun ChatSummarySheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.inset, vertical = Spacing.md),
+                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xl),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.AutoAwesome,
@@ -87,14 +89,14 @@ fun ChatSummarySheet(
                     color = colors.textPrimary,
                 )
             }
-            Spacer(modifier = Modifier.height(Spacing.xs))
+            Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = "Key decisions, actions, dates, and open questions from recent conversation.",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
 
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.xl))
 
             if (isLoading) {
                 Column(

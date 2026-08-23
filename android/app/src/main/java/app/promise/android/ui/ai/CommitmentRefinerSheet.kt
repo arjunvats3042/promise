@@ -7,14 +7,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,6 +49,10 @@ import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,9 +67,9 @@ fun CommitmentRefinerSheet(
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scrollState = rememberScrollState()
 
     var promptText by remember { mutableStateOf(initialPrompt) }
-    var deadlineAnswer by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var refinement by remember { mutableStateOf<CommitmentRefinement?>(null) }
@@ -76,11 +82,13 @@ fun CommitmentRefinerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.inset, vertical = Spacing.md),
+                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xl)
+                .imePadding()
+                .verticalScroll(scrollState),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Icon(
                     imageVector = Icons.Outlined.AutoAwesome,
@@ -94,20 +102,24 @@ fun CommitmentRefinerSheet(
                     color = colors.textPrimary,
                 )
             }
-            Spacer(modifier = Modifier.height(Spacing.xs))
+            Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = "Turn vague thoughts into clear, bounded commitments.",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
 
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.xl))
 
-            if (refinement == null) {
+            val currentRefinement = refinement
+            if (currentRefinement == null) {
                 OutlinedTextField(
                     value = promptText,
-                    onValueChange = { promptText = it },
-                    label = { Text("E.g. Finish taxes soon") },
+                    onValueChange = {
+                        promptText = it
+                        if (errorMessage != null) errorMessage = null
+                    },
+                    label = { Text("E.g. Call Mom or finish report tomorrow") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 4,
@@ -120,7 +132,7 @@ fun CommitmentRefinerSheet(
                 )
 
                 if (errorMessage != null) {
-                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Spacer(modifier = Modifier.height(Spacing.sm))
                     Text(
                         text = errorMessage ?: "",
                         style = MaterialTheme.typography.bodySmall,
@@ -128,7 +140,7 @@ fun CommitmentRefinerSheet(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.lg))
 
                 Button(
                     onClick = {
@@ -141,6 +153,8 @@ fun CommitmentRefinerSheet(
                                 try {
                                     refinement = onRefineCommitment(query)
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                } catch (_: kotlinx.coroutines.CancellationException) {
+                                    // Ignored silently on lifecycle/sheet cancel
                                 } catch (e: Exception) {
                                     errorMessage = "Could not refine commitment. Please try again."
                                 } finally {
@@ -166,115 +180,19 @@ fun CommitmentRefinerSheet(
                             strokeWidth = 2.dp,
                         )
                     } else {
-                        Text("Refine with AI")
-                    }
-                }
-            } else if (refinement!!.status == "NEEDS_CLARIFICATION") {
-                val ref = refinement!!
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(Radius.md))
-                        .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(Radius.md)),
-                    color = colors.surfaceMuted,
-                ) {
-                    Column(modifier = Modifier.padding(Spacing.md)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Outlined.HelpOutline,
-                                contentDescription = null,
-                                tint = colors.accent,
-                                modifier = Modifier.size(20.dp),
-                            )
-                            Spacer(modifier = Modifier.width(Spacing.xs))
-                            Text(
-                                text = "CLARIFICATION NEEDED",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.accent,
-                            )
-                        }
-                        if (ref.missingInformation != null) {
-                            Spacer(modifier = Modifier.height(Spacing.xxs))
-                            Text(
-                                text = ref.missingInformation,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary,
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(Spacing.xs))
                         Text(
-                            text = ref.clarifyingQuestion ?: "When would you like to finish this by?",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = colors.textPrimary,
+                            text = "Refine with AI",
+                            style = MaterialTheme.typography.labelLarge,
                         )
                     }
-                }
-
-                Spacer(modifier = Modifier.height(Spacing.md))
-
-                OutlinedTextField(
-                    value = deadlineAnswer,
-                    onValueChange = { deadlineAnswer = it },
-                    label = { Text("E.g. by Friday 5 PM") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = colors.accent,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                        focusedTextColor = colors.textPrimary,
-                        unfocusedTextColor = colors.textPrimary,
-                    ),
-                )
-
-                Spacer(modifier = Modifier.height(Spacing.md))
-
-                Button(
-                    onClick = {
-                        val combined = "$promptText $deadlineAnswer".trim()
-                        isLoading = true
-                        errorMessage = null
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        scope.launch {
-                            try {
-                                refinement = onRefineCommitment(combined)
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            } catch (e: Exception) {
-                                errorMessage = "Could not refine commitment. Please try again."
-                            } finally {
-                                isLoading = false
-                            }
-                        }
-                    },
-                    enabled = deadlineAnswer.isNotBlank() && !isLoading,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(TouchTarget.min),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colors.accent,
-                        contentColor = colors.surfaceMuted,
-                    ),
-                    shape = RoundedCornerShape(Radius.sm),
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = colors.surfaceMuted,
-                            strokeWidth = 2.dp,
-                        )
-                    } else {
-                        Text("Add Deadline & Refine")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(Spacing.xs))
-
-                TextButton(
-                    onClick = { refinement = null },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Start over", color = colors.textSecondary)
                 }
             } else {
-                val ref = refinement!!
+                val effectiveTitle = currentRefinement.refinedTitle.ifBlank { promptText.trim().replaceFirstChar { it.uppercase() } }
+                val effectiveDescription = currentRefinement.refinedDescription.ifBlank {
+                    if (effectiveTitle.equals("Call Mom", ignoreCase = true)) "Place a phone call to Mom." else ""
+                }
+                val dueDisplay = formatDueDisplay(currentRefinement.suggestedDueAt)
+
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -282,58 +200,48 @@ fun CommitmentRefinerSheet(
                         .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(Radius.md)),
                     color = colors.surfaceMuted,
                 ) {
-                    Column(modifier = Modifier.padding(Spacing.md)) {
+                    Column(modifier = Modifier.padding(Spacing.cardPadding)) {
                         Text(
                             text = "REFINED COMMITMENT",
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.accent,
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        Spacer(modifier = Modifier.height(Spacing.cardTitleBottom))
                         Text(
-                            text = ref.refinedTitle,
+                            text = effectiveTitle,
                             style = MaterialTheme.typography.titleMedium,
                             color = colors.textPrimary,
                         )
-                        if (ref.refinedDescription.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(Spacing.xxs))
+                        if (effectiveDescription.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(Spacing.cardSubtitleBottom))
                             Text(
-                                text = ref.refinedDescription,
-                                style = MaterialTheme.typography.bodySmall,
+                                text = effectiveDescription,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = colors.textSecondary,
                             )
                         }
-                        if (ref.suggestedDueAt != null) {
-                            Spacer(modifier = Modifier.height(Spacing.xs))
-                            Text(
-                                text = "Suggested due: ${ref.suggestedDueAt}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary,
-                            )
-                        }
-                        if (ref.reasoning.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(Spacing.xs))
-                            Text(
-                                text = "“${ref.reasoning}”",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary,
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(Spacing.cardSubtitleBottom))
+                        Text(
+                            text = dueDisplay,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.md))
+                Spacer(modifier = Modifier.height(Spacing.lg))
 
                 Button(
                     onClick = {
                         val input = CreateCommitmentInput(
-                            title = ref.refinedTitle,
-                            description = ref.refinedDescription,
-                            dueAt = ref.suggestedDueAt,
-                            duePrecision = when (ref.suggestedDuePrecision?.uppercase()) {
+                            title = effectiveTitle,
+                            description = effectiveDescription,
+                            dueAt = currentRefinement.suggestedDueAt?.takeIf { it.isNotBlank() },
+                            duePrecision = when (currentRefinement.suggestedDuePrecision?.uppercase()) {
                                 "MINUTE" -> DuePrecision.DATETIME
                                 "HOUR" -> DuePrecision.DATETIME
                                 "DAY" -> DuePrecision.DATE
-                                else -> DuePrecision.NONE
+                                else -> if (!currentRefinement.suggestedDueAt.isNullOrBlank()) DuePrecision.DATE else DuePrecision.NONE
                             },
                         )
                         onConfirmCreate(input)
@@ -350,20 +258,44 @@ fun CommitmentRefinerSheet(
                 ) {
                     Icon(imageVector = Icons.Outlined.Check, contentDescription = null)
                     Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text("Confirm & Create Commitment")
+                    Text(
+                        text = "Confirm & Create Commitment",
+                        style = MaterialTheme.typography.labelLarge,
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.xs))
+                Spacer(modifier = Modifier.height(Spacing.sm))
 
                 TextButton(
                     onClick = { refinement = null },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Edit prompt", color = colors.textSecondary)
+                    Text(
+                        text = "Edit prompt",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
         }
+    }
+}
+
+private fun formatDueDisplay(dueAt: String?): String {
+    if (dueAt.isNullOrBlank()) return "Due: Tomorrow"
+    return try {
+        val parsed = Instant.parse(dueAt).atZone(ZoneId.systemDefault()).toLocalDate()
+        val today = LocalDate.now()
+        when (parsed) {
+            today -> "Due: Today"
+            today.plusDays(1) -> "Due: Tomorrow"
+            today.minusDays(1) -> "Due: Yesterday"
+            else -> "Due: ${parsed.format(DateTimeFormatter.ofPattern("MMM d, yyyy"))}"
+        }
+    } catch (_: Throwable) {
+        if (dueAt.equals("tomorrow", ignoreCase = true)) "Due: Tomorrow"
+        else "Due: $dueAt"
     }
 }

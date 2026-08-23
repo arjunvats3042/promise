@@ -64,6 +64,10 @@ class ThoughtParserResponseSerializer(serializers.Serializer):
 class WeeklyInsightsResponseSerializer(serializers.Serializer):
     facts = serializers.DictField()
     insights = serializers.DictField()
+    is_fallback = serializers.BooleanField(default=False)
+    generated_at = serializers.CharField(required=False, allow_blank=True)
+    period_start = serializers.CharField(required=False, allow_blank=True)
+    period_end = serializers.CharField(required=False, allow_blank=True)
 
 
 class CommandParserRequestSerializer(serializers.Serializer):
@@ -125,3 +129,13 @@ class ChatSummaryResponseSerializer(serializers.Serializer):
     agreed_actions = serializers.ListField(child=serializers.CharField(), default=list)
     important_dates = serializers.ListField(child=serializers.CharField(), default=list)
     open_questions = serializers.ListField(child=serializers.CharField(), default=list)
+
+
+class DailyMotivationQuoteSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    date = serializers.DateField()
+    quote = serializers.CharField()
+    provider = serializers.CharField()
+    model = serializers.CharField()
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()

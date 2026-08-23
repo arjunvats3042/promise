@@ -272,7 +272,6 @@ private fun FilterChipsRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(horizontal = Spacing.inset),
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
@@ -334,10 +333,11 @@ fun GoalRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = goal.title,
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
                     color = colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.height(Spacing.xxs))
+                Spacer(modifier = Modifier.height(Spacing.xs))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (goal.status == GoalStatus.PAUSED) {
                         Box(

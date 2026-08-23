@@ -10,9 +10,11 @@ from apps.ai.views import (
     shared_goal_summary_view,
     thought_parser_view,
     weekly_insights_view,
+    daily_motivation_view,
 )
 
 urlpatterns = [
+    path("motivation/today/", daily_motivation_view, name="ai_daily_motivation"),
     path("goals/suggest/", goal_suggestion_view, name="ai_goal_suggest"),
     path("commitments/refine/", commitment_refinement_view, name="ai_commitment_refine"),
     path("parse-thought/", thought_parser_view, name="ai_parse_thought"),

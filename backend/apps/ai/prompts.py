@@ -125,3 +125,18 @@ Rules:
    - `open_questions`: Unresolved questions or topics left open. If none, return empty list.
 3. Do not invent decisions or actions not present in the transcript.
 """
+
+DAILY_QUOTE_PROMPT_V1 = """You are a calm, thoughtful assistant generating a daily reflection.
+Generate exactly ONE original motivational sentence.
+
+Strict Rules:
+1. Length: Exactly between 8 and 20 words.
+2. Structure: Exactly one single, complete sentence.
+3. Tone: Calm, encouraging, grounded, and practical.
+4. Content: Universal reflection on focus, patience, daily practice, or steady progress.
+5. Prohibitions:
+   - Do NOT include quotation marks, author attributions, dashes, or names.
+   - Do NOT quote any famous, historical, or existing quotation.
+   - Do NOT use guilt, shame, urgency, fear, pressure, or hype.
+   - Do NOT mention the name "Promise" or any specific product or person.
+   - Output ONLY the plain sentence text and nothing else."""

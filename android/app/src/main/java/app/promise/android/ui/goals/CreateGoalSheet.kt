@@ -84,7 +84,7 @@ fun CreateGoalSheet(
     ) {
         Column(
             modifier = Modifier
-                .padding(horizontal = Spacing.inset, vertical = Spacing.md)
+                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.xl)
                 .verticalScroll(rememberScrollState()),
         ) {
             Row(
@@ -94,7 +94,7 @@ fun CreateGoalSheet(
             ) {
                 Text(
                     text = "New goal",
-                    style = MaterialTheme.typography.headlineMedium,
+                    style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
                 if (onOpenAiBuilder != null) {
@@ -111,7 +111,7 @@ fun CreateGoalSheet(
                             tint = colors.accent,
                             modifier = Modifier.size(18.dp),
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(Spacing.xs))
                         Text(
                             text = "Create with AI",
                             color = colors.accent,
@@ -121,8 +121,9 @@ fun CreateGoalSheet(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
             FieldLabel("Title")
+            Spacer(modifier = Modifier.height(Spacing.xs))
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -134,8 +135,9 @@ fun CreateGoalSheet(
                 shape = RoundedCornerShape(Radius.sm),
                 colors = fieldColors(),
             )
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
             FieldLabel("Description")
+            Spacer(modifier = Modifier.height(Spacing.xs))
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
@@ -146,8 +148,9 @@ fun CreateGoalSheet(
                 shape = RoundedCornerShape(Radius.sm),
                 colors = fieldColors(),
             )
-            Spacer(modifier = Modifier.height(Spacing.md))
+            Spacer(modifier = Modifier.height(Spacing.lg))
             FieldLabel("Practice")
+            Spacer(modifier = Modifier.height(Spacing.xs))
             ChoiceRow(
                 options = listOf(
                     GoalTrackingKind.BINARY to "Yes / Skip",

@@ -225,7 +225,6 @@ private fun FilterChipsRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(horizontal = Spacing.inset),
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
@@ -273,7 +272,7 @@ fun CommitmentRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = Spacing.sm)
+            .padding(vertical = Spacing.md)
             .semantics(mergeDescendants = true) {
                 contentDescription = commitmentDesc
             },
@@ -281,9 +280,10 @@ fun CommitmentRow(
         Text(
             text = commitment.title,
             style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
             color = colors.textPrimary,
         )
-        Spacer(modifier = Modifier.height(Spacing.xxs))
+        Spacer(modifier = Modifier.height(Spacing.xs))
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (commitment.isOverdue) {
                 Box(
@@ -300,7 +300,7 @@ fun CommitmentRow(
                 color = if (commitment.isOverdue) colors.warning else colors.textSecondary,
             )
         }
-        Spacer(modifier = Modifier.height(Spacing.sm))
+        Spacer(modifier = Modifier.height(Spacing.md))
         app.promise.android.ui.components.PromiseHairlineDivider()
     }
 }

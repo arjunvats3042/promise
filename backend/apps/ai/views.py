@@ -22,11 +22,13 @@ from apps.ai.serializers import (
     ThoughtParserRequestSerializer,
     ThoughtParserResponseSerializer,
     WeeklyInsightsResponseSerializer,
+    DailyMotivationQuoteSerializer,
 )
 from apps.ai.services import (
     build_goal_suggestion,
     generate_shared_goal_weekly_summary,
     generate_weekly_insights,
+    get_or_create_daily_quote,
     parse_and_execute_command,
     parse_thought_into_promises,
     plan_commitments,
@@ -35,6 +37,24 @@ from apps.ai.services import (
     summarize_goal_chat,
 )
 from apps.goals.models import Goal, GoalParticipant
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def daily_motivation_view(request):
+    """Daily Motivation Quote shared by all users per calendar day."""
+    quote = get_or_create_daily_quote()
+    serializer = DailyMotivationQuoteSerializer(quote)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def weekly_insights_view(request):
+    """Feature 4: Weekly Personal Insights with reliable deterministic fallback."""
+    enforce_ai_rate_limit(request.user, "insights")
+    result = generate_weekly_insights(user=request.user)
+    return Response(result, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
@@ -79,15 +99,6 @@ def thought_parser_view(request):
         user_thought=serializer.validated_data["thought"],
         timezone=serializer.validated_data.get("timezone", "UTC"),
     )
-    return Response(result, status=status.HTTP_200_OK)
-
-
-@api_view(["GET"])
-@permission_classes([permissions.IsAuthenticated])
-def weekly_insights_view(request):
-    """Feature 4: Weekly Personal Insights."""
-    enforce_ai_rate_limit(request.user, "insights")
-    result = generate_weekly_insights(user=request.user)
     return Response(result, status=status.HTTP_200_OK)
 
 

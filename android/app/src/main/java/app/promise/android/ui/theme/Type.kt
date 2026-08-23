@@ -7,77 +7,77 @@ import androidx.compose.ui.unit.sp
 
 /**
  * Editorial typography scale for Promise:
- * - DISPLAY / HEADINGS: Editorial Serif (elegant, clear personality)
- * - TITLE / BODY / UI / LABELS: Modern Clean Sans-serif (crisp, readable, high legibility)
+ * - DISPLAY / SCREEN TITLE: Editorial Serif (Newsreader) for brand identity and screen hero titles
+ * - HEADINGS / TITLE / BODY / UI / LABELS: Modern Clean Sans-serif (Plus Jakarta Sans) with distinct hierarchy
  */
 val PromiseTypography = Typography(
-    // Display: Major hero headers and primary screen titles
+    // Display: Major hero headers (30-34sp)
     displayLarge = TextStyle(
         fontFamily = PromiseSerifFamily,
         fontWeight = FontWeight.Bold,
-        fontSize = 30.sp,
-        lineHeight = 36.sp,
+        fontSize = 32.sp,
+        lineHeight = 40.sp,
         letterSpacing = (-0.5).sp,
     ),
     displayMedium = TextStyle(
         fontFamily = PromiseSerifFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp,
-        lineHeight = 30.sp,
+        fontSize = 26.sp,
+        lineHeight = 34.sp,
         letterSpacing = (-0.3).sp,
     ),
     displaySmall = TextStyle(
-        fontFamily = PromiseSerifFamily,
-        fontWeight = FontWeight.Medium,
-        fontSize = 21.sp,
-        lineHeight = 27.sp,
-        letterSpacing = (-0.2).sp,
-    ),
-
-    // Headline: Section groupings and card titles
-    headlineLarge = TextStyle(
         fontFamily = PromiseSerifFamily,
         fontWeight = FontWeight.SemiBold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
         letterSpacing = (-0.2).sp,
     ),
-    headlineMedium = TextStyle(
+
+    // Headline: Screen titles (24-28sp) and section headings (18-21sp)
+    headlineLarge = TextStyle(
         fontFamily = PromiseSerifFamily,
-        fontWeight = FontWeight.Medium,
-        fontSize = 19.sp,
-        lineHeight = 25.sp,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 26.sp,
+        lineHeight = 34.sp,
+        letterSpacing = (-0.2).sp,
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = PromiseSansFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 20.sp,
+        lineHeight = 28.sp,
         letterSpacing = (-0.1).sp,
     ),
     headlineSmall = TextStyle(
         fontFamily = PromiseSansFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 17.sp,
-        lineHeight = 23.sp,
+        fontSize = 18.sp,
+        lineHeight = 25.sp,
     ),
 
-    // Title: List item titles, card headers, dialog titles
+    // Title: Card titles (16-18sp), sheet titles, dialog headers
     titleLarge = TextStyle(
         fontFamily = PromiseSansFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 18.sp,
-        lineHeight = 24.sp,
+        fontSize = 20.sp,
+        lineHeight = 26.sp,
         letterSpacing = (-0.1).sp,
     ),
     titleMedium = TextStyle(
         fontFamily = PromiseSansFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 15.sp,
-        lineHeight = 21.sp,
+        fontSize = 17.sp,
+        lineHeight = 24.sp,
     ),
     titleSmall = TextStyle(
         fontFamily = PromiseSansFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
+        fontWeight = FontWeight.Medium,
+        fontSize = 15.sp,
+        lineHeight = 21.sp,
     ),
 
-    // Body: Reading text, descriptions, details
+    // Body: Primary reading (14-16sp) and secondary text (13-14sp)
     bodyLarge = TextStyle(
         fontFamily = PromiseSansFamily,
         fontWeight = FontWeight.Normal,
@@ -87,37 +87,36 @@ val PromiseTypography = Typography(
     bodyMedium = TextStyle(
         fontFamily = PromiseSansFamily,
         fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 19.sp,
+        fontSize = 13.5.sp,
+        lineHeight = 20.sp,
     ),
     bodySmall = TextStyle(
         fontFamily = PromiseSansFamily,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.1.sp,
+        lineHeight = 17.sp,
     ),
 
-    // Label: Buttons, chips, navigation, micro badges
+    // Label: Buttons, Chips, Metadata, Micro badges (11-14sp)
     labelLarge = TextStyle(
         fontFamily = PromiseSansFamily,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
-        letterSpacing = 0.2.sp,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp,
     ),
     labelMedium = TextStyle(
         fontFamily = PromiseSansFamily,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 11.sp,
-        lineHeight = 14.sp,
-        letterSpacing = 0.5.sp,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.2.sp,
     ),
     labelSmall = TextStyle(
         fontFamily = PromiseSansFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 10.sp,
-        lineHeight = 13.sp,
+        fontSize = 11.sp,
+        lineHeight = 15.sp,
         letterSpacing = 0.3.sp,
     ),
 )
