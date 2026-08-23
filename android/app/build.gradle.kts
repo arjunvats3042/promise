@@ -11,6 +11,28 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
+// =============================================================================
+// PROMISE APP VERSIONING (Single Source of Truth)
+// =============================================================================
+// Release Versioning Convention for Firebase App Distribution:
+// Every new release (patch, minor, or major) MUST increment versionCode by +1
+// so Android & Firebase App Distribution recognize it as a newer upgrade.
+//
+// Versioning progression examples:
+//   0.1.0 -> versionCode 1 (Current Initial Release)
+//   0.1.1 -> versionCode 2 (Patch)
+//   0.1.2 -> versionCode 3 (Patch)
+//   0.2.0 -> versionCode 4 (Minor)
+//   1.0.0 -> versionCode 5 (Major)
+// =============================================================================
+val appVersionName: String =
+    (project.findProperty("promise.versionName") as String?)
+        ?: "0.1.0"
+
+val appVersionCode: Int =
+    (project.findProperty("promise.versionCode") as String?)?.toIntOrNull()
+        ?: 1
+
 val localProperties =
     Properties().apply {
         val file = rootProject.file("local.properties")
@@ -107,8 +129,8 @@ android {
         applicationId = "app.promise.android"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
