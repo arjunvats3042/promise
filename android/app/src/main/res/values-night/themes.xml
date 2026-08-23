@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Promise" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.Promise" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/promise_background</item>
         <item name="android:statusBarColor">@color/promise_background</item>
         <item name="android:navigationBarColor">@color/promise_background</item>
