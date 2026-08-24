@@ -109,7 +109,7 @@ fun NotificationPreferencesSection(
     val colors = PromiseThemeColors.current
     val isOsPermissionGranted = remember { NotificationManagerCompat.from(context).areNotificationsEnabled() }
     var selectedTab by remember { mutableIntStateOf(0) }
-    var isParentExpanded by remember { mutableStateOf(true) }
+    var isParentExpanded by remember { mutableStateOf(false) }
     var expandedSections by remember { mutableStateOf(setOf<NotificationAccordion>()) }
 
     fun toggleChildSection(section: NotificationAccordion) {

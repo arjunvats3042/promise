@@ -38,6 +38,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import app.promise.android.widget.PromiseGlanceWidgetPinHelper
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -282,6 +284,52 @@ fun ProfileScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.accent,
                             )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.section))
+
+                // Home Screen Widget Section
+                val context = LocalContext.current
+                Text(
+                    text = "Home Screen Widget",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.textPrimary,
+                )
+                Spacer(modifier = Modifier.height(Spacing.sm))
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.lg))
+                        .background(colors.surfaceMuted)
+                        .padding(Spacing.md),
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Interactive Glance Widget",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = colors.textPrimary,
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "One-tap habit check-in & progress ring",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                            )
+                        }
+                        if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
+                            TextButton(
+                                onClick = { PromiseGlanceWidgetPinHelper.requestPinWidget(context) },
+                            ) {
+                                Text("Add to Home", color = colors.accent)
+                            }
                         }
                     }
                 }

@@ -20,8 +20,8 @@ Promise leverages **Google Gemini** to provide intelligent cognitive assistance 
 The AI layer communicates exclusively through the backend provider abstraction [`apps.ai.providers.gemini.GeminiProvider`](file:///Users/arjunvats/Desktop/promise/backend/apps/ai/providers/gemini.py).
 
 ### 2.1 Model Routing Strategy
-- **Default General Model**: `gemini-3.6-flash` (Structured goal planning, weekly insights, reflections, summaries, daily quotes).
-- **Fast Interactive Model**: `gemini-3.6-flash` (Thought parsing, commitment refining, natural language command routing).
+- **Default General Model**: `gemini-3.5-flash` (Structured goal planning, weekly insights, reflections, summaries, daily quotes).
+- **Fast Interactive Model**: `gemini-3.5-flash-lite` (Thought parsing, commitment refining, natural language command routing).
 
 ### 2.2 Fair Round-Robin Key Scheduler with Health-Aware Failover
 To ensure fair load distribution and high availability across multiple Google Gemini API keys, the backend uses a thread-safe `GeminiKeyScheduler`:
@@ -53,8 +53,8 @@ All Gemini configuration is managed strictly on the backend:
 | `GEMINI_API_KEY_1` | Yes | — | Primary Google Gemini API Key |
 | `GEMINI_API_KEY_2` | No | `""` | Secondary round-robin / fallback key |
 | `GEMINI_API_KEY_3` | No | `""` | Tertiary round-robin / fallback key |
-| `GEMINI_DEFAULT_MODEL`| No | `gemini-3.6-flash` | Standard reasoning model |
-| `GEMINI_FAST_MODEL` | No | `gemini-3.6-flash` | Low-latency parsing model |
+| `GEMINI_DEFAULT_MODEL`| No | `gemini-3.5-flash` | Standard reasoning model |
+| `GEMINI_FAST_MODEL` | No | `gemini-3.5-flash-lite` | Low-latency parsing model |
 | `GEMINI_TIMEOUT_SECONDS`| No | `15` | Request timeout ceiling |
 | `GEMINI_MAX_OUTPUT_TOKENS`| No | `1024` | Maximum tokens per response |
 

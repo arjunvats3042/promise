@@ -4,9 +4,9 @@ Personal commitment, goal accountability, and shared achievement platform.
 
 ---
 
-## Current Status (Batch 16)
+## Current Status (Latest Dev / Batch 16+)
 
-- **Feature Implementation**: **Complete** through Batch 16 (Google Credential Manager Auth, AI Sheets & Cards, Round-Robin Multi-Key Gemini Routing, Resilient Weekly Insights Dashboard, Daily Motivation Quotes, Shared Goals with Real-Time WebSocket Chat, Notifications & In-App Delivery History, Custom Morning/Evening Anchor & Quiet Hours Time Pickers, Redis Rate Limiting, Kafka Transactional Outbox, Product Analytics, Search & Discovery, Feature-Selling FAQs, Developer Tech Signature, Finger-Synced Horizontal Pager, Layered Dark Mode, Skeleton Loaders).
+- **Feature Implementation**: **Complete** through Latest Dev (Profile Avatars with local & remote sync, Native Google Credential Manager Auth, AI Sheets & Cards, Round-Robin Multi-Key Gemini 3.5 Routing, Resilient Weekly Insights Dashboard, Daily Motivation Quotes, Personal Goal Conversion to Shared Status, Shared Goals with Real-Time WebSocket Chat, In-App Software Update mechanism via Firebase App Distribution, Notifications & In-App Delivery History, Custom Morning/Evening Anchor & Quiet Hours Time Pickers, Redis Rate Limiting, Kafka Transactional Outbox, Product Analytics, Search & Discovery, Feature-Selling FAQs, Developer Tech Signature, Finger-Synced Horizontal Pager, Layered Dark Mode, Skeleton Loaders).
 - **Deployment Readiness**: **Prepared** for Railway multi-service deployment with Aiven Managed Kafka.
 - **Public Availability**: **Not yet publicly deployed.** Infrastructure preparation and local container validations complete; live cloud provisioning pending.
 - **Multi-Device QA**: Verified across physical hardware; release builds signed and verified.

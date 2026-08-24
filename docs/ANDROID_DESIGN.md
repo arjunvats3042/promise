@@ -1,6 +1,6 @@
 # Promise — Android Foundation Design
 
-**Status:** Implementation complete through Batch 14C under `android/` (Google-Only Credential Manager Auth, AI Sheets & Cards, Shared Goals, Real-Time WebSocket Chat, FCM Push, 4-Tab Shell with Finger-Synced Horizontal Pager, Layered Dark Theme, Reusable Skeleton Loaders, Release Signing). Backend Phases 4–7 and Live Production Railway endpoint remain the API source of truth.
+**Status:** Implementation complete through Latest Dev under `android/` (Profile Avatars with local & remote sync, Firebase App Distribution in-app updates, Personal Goal conversion to Shared Goal status, Google-Only Credential Manager Auth, AI Sheets & Cards, Shared Goals, Real-Time WebSocket Chat, FCM Push, 4-Tab Shell with Finger-Synced Horizontal Pager, Layered Dark Theme, Reusable Skeleton Loaders, Release Signing). Backend Phases 4–7 and Live Production Railway endpoint remain the API source of truth.
 
 | Label | Meaning |
 |---|---|
