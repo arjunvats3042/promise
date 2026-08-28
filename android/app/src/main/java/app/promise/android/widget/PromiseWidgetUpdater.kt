@@ -81,16 +81,5 @@ object PromiseWidgetUpdater {
             }
             CommitmentsGlanceWidget().update(context, glanceId)
         }
-
-        // 3. Update combined Promise Glance Widgets
-        val glanceIds = glanceManager.getGlanceIds(PromiseGlanceWidget::class.java)
-        for (glanceId in glanceIds) {
-            updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
-                val mutable = prefs.toMutablePreferences()
-                mutable[WIDGET_DATA_PREF_KEY] = widgetData.toJson()
-                mutable
-            }
-            PromiseGlanceWidget().update(context, glanceId)
-        }
     }
 }

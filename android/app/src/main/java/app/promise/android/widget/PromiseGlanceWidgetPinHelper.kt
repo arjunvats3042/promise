@@ -18,7 +18,7 @@ object PromiseGlanceWidgetPinHelper {
         val appWidgetManager = context.getSystemService(AppWidgetManager::class.java) ?: return false
         if (!appWidgetManager.isRequestPinAppWidgetSupported) return false
 
-        val provider = ComponentName(context, PromiseGlanceWidgetReceiver::class.java)
+        val provider = ComponentName(context, GoalsGlanceWidgetReceiver::class.java)
         return appWidgetManager.requestPinAppWidget(provider, null, null)
     }
 }

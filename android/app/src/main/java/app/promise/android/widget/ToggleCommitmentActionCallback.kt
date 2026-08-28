@@ -99,7 +99,8 @@ class ToggleCommitmentActionCallback : ActionCallback {
                 mutable
             }
 
-            PromiseGlanceWidget().update(context, glanceId)
+            runCatching { GoalsGlanceWidget().update(context, glanceId) }
+            runCatching { CommitmentsGlanceWidget().update(context, glanceId) }
         }
     }
 

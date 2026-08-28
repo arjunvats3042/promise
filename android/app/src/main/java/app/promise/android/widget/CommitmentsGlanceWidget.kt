@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.res.Configuration
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,6 +59,9 @@ class CommitmentsGlanceWidget : GlanceAppWidget() {
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val theme = if (isDark) CommitmentsThemeTokens.Dark else CommitmentsThemeTokens.Light
+
         provideContent {
             GlanceTheme {
                 val prefs = currentState<Preferences>()
@@ -73,7 +75,7 @@ class CommitmentsGlanceWidget : GlanceAppWidget() {
                 Box(
                     modifier = GlanceModifier
                         .fillMaxSize()
-                        .background(widgetColor(day = PromiseColor.Background, night = PromiseDarkColor.Background))
+                        .background(theme.background)
                         .cornerRadius(20.dp)
                         .padding(12.dp),
                 ) {
@@ -83,12 +85,14 @@ class CommitmentsGlanceWidget : GlanceAppWidget() {
                             completedCount = completedCount,
                             totalCount = totalCount,
                             expandedItemId = widgetData.expandedItemId,
+                            theme = theme,
                         )
                     } else {
                         CompactCommitmentsWidgetContent(
                             items = commitmentItems,
                             completedCount = completedCount,
                             totalCount = totalCount,
+                            theme = theme,
                         )
                     }
                 }
@@ -102,11 +106,51 @@ class CommitmentsGlanceWidget : GlanceAppWidget() {
     }
 }
 
-@Composable
-private fun widgetColor(day: Color, night: Color): ColorProvider {
-    val context = LocalContext.current
-    val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-    return ColorProvider(if (isDark) night else day)
+internal data class CommitmentsThemeTokens(
+    val background: ColorProvider,
+    val surfaceMuted: ColorProvider,
+    val surfaceRaised: ColorProvider,
+    val accent: ColorProvider,
+    val textPrimary: ColorProvider,
+    val textSecondary: ColorProvider,
+    val primaryControl: ColorProvider,
+    val onPrimaryControl: ColorProvider,
+    val commitBadgeBg: ColorProvider,
+    val commitBadgeText: ColorProvider,
+    val completedBtnBg: ColorProvider,
+    val completedBtnText: ColorProvider,
+) {
+    companion object {
+        val Light = CommitmentsThemeTokens(
+            background = ColorProvider(PromiseColor.Background),
+            surfaceMuted = ColorProvider(PromiseColor.SurfaceMuted),
+            surfaceRaised = ColorProvider(PromiseColor.SurfaceRaised),
+            accent = ColorProvider(PromiseColor.Accent),
+            textPrimary = ColorProvider(PromiseColor.TextPrimary),
+            textSecondary = ColorProvider(PromiseColor.TextSecondary),
+            primaryControl = ColorProvider(PromiseColor.PrimaryControl),
+            onPrimaryControl = ColorProvider(PromiseColor.OnPrimaryControl),
+            commitBadgeBg = ColorProvider(PromiseColor.Accent.copy(alpha = 0.12f)),
+            commitBadgeText = ColorProvider(PromiseColor.Accent),
+            completedBtnBg = ColorProvider(PromiseColor.Outline),
+            completedBtnText = ColorProvider(PromiseColor.TextSecondary),
+        )
+
+        val Dark = CommitmentsThemeTokens(
+            background = ColorProvider(PromiseDarkColor.Background),
+            surfaceMuted = ColorProvider(PromiseDarkColor.SurfaceMuted),
+            surfaceRaised = ColorProvider(PromiseDarkColor.SurfaceRaised),
+            accent = ColorProvider(PromiseDarkColor.Accent),
+            textPrimary = ColorProvider(PromiseDarkColor.TextPrimary),
+            textSecondary = ColorProvider(PromiseDarkColor.TextSecondary),
+            primaryControl = ColorProvider(PromiseDarkColor.PrimaryControl),
+            onPrimaryControl = ColorProvider(PromiseDarkColor.OnPrimaryControl),
+            commitBadgeBg = ColorProvider(PromiseDarkColor.Accent.copy(alpha = 0.18f)),
+            commitBadgeText = ColorProvider(PromiseDarkColor.Accent),
+            completedBtnBg = ColorProvider(PromiseDarkColor.Outline),
+            completedBtnText = ColorProvider(PromiseDarkColor.TextSecondary),
+        )
+    }
 }
 
 @Composable
@@ -114,16 +158,8 @@ private fun CompactCommitmentsWidgetContent(
     items: List<WidgetCommitmentItem>,
     completedCount: Int,
     totalCount: Int,
+    theme: CommitmentsThemeTokens,
 ) {
-    val accentColor = widgetColor(day = PromiseColor.Accent, night = PromiseDarkColor.Accent)
-    val textPrimaryColor = widgetColor(day = PromiseColor.TextPrimary, night = PromiseDarkColor.TextPrimary)
-    val textSecondaryColor = widgetColor(day = PromiseColor.TextSecondary, night = PromiseDarkColor.TextSecondary)
-    val surfaceMutedColor = widgetColor(day = PromiseColor.SurfaceMuted, night = PromiseDarkColor.SurfaceMuted)
-    val primaryControlColor = widgetColor(day = PromiseColor.PrimaryControl, night = PromiseDarkColor.PrimaryControl)
-    val onPrimaryControlColor = widgetColor(day = PromiseColor.OnPrimaryControl, night = PromiseDarkColor.OnPrimaryControl)
-    val completedBtnBg = widgetColor(day = PromiseColor.Outline, night = PromiseDarkColor.Outline)
-    val completedBtnText = widgetColor(day = PromiseColor.TextSecondary, night = PromiseDarkColor.TextSecondary)
-
     val progressPercent = if (totalCount > 0) ((completedCount.toFloat() / totalCount) * 100).toInt() else 0
 
     Column(
@@ -134,7 +170,7 @@ private fun CompactCommitmentsWidgetContent(
         Text(
             text = "COMMITMENTS",
             style = TextStyle(
-                color = accentColor,
+                color = theme.accent,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
             ),
@@ -147,7 +183,7 @@ private fun CompactCommitmentsWidgetContent(
                 modifier = GlanceModifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
-                    .background(surfaceMutedColor)
+                    .background(theme.surfaceMuted)
                     .cornerRadius(12.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -158,7 +194,7 @@ private fun CompactCommitmentsWidgetContent(
                     Text(
                         text = "All clear! ✨",
                         style = TextStyle(
-                            color = textPrimaryColor,
+                            color = theme.textPrimary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                         ),
@@ -166,7 +202,7 @@ private fun CompactCommitmentsWidgetContent(
                     Text(
                         text = "No commitments due today",
                         style = TextStyle(
-                            color = textSecondaryColor,
+                            color = theme.textSecondary,
                             fontSize = 10.sp,
                         ),
                     )
@@ -176,7 +212,7 @@ private fun CompactCommitmentsWidgetContent(
             Box(
                 modifier = GlanceModifier
                     .padding(2.dp)
-                    .background(surfaceMutedColor)
+                    .background(theme.surfaceMuted)
                     .cornerRadius(50.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -187,7 +223,7 @@ private fun CompactCommitmentsWidgetContent(
                     Text(
                         text = "$progressPercent%",
                         style = TextStyle(
-                            color = textPrimaryColor,
+                            color = theme.textPrimary,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                         ),
@@ -195,7 +231,7 @@ private fun CompactCommitmentsWidgetContent(
                     Text(
                         text = "$completedCount/$totalCount Done",
                         style = TextStyle(
-                            color = textSecondaryColor,
+                            color = theme.textSecondary,
                             fontSize = 10.sp,
                         ),
                     )
@@ -215,8 +251,8 @@ private fun CompactCommitmentsWidgetContent(
                         ),
                     ),
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = if (topPending.isCompleted) completedBtnBg else primaryControlColor,
-                        contentColor = if (topPending.isCompleted) completedBtnText else onPrimaryControlColor,
+                        backgroundColor = if (topPending.isCompleted) theme.completedBtnBg else theme.primaryControl,
+                        contentColor = if (topPending.isCompleted) theme.completedBtnText else theme.onPrimaryControl,
                     ),
                     modifier = GlanceModifier
                         .fillMaxWidth()
@@ -234,19 +270,8 @@ private fun ExpandedCommitmentsWidgetContent(
     completedCount: Int,
     totalCount: Int,
     expandedItemId: String?,
+    theme: CommitmentsThemeTokens,
 ) {
-    val accentColor = widgetColor(day = PromiseColor.Accent, night = PromiseDarkColor.Accent)
-    val textPrimaryColor = widgetColor(day = PromiseColor.TextPrimary, night = PromiseDarkColor.TextPrimary)
-    val textSecondaryColor = widgetColor(day = PromiseColor.TextSecondary, night = PromiseDarkColor.TextSecondary)
-    val surfaceMutedColor = widgetColor(day = PromiseColor.SurfaceMuted, night = PromiseDarkColor.SurfaceMuted)
-    val surfaceRaisedColor = widgetColor(day = PromiseColor.SurfaceRaised, night = PromiseDarkColor.SurfaceRaised)
-    val primaryControlColor = widgetColor(day = PromiseColor.PrimaryControl, night = PromiseDarkColor.PrimaryControl)
-    val onPrimaryControlColor = widgetColor(day = PromiseColor.OnPrimaryControl, night = PromiseDarkColor.OnPrimaryControl)
-    val commitBadgeBg = widgetColor(day = PromiseColor.Accent.copy(alpha = 0.12f), night = PromiseDarkColor.Accent.copy(alpha = 0.18f))
-    val commitBadgeText = accentColor
-    val completedBtnBg = widgetColor(day = PromiseColor.Outline, night = PromiseDarkColor.Outline)
-    val completedBtnText = textSecondaryColor
-
     Column(
         modifier = GlanceModifier.fillMaxSize(),
     ) {
@@ -257,7 +282,7 @@ private fun ExpandedCommitmentsWidgetContent(
             Text(
                 text = "COMMITMENTS",
                 style = TextStyle(
-                    color = accentColor,
+                    color = theme.accent,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                 ),
@@ -266,7 +291,7 @@ private fun ExpandedCommitmentsWidgetContent(
             Text(
                 text = "$completedCount/$totalCount Done",
                 style = TextStyle(
-                    color = textSecondaryColor,
+                    color = theme.textSecondary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                 ),
@@ -280,7 +305,7 @@ private fun ExpandedCommitmentsWidgetContent(
                 modifier = GlanceModifier
                     .fillMaxWidth()
                     .defaultWeight()
-                    .background(surfaceMutedColor)
+                    .background(theme.surfaceMuted)
                     .cornerRadius(14.dp)
                     .padding(12.dp),
                 contentAlignment = Alignment.Center,
@@ -289,7 +314,7 @@ private fun ExpandedCommitmentsWidgetContent(
                     Text(
                         text = "No commitments for today 🎉",
                         style = TextStyle(
-                            color = textPrimaryColor,
+                            color = theme.textPrimary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                         ),
@@ -298,7 +323,7 @@ private fun ExpandedCommitmentsWidgetContent(
                     Text(
                         text = "Open Promise to add commitments",
                         style = TextStyle(
-                            color = textSecondaryColor,
+                            color = theme.textSecondary,
                             fontSize = 11.sp,
                         ),
                     )
@@ -313,7 +338,7 @@ private fun ExpandedCommitmentsWidgetContent(
                     modifier = GlanceModifier
                         .fillMaxWidth()
                         .padding(vertical = 3.dp)
-                        .background(if (isExpanded) surfaceRaisedColor else surfaceMutedColor)
+                        .background(if (isExpanded) theme.surfaceRaised else theme.surfaceMuted)
                         .cornerRadius(12.dp)
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 ) {
@@ -333,14 +358,14 @@ private fun ExpandedCommitmentsWidgetContent(
                         Box(
                             modifier = GlanceModifier
                                 .padding(end = 8.dp)
-                                .background(commitBadgeBg)
+                                .background(theme.commitBadgeBg)
                                 .cornerRadius(6.dp)
                                 .padding(horizontal = 5.dp, vertical = 2.dp),
                         ) {
                             Text(
                                 text = "COMMIT",
                                 style = TextStyle(
-                                    color = commitBadgeText,
+                                    color = theme.commitBadgeText,
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
                                 ),
@@ -351,7 +376,7 @@ private fun ExpandedCommitmentsWidgetContent(
                             Text(
                                 text = item.title,
                                 style = TextStyle(
-                                    color = if (item.isCompleted) textSecondaryColor else textPrimaryColor,
+                                    color = if (item.isCompleted) theme.textSecondary else theme.textPrimary,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
                                 ),
@@ -361,7 +386,7 @@ private fun ExpandedCommitmentsWidgetContent(
                                 Text(
                                     text = item.subtitle,
                                     style = TextStyle(
-                                        color = textSecondaryColor,
+                                        color = theme.textSecondary,
                                         fontSize = 9.sp,
                                     ),
                                     maxLines = 1,
@@ -380,8 +405,8 @@ private fun ExpandedCommitmentsWidgetContent(
                                 ),
                             ),
                             colors = ButtonDefaults.buttonColors(
-                                backgroundColor = if (item.isCompleted) completedBtnBg else primaryControlColor,
-                                contentColor = if (item.isCompleted) completedBtnText else onPrimaryControlColor,
+                                backgroundColor = if (item.isCompleted) theme.completedBtnBg else theme.primaryControl,
+                                contentColor = if (item.isCompleted) theme.completedBtnText else theme.onPrimaryControl,
                             ),
                             modifier = GlanceModifier
                                 .height(26.dp)
@@ -398,7 +423,7 @@ private fun ExpandedCommitmentsWidgetContent(
                             Text(
                                 text = "Status: ${if (item.isCompleted) "Completed" else "Pending"} • ${item.dueTimeFormatted}",
                                 style = TextStyle(
-                                    color = accentColor,
+                                    color = theme.accent,
                                     fontSize = 10.sp,
                                 ),
                                 modifier = GlanceModifier.defaultWeight(),

@@ -47,9 +47,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.graphics.Color
-import app.promise.android.ui.components.LivingPromiseBackground
 import kotlinx.coroutines.launch
 
 @Composable
@@ -65,114 +62,100 @@ fun LoginScreen(
     val colors = PromiseThemeColors.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    var isGatheringForSignIn by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LivingPromiseBackground(
-            modifier = Modifier.fillMaxSize(),
-            isGathering = isGatheringForSignIn,
-        )
-
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = Color.Transparent,
-            shadowElevation = 0.dp,
-            tonalElevation = 0.dp,
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        shadowElevation = 0.dp,
+        tonalElevation = 0.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .imePadding()
+                .padding(horizontal = Spacing.inset),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .imePadding()
-                    .padding(horizontal = Spacing.inset),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .widthIn(max = Spacing.authMaxWidth)
+                    .fillMaxWidth()
+                    .padding(top = Spacing.authTop),
             ) {
-                Column(
-                    modifier = Modifier
-                        .widthIn(max = Spacing.authMaxWidth)
-                        .fillMaxWidth()
-                        .padding(top = Spacing.authTop),
-                ) {
+                Text(
+                    text = "Promise",
+                    style = MaterialTheme.typography.displayLarge,
+                    color = colors.textPrimary,
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Text(
+                    text = "Keep your promises, simply.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textSecondary,
+                )
+                Spacer(modifier = Modifier.height(Spacing.lg))
+                AnimatedLoginGreeting()
+                Spacer(modifier = Modifier.height(Spacing.xl))
+
+                PromiseQuietFormSurface {
                     Text(
-                        text = "Promise",
-                        style = MaterialTheme.typography.displayLarge,
+                        text = "Sign In",
+                        style = MaterialTheme.typography.titleLarge,
                         color = colors.textPrimary,
                     )
                     Spacer(modifier = Modifier.height(Spacing.xs))
                     Text(
-                        text = "Keep your promises, simply.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Use your Google account to continue.",
+                        style = MaterialTheme.typography.bodySmall,
                         color = colors.textSecondary,
                     )
                     Spacer(modifier = Modifier.height(Spacing.lg))
-                    AnimatedLoginGreeting()
-                    Spacer(modifier = Modifier.height(Spacing.xl))
 
-                    PromiseQuietFormSurface {
-                        Text(
-                            text = "Sign In",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = colors.textPrimary,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        Text(
-                            text = "Use your Google account to continue.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.textSecondary,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.lg))
-
-                        PromisePrimaryButton(
-                            text = if (submitting) "Signing in…" else "Continue with Google",
-                            loading = submitting,
-                            onClick = {
+                    PromisePrimaryButton(
+                        text = if (submitting) "Signing in…" else "Continue with Google",
+                        loading = submitting,
+                        onClick = {
+                            if (onGoogleSignIn != null) {
+                                onGoogleSignIn()
+                            } else {
                                 coroutineScope.launch {
-                                    isGatheringForSignIn = true
-                                    delay(350)
-                                    if (onGoogleSignIn != null) {
-                                        isGatheringForSignIn = false
-                                        onGoogleSignIn()
-                                    } else {
-                                        launchGoogleSignIn(
-                                            context = context,
-                                            onSuccess = { idToken ->
-                                                isGatheringForSignIn = false
-                                                viewModel.submitGoogleLogin(idToken)
-                                            },
-                                            onError = {
-                                                isGatheringForSignIn = false
-                                                viewModel.onGoogleSignInFailed(ErrorKind.Unknown)
-                                            },
-                                            onCancelled = {
-                                                isGatheringForSignIn = false
-                                                viewModel.onGoogleSignInCancelled()
-                                            },
-                                        )
-                                    }
+                                    launchGoogleSignIn(
+                                        context = context,
+                                        onSuccess = { idToken ->
+                                            viewModel.submitGoogleLogin(idToken)
+                                        },
+                                        onError = {
+                                            viewModel.onGoogleSignInFailed(ErrorKind.Unknown)
+                                        },
+                                        onCancelled = {
+                                            viewModel.onGoogleSignInCancelled()
+                                        },
+                                    )
                                 }
-                            },
-                            enabled = !submitting,
-                            modifier = Modifier
-                                .heightIn(min = TouchTarget.min)
-                                .semantics { contentDescription = "Continue with Google" },
-                        )
-
-                        if (error != null) {
-                            Spacer(modifier = Modifier.height(Spacing.sm))
-                            Text(
-                                text = error.toUserMessage(),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        }
-                        if (localNetworkDenied && onAllowLocalNetwork != null) {
-                            Spacer(modifier = Modifier.height(Spacing.sm))
-                            TextButton(
-                                onClick = onAllowLocalNetwork,
-                                modifier = Modifier.heightIn(min = TouchTarget.min),
-                            ) {
-                                Text("Allow local network", color = colors.accent)
                             }
+                        },
+                        enabled = !submitting,
+                        modifier = Modifier
+                            .heightIn(min = TouchTarget.min)
+                            .semantics { contentDescription = "Continue with Google" },
+                    )
+
+                    if (error != null) {
+                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        Text(
+                            text = error.toUserMessage(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    if (localNetworkDenied && onAllowLocalNetwork != null) {
+                        Spacer(modifier = Modifier.height(Spacing.sm))
+                        TextButton(
+                            onClick = onAllowLocalNetwork,
+                            modifier = Modifier.heightIn(min = TouchTarget.min),
+                        ) {
+                            Text("Allow local network", color = colors.accent)
                         }
                     }
                 }
