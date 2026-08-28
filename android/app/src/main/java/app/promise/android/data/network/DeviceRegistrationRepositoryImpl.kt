@@ -12,7 +12,7 @@ import kotlin.coroutines.resume
 
 @Singleton
 class DeviceRegistrationRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val deviceApi: DeviceApi,
 ) : DeviceRegistrationRepository {
 

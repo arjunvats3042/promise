@@ -26,7 +26,7 @@ interface PromiseNotificationManager {
 
 @Singleton
 class PromiseNotificationManagerImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) : PromiseNotificationManager {
 
     private val notificationManager =
