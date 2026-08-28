@@ -199,7 +199,7 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(Spacing.md))
 
-                    // Dynamic Greeting Capsule
+                    // Static Greeting Capsule (Clean typography, no typewriter)
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(Radius.md))
@@ -211,7 +211,7 @@ fun LoginScreen(
                             )
                             .padding(horizontal = Spacing.md, vertical = Spacing.xs + 2.dp),
                     ) {
-                        AnimatedLoginGreeting()
+                        StaticLoginGreeting()
                     }
 
                     Spacer(modifier = Modifier.height(Spacing.xl))
@@ -552,151 +552,27 @@ private fun LoginAtmosphericBackground(accentColor: Color) {
 
 @Composable
 private fun GoogleLogoIcon(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val w = size.width
-        val h = size.height
-        val minDim = min(w, h)
-        val strokeWidth = minDim * 0.22f
-        val radius = (minDim - strokeWidth) / 2f
-        val cx = w / 2f
-        val cy = h / 2f
-
-        val topLeft = Offset(cx - radius, cy - radius)
-        val arcSize = Size(radius * 2f, radius * 2f)
-
-        val blue = Color(0xFF4285F4)
-        val red = Color(0xFFEA4335)
-        val yellow = Color(0xFFFBBC05)
-        val green = Color(0xFF34A853)
-
-        // 1. Red arc (Top): 220° to 330° (sweep 110°)
-        drawArc(
-            color = red,
-            startAngle = 220f,
-            sweepAngle = 110f,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
-        )
-
-        // 2. Yellow arc (Left): 140° to 220° (sweep 80°)
-        drawArc(
-            color = yellow,
-            startAngle = 140f,
-            sweepAngle = 80f,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
-        )
-
-        // 3. Green arc (Bottom): 35° to 140° (sweep 105°)
-        drawArc(
-            color = green,
-            startAngle = 35f,
-            sweepAngle = 105f,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
-        )
-
-        // 4. Blue arc (Right): 330° to 35° (sweep 65°)
-        drawArc(
-            color = blue,
-            startAngle = 330f,
-            sweepAngle = 65f,
-            useCenter = false,
-            topLeft = topLeft,
-            size = arcSize,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
-        )
-
-        // 5. Blue horizontal crossbar: from center to right edge
-        drawLine(
-            color = blue,
-            start = Offset(cx - strokeWidth * 0.1f, cy),
-            end = Offset(cx + radius + strokeWidth / 2f, cy),
-            strokeWidth = strokeWidth,
-            cap = StrokeCap.Butt,
-        )
-    }
+    androidx.compose.material3.Icon(
+        painter = androidx.compose.ui.res.painterResource(id = app.promise.android.R.drawable.ic_google_logo),
+        contentDescription = "Google logo",
+        modifier = modifier,
+        tint = Color.Unspecified,
+    )
 }
 
 @Composable
-internal fun AnimatedLoginGreeting(
+internal fun StaticLoginGreeting(
     hourProvider: () -> Int = {
         Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
     },
 ) {
-    val reduceMotion = rememberReduceMotion()
-    var state by remember {
-        mutableStateOf(GreetingAnimationState(fullText = ""))
-    }
-    var started by remember { mutableStateOf(false) }
-
-    LaunchedEffect(reduceMotion) {
-        val initial = GreetingClock.editorialGreetingForHour(hourProvider())
-        if (reduceMotion) {
-            state = GreetingAnimator.reduce(
-                GreetingAnimationState(fullText = ""),
-                GreetingEvent.Start(initial),
-                reduceMotion = true,
-            )
-            started = true
-            return@LaunchedEffect
-        }
-        delay(Motion.GreetingInitialDelayMs.toLong())
-        state = GreetingAnimator.reduce(
-            GreetingAnimationState(fullText = ""),
-            GreetingEvent.Start(initial),
-        )
-        started = true
-        while (state.phase == GreetingPhase.Typing) {
-            delay(Motion.GreetingTypePerCharMs.toLong())
-            state = GreetingAnimator.reduce(state, GreetingEvent.Tick)
-        }
-    }
-
-    LaunchedEffect(started, reduceMotion) {
-        if (!started) return@LaunchedEffect
-        while (true) {
-            delay(60_000)
-            val target = GreetingClock.editorialGreetingForHour(hourProvider())
-            if (target == state.fullText && state.pendingText == null) continue
-            if (reduceMotion) {
-                state = GreetingAnimator.reduce(
-                    state,
-                    GreetingEvent.Change(target),
-                    reduceMotion = true,
-                )
-                continue
-            }
-            if (state.phase == GreetingPhase.Settled) {
-                delay(Motion.GreetingChangeHoldMs.toLong())
-            }
-            state = GreetingAnimator.reduce(state, GreetingEvent.Change(target))
-            while (state.phase == GreetingPhase.Deleting) {
-                delay(Motion.GreetingDeletePerCharMs.toLong())
-                state = GreetingAnimator.reduce(state, GreetingEvent.Tick)
-            }
-            if (state.phase == GreetingPhase.Typing) {
-                delay(Motion.GreetingChangeGapMs.toLong())
-            }
-            while (state.phase == GreetingPhase.Typing) {
-                delay(Motion.GreetingTypePerCharMs.toLong())
-                state = GreetingAnimator.reduce(state, GreetingEvent.Tick)
-            }
-        }
-    }
-
-    val semantic = state.fullText.ifBlank {
-        GreetingClock.editorialGreetingForHour(hourProvider())
-    }
-    PromiseGreetingText(
-        text = state.visibleText,
-        semanticText = semantic,
+    val greeting = GreetingClock.editorialGreetingForHour(hourProvider())
+    val colors = PromiseThemeColors.current
+    Text(
+        text = greeting,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = colors.textPrimary,
     )
 }
 

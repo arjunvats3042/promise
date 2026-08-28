@@ -1,77 +1,98 @@
+<div align="center">
+
 # Promise
 
-Personal commitment tracking, daily habit accountability, and shared achievement platform with Gemini AI insights and interactive Android widgets.
+**Keep every promise you make to yourself.**
+
+A calm, local-first daily commitment and habit accountability platform with quiet AI parsing, home screen widgets, and offline synchronization.
+
+[Features](#features) • [Tech Stack](#tech-stack) • [Architecture](#architecture) • [Quick Start](#quick-start) • [Documentation](#documentation)
 
 ---
 
-## Highlights & Features
+</div>
 
-- **World-Class Modern UI/UX**:
-  - **Atmospheric Designer Login**: Ambient radial lighting, custom Compose Canvas 4-color Google badge, and interactive feature showcase bento cards.
-  - **Ergonomic Bottom Navigation Bar**: 64dp elevated container with `.navigationBarsPadding()`, 24dp icons, dedicated typography labels, and spring physics micro-interactions.
-  - **Streamlined 3-Category Commitments**: Reduced cognitive clutter with focused tabs: `All Open` (active to-dos), `Overdue` (zero-overdue attention), and `Completed` (archived).
-  - **Instantaneous Tab Transitions & Shimmer Skeletons**: Zero-latency tab pill highlights paired with elegant shimmer skeleton placeholders to eliminate stale or false empty-state flashes.
-  - **Celebration Confetti & Physics**: Multi-layered particle celebration bursts for milestone achievements.
+## Overview
 
-- **Autonomous Interactive Glance Widgets**:
-  - **Full Scrollable Lists**: Glance `LazyColumn` for viewing all daily goals and commitments on the home screen.
-  - **1-Tap In-Widget Check-Ins**: Mark habits complete or finish commitments directly from the home screen widget without launching the app.
-  - **Live Backend Sync (`🔄`)**: Dedicated refresh action to pull fresh data on demand.
-  - **Deep-Linking**: Tapping any goal or commitment jumps directly into its targeted detail screen.
+Promise is designed around a single idea: **a quiet desk** — paper, ink, and disciplined follow-through. It replaces noisy, cluttered productivity tools with zero-latency optimistic interactions, structured daily integrity tracking, and complete offline reliability.
 
-- **Rich Interactive Notifications**:
-  - **1-Tap Actions**: `✓ Complete`, `⏰ Snooze 1h`, `✓ Check In` with immediate background synchronization and widget refresh.
-  - **Inline Direct Reply (`RemoteInput`)**: Reply to shared goal community chats directly from the Android notification shade.
-  - **Deterministic Entity Deduplication**: Prevents duplicate notification spam by updating notifications in-place per entity.
-  - **Designer Typography & Urgency Styling**: `BigTextStyle` formatting with streak badges (`🔥`), urgency tags (`⚠️ OVERDUE`, `🚨 Due Right Now`), and Promise Indigo branding.
+### Key Capabilities
 
-- **Gemini AI Intelligence**:
-  - Round-robin multi-key Gemini 3.5 routing with automatic fallbacks.
-  - Weekly behavioral digests, daily motivation quotes, and AI goal/commitment refiners.
+- **Offline-First Resilience**: Built on local SQLite (Room) with background outbox synchronization (`WorkManager`). Create tasks, check in on habits, and track streaks with zero network latency.
+- **Thought → Promise (AI Engine)**: Drop in raw, messy thoughts or voice transcripts. Gemini decomposes them into structured commitments and recurring habits with timezone-aware due dates.
+- **Daily Focus & Integrity Streaks**: Clear visual separation between today's immediate priorities and upcoming commitments. Streaks are preserved across midnight rollovers.
+- **Shared Accountability & Rooms**: Form shared habits with friends or teammates via in-app invites, track shared momentum, and message in real-time.
+- **Interactive Home Screen Glance Widgets**: Check in on habits and complete daily commitments directly from Android Home Screen with 1-tap micro-actions.
+- **Quiet, Meaningful Reminders**: Intentional notifications with inline actions, snooze support, and smart streak protection.
 
 ---
 
-## Technology Stack
+## Tech Stack
 
-- **Android Client**: Kotlin, Jetpack Compose, Glance AppWidgets, Material 3, Hilt, Coroutines & Flow, Retrofit, OkHttp WebSocket, WorkManager.
-- **Backend**: Python 3.12, Django 6.1, Django REST Framework, Django Channels (Daphne ASGI).
-- **Primary Database**: PostgreSQL 17 (ACID domain state, outbox, processed events).
-- **Cache & Real-Time Layer**: Redis 8 (Rate limiting, session denylist, chat presence, Channels fanout).
-- **Event Streaming**: Apache Kafka (Transactional Outbox events on `promise.goal.v1` and `promise.commitment.v1`).
-- **AI Engine**: Google Gemini API (Structured outputs, fallback chains, behavioral pattern analysis).
-- **Target Deployment Platform**: Railway (Web & 3 Background Workers) + Aiven (Managed Kafka).
+| Layer | Technologies |
+| :--- | :--- |
+| **Android Client** | Kotlin, Jetpack Compose, Glance Widgets, Room Database, Hilt, Coroutines & Flow, Material 3 |
+| **Backend API** | Python 3.12, Django, Django REST Framework, Daphne (ASGI), Django Channels |
+| **Databases** | PostgreSQL (Primary Source of Truth), Redis (Sessions & Rate Limiting), SQLite / Room (Mobile) |
+| **Event Streaming** | Apache Kafka (Transactional Outbox events on `promise.goal.v1` and `promise.commitment.v1`) |
+| **AI Intelligence** | Google Gemini (Structured outputs with dynamic temporal reference grounding) |
+| **Deployment** | Docker, Railway (ASGI Server + Background Workers) |
 
 ---
 
-## Repository Structure
+## Architecture
 
-```text
-android/               Android application (Kotlin + Jetpack Compose + Glance)
-backend/               Django ASGI application & workers (apps: ai, analytics, authentication, commitments, goals, notifications, outbox)
-docs/                  Architecture, Security, AI, Analytics, Deployment runbooks
-docker-compose.yml     Local infrastructure (PostgreSQL, Redis, Kafka)
-railway.toml           Railway multi-service deployment configuration
-Procfile               Process manager definitions
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Android Client                         │
+│  Jetpack Compose • Glance Widget • Room Local DB • Outbox   │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ HTTPS / WebSockets
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Django ASGI Backend                      │
+│     DRF REST API • Channels WebSockets • apps.sync Outbox    │
+└──────────────┬──────────────────────────────┬───────────────┘
+               │                              │
+               ▼                              ▼
+┌──────────────────────────────┐┌─────────────────────────────┐
+│     PostgreSQL Database      ││     Redis Cache & PubSub    │
+│  ACID Domain Records & Audit ││   Rate Limiting & Realtime  │
+└──────────────┬───────────────┘└─────────────────────────────┘
+               │ Transactional Outbox
+               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Kafka Event Backbone                       │
+│    Goal Worker • AI Worker • Push Notification Worker       │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Local Development
+## Quick Start
 
-### 1. Start Local Infrastructure
+### Prerequisites
+- Docker & Docker Compose
+- Android Studio Ladybug+ / JDK 17+
+- Python 3.12+
+
+### 1. Start Infrastructure
 ```bash
 docker compose up -d
 ```
 
-### 2. Start Django Backend & Workers
+### 2. Start Django Backend
 ```bash
 cd backend
+python -m venv .venv
 source .venv/bin/activate
+pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver 8000
 ```
 
-### 3. Build & Run Android App
+### 3. Run Android App
+Open the `/android` directory in Android Studio, or build the debug APK directly via command line:
 ```bash
 cd android
 ./gradlew assembleDebug
@@ -79,13 +100,41 @@ cd android
 
 ---
 
-## Production Deployment
+## Project Structure
 
-Promise is configured for automated deployment to **Railway** across 4 dedicated services sharing internal networking:
-- `promise-web` (Daphne ASGI Server)
-- `promise-outbox-worker` (Transactional Outbox Publisher)
-- `promise-goal-worker` (Kafka Goal Event Consumer)
-- `promise-notification-worker` (FCM Reminder Dispatcher)
+```text
+promise/
+├── android/                 # Native Android app (Kotlin, Compose, Room, Glance)
+│   └── app/src/main/java/   # Core, Data, Domain, DI, UI, Widgets
+├── backend/                 # Django modular backend
+│   ├── apps/
+│   │   ├── ai/              # Gemini AI decomposition & summaries
+│   │   ├── authentication/  # JWT & Google Credential Manager auth
+│   │   ├── commitments/     # One-off promises & task lifecycles
+│   │   ├── goals/           # Recurring habits & shared goals
+│   │   ├── notifications/   # Push reminder rules & FCM dispatch
+│   │   ├── outbox/          # Transactional Kafka outbox worker
+│   │   └── sync/            # Offline batch outbox synchronization
+│   └── config/              # ASGI, WSGI, URLs, Settings
+└── docs/                    # Architectural specs & design guides
+```
 
-See [`docs/PRODUCTION_DEPLOYMENT.md`](docs/PRODUCTION_DEPLOYMENT.md) and [`docs/DEPLOYMENT_CHECKLIST.md`](docs/DEPLOYMENT_CHECKLIST.md) for runbooks and checklists.
+---
 
+## Documentation
+
+Detailed architecture specifications and runbooks are available in the [`docs/`](docs/) directory:
+
+- [System Architecture](docs/ARCHITECTURE.md)
+- [Android Architecture & Design](docs/ANDROID_DESIGN.md)
+- [AI Engine & Prompt Architecture](docs/AI.md)
+- [Authentication & Security](docs/AUTHENTICATION_DESIGN.md)
+- [Commitment System Design](docs/COMMITMENT_DESIGN.md)
+- [Goal & Habit Design](docs/GOAL_DESIGN.md)
+- [Production Deployment Runbook](docs/PRODUCTION_DEPLOYMENT.md)
+
+---
+
+## License
+
+Private & Proprietary. All rights reserved.

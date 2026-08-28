@@ -91,6 +91,12 @@ object NetworkModule {
         return createRetrofit(authedClient, json).create(app.promise.android.data.network.NotificationPreferencesApi::class.java)
     }
 
+    @Provides
+    @Singleton
+    fun provideSyncApi(authedClient: OkHttpClient, json: Json): app.promise.android.data.sync.SyncApi {
+        return createRetrofit(authedClient, json).create(app.promise.android.data.sync.SyncApi::class.java)
+    }
+
     private fun createRetrofit(client: OkHttpClient, json: Json): Retrofit {
         val baseUrl = ApiConfig.baseUrl.ifBlank { "https://invalid.local/api/v1/" }
         return Retrofit.Builder()

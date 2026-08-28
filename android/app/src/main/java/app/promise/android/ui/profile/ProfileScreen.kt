@@ -76,7 +76,7 @@ data class FaqItem(
 val PROMISE_FAQS = listOf(
     FaqItem(
         question = "What is the difference between a Commitment and a Goal?",
-        answer = "Commitments are one-time tasks or promises with a specific deadline (e.g., 'Finish project report by Friday'). Goals are recurring daily or weekly practices designed to build long-term consistency (e.g., 'Read 20 pages daily', 'Gym 3x/week').",
+        answer = "Commitments are one-time tasks with a specific due date (e.g., 'Submit design review by Friday'). Goals are recurring daily or weekly practices designed to build long-term consistency (e.g., 'Read 20 pages daily', 'Gym 3x/week').",
     ),
     FaqItem(
         question = "How does 'Thought → Promise' (AI) work?",
@@ -84,11 +84,11 @@ val PROMISE_FAQS = listOf(
     ),
     FaqItem(
         question = "How do Shared Goals work?",
-        answer = "You can invite friends, partners, or teammates to any goal using a shareable link or code. Everyone in the goal sees daily check-ins, tracks shared momentum, and can message inside a private group chat.",
+        answer = "You can convert any goal into a shared goal and invite partners by searching their Promise email address. Once they accept the in-app invite, all members track shared momentum and check-ins together in a private group room.",
     ),
     FaqItem(
-        question = "Can I check in directly from my Home Screen?",
-        answer = "Yes! Add the Promise Glance widget to your Android home screen to view today's reading list, check in on daily practices, and complete commitments with a single tap without opening the app.",
+        question = "Can I use Promise and check in without internet?",
+        answer = "Yes! Promise is local-first. Today's commitments, habit check-ins, and the Android Glance home screen widget work instantly offline. Your actions are saved locally and sync quietly to the cloud when connectivity returns.",
     ),
     FaqItem(
         question = "When does Promise send notifications?",

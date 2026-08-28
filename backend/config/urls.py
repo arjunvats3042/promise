@@ -18,6 +18,7 @@ v1_urlpatterns = [
     path("ai/", include("apps.ai.urls")),
     path("motivation/today/", daily_motivation_view),
     path("analytics/", include("apps.analytics.urls")),
+    path("sync/", include("apps.sync.urls")),
     path("<path:resource>", api_not_found),  # keep last
 ]
 

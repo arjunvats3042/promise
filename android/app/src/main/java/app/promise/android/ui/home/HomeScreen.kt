@@ -98,6 +98,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
     val photoUri by viewModel.photoUri.collectAsStateWithLifecycle()
     val weeklyInsightsState by viewModel.weeklyInsightsState.collectAsStateWithLifecycle()
     val dailyMotivationState by viewModel.dailyMotivationState.collectAsStateWithLifecycle()
@@ -142,6 +143,7 @@ fun HomeScreen(
                         photoUri = photoUri,
                         weeklyInsightsState = weeklyInsightsState,
                         dailyMotivationState = dailyMotivationState,
+                        isOnline = isOnline,
                         onOpenProfile = onOpenProfile,
                         onOpenCommitment = onOpenCommitment,
                         onOpenPractice = onOpenPractice,
@@ -263,6 +265,7 @@ private fun HomeContent(
     photoUri: String?,
     weeklyInsightsState: WeeklyInsightsUiState,
     dailyMotivationState: DailyMotivationUiState,
+    isOnline: Boolean = true,
     onOpenProfile: () -> Unit,
     onOpenCommitment: (String) -> Unit,
     onOpenPractice: (String) -> Unit,
@@ -317,6 +320,7 @@ private fun HomeContent(
                 photoUri = photoUri,
                 onOpenProfile = onOpenProfile,
                 onOpenSearch = onOpenSearch,
+                isOnline = isOnline,
             )
             Spacer(modifier = Modifier.height(Spacing.md))
         }
@@ -881,6 +885,7 @@ fun HomeHeader(
     photoUri: String?,
     onOpenProfile: () -> Unit,
     onOpenSearch: () -> Unit = {},
+    isOnline: Boolean = true,
 ) {
     val colors = PromiseThemeColors.current
     Row(
@@ -888,19 +893,39 @@ fun HomeHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(Radius.pill))
-                    .background(colors.surfaceMuted)
-                    .padding(horizontal = Spacing.sm, vertical = 2.dp),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                Text(
-                    text = dateLabel.uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.textSecondary,
-                    letterSpacing = 0.8.sp,
-                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Radius.pill))
+                        .background(colors.surfaceMuted)
+                        .padding(horizontal = Spacing.sm, vertical = 2.dp),
+                ) {
+                    Text(
+                        text = dateLabel.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textSecondary,
+                        letterSpacing = 0.8.sp,
+                    )
+                }
+                if (!isOnline) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.pill))
+                            .background(colors.surfaceMuted)
+                            .padding(horizontal = Spacing.sm, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = "● Offline · Saved locally",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textSecondary,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                }
             }
             Spacer(modifier = Modifier.height(Spacing.xs))
             Text(

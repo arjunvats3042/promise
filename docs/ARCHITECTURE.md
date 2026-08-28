@@ -917,18 +917,18 @@ These are non-negotiable unless explicitly changed:
 
 ---
 
-## 27. Architectural Decision Process
+## 28. Local-First Synchronization & Offline Resilience
 
-Before changing architecture:
+Promise implements a **Local-First, Cloud-Synced** model:
 
-1. Identify the problem.
-2. Explain why the current architecture is insufficient.
-3. List alternatives.
-4. Compare trade-offs.
-5. Choose the smallest solution that solves the problem.
-6. Update architecture documentation.
-7. Implement.
-8. Test.
+1. **Local SQLite Primary Store (Room DB)**:
+   - Android client reads directly from Room DB (`CommitmentEntity`, `GoalEntity`, `FeedCacheEntity`).
+   - Mutations (completing tasks, checking in habits, creating commitments) write immediately to Room with zero network delay ($<10\text{ms}$).
+2. **Client Outbox & WorkManager**:
+   - Every offline mutation is saved in `OutboxEntity` with a unique `action_id` (UUID), `action_type`, payload, and `client_timestamp`.
+   - `NetworkMonitor` detects connectivity and triggers `PromiseSyncWorker` via `WorkManager`.
+3. **Backend Batch Sync Endpoint (`apps.sync`)**:
+   - `POST /api/v1/sync/outbox/` receives the batch of queued mutations.
+   - `SyncActionAudit` guarantees idempotency and transaction atomicity, preventing replay duplicates and protecting daily streak integrity.
 
-Do not let an AI coding assistant silently change system architecture.
 

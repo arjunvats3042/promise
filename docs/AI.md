@@ -73,6 +73,8 @@ The AI layer utilizes structured JSON schema definitions. All raw LLM text outpu
    - Extracts structured `refined_title`, `due_date_suggestion`, `category`, and clarifying questions.
 2. **Thought Parser** (`apps.ai.services.thought_parser`):
    - Deconstructs stream-of-consciousness thoughts into discrete, deduplicated `COMMITMENT` and `GOAL` items.
+   - **Temporal Reference Grounding**: Automatically injects dynamic server context (`Reference current time (UTC): {now_utc_iso}` + `User local timezone: {timezone}`) so relative phrases like *"tomorrow at 11pm"* or *"next Monday morning"* map deterministically to accurate ISO 8601 UTC timestamps.
+   - Robust Python normalization parses and validates dates before passing items to the client.
 3. **Weekly Insights** (`apps.ai.services.insights`):
    - Calculates authoritative backend facts from PostgreSQL (`commitments_total`, `commitments_completed`, `commitments_overdue`, `commitment_completion_rate`, `completion_time_slots`, `active_goals_count`, `check_ins_past_7_days`).
    - If Gemini succeeds: returns validated structured summary, observed patterns, and constructive suggestion.

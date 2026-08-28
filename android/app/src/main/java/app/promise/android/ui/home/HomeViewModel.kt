@@ -81,8 +81,11 @@ class HomeViewModel @Inject constructor(
     private val goalRepository: app.promise.android.domain.GoalRepository,
     private val commitmentRepository: app.promise.android.domain.CommitmentRepository,
     private val profilePhotoStore: app.promise.android.data.local.ProfilePhotoStore,
+    private val networkMonitor: app.promise.android.core.NetworkMonitor,
+    private val syncManager: app.promise.android.data.sync.SyncManager,
 ) : ViewModel() {
     val photoUri: StateFlow<String?> = profilePhotoStore.photoUri
+    val isOnline: StateFlow<Boolean> = networkMonitor.isOnline
     private val _state = MutableStateFlow<LoadState<HomeUiModel>>(LoadState.Loading)
     val state: StateFlow<LoadState<HomeUiModel>> = _state.asStateFlow()
 
@@ -131,6 +134,17 @@ class HomeViewModel @Inject constructor(
     init {
         refresh(force = true)
         observeEvents()
+        observeNetwork()
+    }
+
+    private fun observeNetwork() {
+        viewModelScope.launch {
+            networkMonitor.isOnline.collect { online ->
+                if (online) {
+                    syncManager.enqueueSync(force = true)
+                }
+            }
+        }
     }
 
     private fun observeEvents() {

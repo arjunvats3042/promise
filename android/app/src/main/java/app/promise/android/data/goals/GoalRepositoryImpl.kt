@@ -1,7 +1,12 @@
 package app.promise.android.data.goals
 
+import app.promise.android.data.local.db.GoalDao
+import app.promise.android.data.local.db.GoalEntity
+import app.promise.android.data.local.db.OutboxDao
+import app.promise.android.data.local.db.OutboxEntity
 import app.promise.android.data.network.ApiException
 import app.promise.android.data.network.toApiException
+import app.promise.android.data.sync.SyncManager
 import app.promise.android.domain.ChatMessage
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.CreateGoalInput
@@ -11,20 +16,34 @@ import app.promise.android.domain.GoalChatReadState
 import app.promise.android.domain.GoalChatSummary
 import app.promise.android.domain.GoalCheckIn
 import app.promise.android.domain.GoalCheckInPage
+import app.promise.android.domain.GoalCheckInStatus
 import app.promise.android.domain.GoalDetail
 import app.promise.android.domain.GoalListFilter
 import app.promise.android.domain.GoalListItem
 import app.promise.android.domain.GoalPage
 import app.promise.android.domain.GoalParticipant
+import app.promise.android.domain.GoalPeriodCounts
+import app.promise.android.domain.GoalProgress
+import app.promise.android.domain.GoalRecurrenceKind
 import app.promise.android.domain.GoalRepository
 import app.promise.android.domain.GoalStatus
+import app.promise.android.domain.GoalTrackingKind
+import java.time.Instant
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 @Singleton
 class GoalRepositoryImpl @Inject constructor(
     private val api: GoalApi,
+    private val goalDao: GoalDao,
+    private val outboxDao: OutboxDao,
+    private val syncManager: SyncManager,
 ) : GoalRepository {
+
     override suspend fun list(filter: GoalListFilter, page: Int, pageSize: Int): GoalPage {
         return try {
             when (filter) {
@@ -34,8 +53,11 @@ class GoalRepositoryImpl @Inject constructor(
                         page = page,
                         pageSize = pageSize,
                     )
+                    val listItems = pinInvites(response.results.map { it.toListItem() })
+                    val domainGoals = listItems.mapNotNull { (it as? GoalListItem.Membership)?.goal }
+                    goalDao.upsertAll(domainGoals.map { it.toEntity(isSynced = true) })
                     GoalPage(
-                        items = pinInvites(response.results.map { it.toListItem() }),
+                        items = listItems,
                         nextPage = goalPageNumberFromNext(response.next),
                     )
                 }
@@ -62,21 +84,32 @@ class GoalRepositoryImpl @Inject constructor(
                 }
             }
         } catch (t: Throwable) {
-            throw t.toApiException()
+            // Offline fallback: load from local Room DB
+            val localEntities = goalDao.observeActive().firstOrNull().orEmpty()
+            if (localEntities.isNotEmpty()) {
+                val listItems = localEntities.map { GoalListItem.Membership(it.toDomain()) }
+                GoalPage(items = listItems, nextPage = null)
+            } else {
+                throw t.toApiException()
+            }
         }
     }
 
     override suspend fun get(id: String): Goal {
         return try {
             when (val detail = getDetailInternal(id)) {
-                is GoalDetail.Full -> detail.goal
+                is GoalDetail.Full -> {
+                    goalDao.upsert(detail.goal.toEntity(isSynced = true))
+                    detail.goal
+                }
                 is GoalDetail.Invite -> throw ApiException(
                     status = 404,
                     code = "GOAL_NOT_FOUND",
                 )
             }
         } catch (t: Throwable) {
-            throw t.toApiException()
+            val local = goalDao.getById(id)
+            local?.toDomain() ?: throw t.toApiException()
         }
     }
 
@@ -84,13 +117,76 @@ class GoalRepositoryImpl @Inject constructor(
         return try {
             getDetailInternal(id)
         } catch (t: Throwable) {
-            throw t.toApiException()
+            val local = goalDao.getById(id)?.toDomain()
+            if (local != null) {
+                GoalDetail.Full(local)
+            } else {
+                throw t.toApiException()
+            }
         }
     }
 
     override suspend fun create(input: CreateGoalInput): Goal {
+        val actionId = UUID.randomUUID().toString()
+        val localId = actionId
+        val nowIso = Instant.now().toString()
+
+        val optimisticGoal = Goal(
+            id = localId,
+            title = input.title.trim(),
+            description = input.description,
+            status = GoalStatus.ACTIVE,
+            timezone = input.timezone ?: "Asia/Kolkata",
+            startDate = input.startDate ?: "",
+            endDate = input.endDate,
+            recurrenceKind = input.recurrenceKind,
+            weekdays = input.weekdays.orEmpty(),
+            periodUnit = input.periodUnit,
+            timesPerPeriod = input.timesPerPeriod,
+            trackingKind = input.trackingKind,
+            targetValue = input.targetValue,
+            targetUnit = input.targetUnit,
+            source = "MANUAL",
+            pausedAt = null,
+            completedAt = null,
+            cancelledAt = null,
+            createdAt = nowIso,
+            updatedAt = nowIso,
+            isEnded = false,
+            progress = GoalProgress(
+                currentPeriod = GoalPeriodCounts(required = 1, completed = 0),
+                weekProgress = GoalPeriodCounts(required = 1, completed = 0),
+                consistencyPercent = 0,
+            ),
+            currentStreak = 0,
+            isSharedField = input.isShared,
+        )
+
+        goalDao.upsert(optimisticGoal.toEntity(isSynced = false))
+
+        val payload = buildJsonObject {
+            put("title", input.title.trim())
+            put("description", input.description)
+            put("recurrence_kind", input.recurrenceKind.name)
+            put("tracking_kind", input.trackingKind.name)
+            input.targetValue?.let { put("target_value", it) }
+            put("target_unit", input.targetUnit)
+        }.toString()
+
+        outboxDao.enqueue(
+            OutboxEntity(
+                actionId = actionId,
+                actionType = "CREATE_GOAL",
+                entityId = localId,
+                payloadJson = payload,
+                clientTimestampIso = nowIso,
+            ),
+        )
+
+        syncManager.enqueueSync()
+
         return try {
-            api.create(
+            val remote = api.create(
                 CreateGoalRequest(
                     title = input.title.trim(),
                     description = input.description,
@@ -107,8 +203,11 @@ class GoalRepositoryImpl @Inject constructor(
                     isShared = input.isShared,
                 ),
             ).toDomain()
-        } catch (t: Throwable) {
-            throw t.toApiException()
+            goalDao.upsert(remote.toEntity(isSynced = true))
+            outboxDao.delete(actionId)
+            remote
+        } catch (_: Throwable) {
+            optimisticGoal
         }
     }
 
@@ -121,8 +220,33 @@ class GoalRepositoryImpl @Inject constructor(
     override suspend fun cancel(id: String): Goal = mutateGoal { api.cancel(id) }
 
     override suspend fun checkIn(id: String, input: CheckInInput): GoalCheckIn {
+        val actionId = UUID.randomUUID().toString()
+        val nowIso = Instant.now().toString()
+
+        goalDao.recordCheckIn(id)
+
+        val payload = buildJsonObject {
+            put("status", input.status.name)
+            input.value?.let { put("value", it) }
+            if (input.note.isNotBlank()) {
+                put("note", input.note)
+            }
+        }.toString()
+
+        outboxDao.enqueue(
+            OutboxEntity(
+                actionId = actionId,
+                actionType = "CHECK_IN_GOAL",
+                entityId = id,
+                payloadJson = payload,
+                clientTimestampIso = nowIso,
+            ),
+        )
+
+        syncManager.enqueueSync()
+
         return try {
-            api.checkIn(
+            val remote = api.checkIn(
                 id,
                 CheckInRequest(
                     status = input.status.name,
@@ -131,8 +255,19 @@ class GoalRepositoryImpl @Inject constructor(
                     note = input.note,
                 ),
             ).toDomain()
-        } catch (t: Throwable) {
-            throw t.toApiException()
+            outboxDao.delete(actionId)
+            remote
+        } catch (_: Throwable) {
+            GoalCheckIn(
+                id = actionId,
+                periodDate = input.periodDate ?: "",
+                status = input.status,
+                value = input.value,
+                note = input.note,
+                checkedAt = nowIso,
+                createdAt = nowIso,
+                updatedAt = nowIso,
+            )
         }
     }
 
@@ -329,7 +464,9 @@ class GoalRepositoryImpl @Inject constructor(
 
     private suspend fun mutateGoal(block: suspend () -> GoalDto): Goal {
         return try {
-            block().toDomain()
+            val res = block().toDomain()
+            goalDao.upsert(res.toEntity(isSynced = true))
+            res
         } catch (t: Throwable) {
             throw t.toApiException()
         }
@@ -339,6 +476,65 @@ class GoalRepositoryImpl @Inject constructor(
         return GoalPage(
             items = response.results.map { it.toListItem() },
             nextPage = goalPageNumberFromNext(response.next),
+        )
+    }
+
+    private fun Goal.toEntity(isSynced: Boolean): GoalEntity {
+        return GoalEntity(
+            id = id,
+            title = title,
+            description = description,
+            recurrenceKind = recurrenceKind.name,
+            weekdaysJson = weekdays.toString(),
+            trackingKind = trackingKind.name,
+            targetValue = targetValue,
+            targetUnit = targetUnit,
+            status = status.name,
+            currentStreak = currentStreak,
+            longestStreak = currentStreak,
+            checkedInToday = false,
+            periodValue = progress.currentPeriod.value ?: 0,
+            isShared = isSharedField,
+            unreadChatCount = unreadChatCount,
+            isSynced = isSynced,
+        )
+    }
+
+    private fun GoalEntity.toDomain(): Goal {
+        val recKind = runCatching { GoalRecurrenceKind.valueOf(recurrenceKind) }.getOrDefault(GoalRecurrenceKind.DAILY)
+        val trkKind = runCatching { GoalTrackingKind.valueOf(trackingKind) }.getOrDefault(GoalTrackingKind.BINARY)
+        val goalStatus = runCatching { GoalStatus.valueOf(status) }.getOrDefault(GoalStatus.ACTIVE)
+        return Goal(
+            id = id,
+            title = title,
+            description = description,
+            status = goalStatus,
+            timezone = "Asia/Kolkata",
+            startDate = "",
+            endDate = null,
+            recurrenceKind = recKind,
+            weekdays = emptyList(),
+            periodUnit = null,
+            timesPerPeriod = null,
+            trackingKind = trkKind,
+            targetValue = targetValue,
+            targetUnit = targetUnit,
+            source = "MANUAL",
+            pausedAt = null,
+            completedAt = null,
+            cancelledAt = null,
+            createdAt = "",
+            updatedAt = "",
+            isEnded = false,
+            progress = GoalProgress(
+                currentPeriod = GoalPeriodCounts(required = 1, completed = 0, value = periodValue),
+                weekProgress = GoalPeriodCounts(required = 1, completed = 0),
+                consistencyPercent = 0,
+            ),
+            currentStreak = currentStreak,
+            isSharedField = isShared,
+            unreadChatCount = unreadChatCount,
+            latestChatMessage = null,
         )
     }
 }

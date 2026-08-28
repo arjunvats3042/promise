@@ -272,6 +272,10 @@ class GoalChatViewModel @Inject constructor(
     }
 
     fun sendMessage(body: String) {
+        val goal = _state.value.goal
+        if (goal != null && (goal.status != app.promise.android.domain.GoalStatus.ACTIVE || !goal.canSendChat)) {
+            return
+        }
         val trimmed = body.trim()
         if (trimmed.isBlank() || trimmed.length > MAX_MESSAGE_LENGTH) return
 

@@ -212,53 +212,77 @@ fun GoalChatScreen(
                     .imePadding()
                     .navigationBarsPadding(),
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.inset, vertical = Spacing.xs),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedTextField(
-                        value = inputText,
-                        onValueChange = { if (it.length <= GoalChatViewModel.MAX_MESSAGE_LENGTH) inputText = it },
-                        placeholder = {
-                            Text(
-                                "Send a message…",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = colors.textSecondary,
-                            )
-                        },
+                val isGoalActive = state.goal == null || state.goal?.status == app.promise.android.domain.GoalStatus.ACTIVE
+                if (isGoalActive && (state.goal?.canSendChat != false)) {
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp, max = 120.dp)
-                            .semantics { contentDescription = "Message input" },
-                        shape = RoundedCornerShape(Radius.lg),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.background,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.background,
-                            focusedBorderColor = colors.accent,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        ),
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    val canSend = inputText.trim().isNotBlank()
-                    IconButton(
-                        onClick = {
-                            val textToSend = inputText
-                            inputText = ""
-                            viewModel.sendMessage(textToSend)
-                        },
-                        enabled = canSend,
-                        modifier = Modifier
-                            .size(TouchTarget.min)
-                            .semantics { contentDescription = "Send message" },
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.inset, vertical = Spacing.xs),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(
-                            Icons.AutoMirrored.Outlined.Send,
-                            contentDescription = null,
-                            tint = if (canSend) colors.accent else colors.textSecondary.copy(alpha = 0.4f),
+                        OutlinedTextField(
+                            value = inputText,
+                            onValueChange = { if (it.length <= GoalChatViewModel.MAX_MESSAGE_LENGTH) inputText = it },
+                            placeholder = {
+                                Text(
+                                    "Send a message…",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.textSecondary,
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp, max = 120.dp)
+                                .semantics { contentDescription = "Message input" },
+                            shape = RoundedCornerShape(Radius.lg),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.background,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.background,
+                                focusedBorderColor = colors.accent,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            ),
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.xs))
+                        val canSend = inputText.trim().isNotBlank()
+                        IconButton(
+                            onClick = {
+                                val textToSend = inputText
+                                inputText = ""
+                                viewModel.sendMessage(textToSend)
+                            },
+                            enabled = canSend,
+                            modifier = Modifier
+                                .size(TouchTarget.min)
+                                .semantics { contentDescription = "Send message" },
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.Send,
+                                contentDescription = null,
+                                tint = if (canSend) colors.accent else colors.textSecondary.copy(alpha = 0.4f),
+                            )
+                        }
+                    }
+                } else {
+                    val statusText = when (state.goal?.status) {
+                        app.promise.android.domain.GoalStatus.PAUSED -> "This goal is paused. Chat is in read-only mode."
+                        app.promise.android.domain.GoalStatus.COMPLETED -> "This goal is completed. Chat is closed."
+                        app.promise.android.domain.GoalStatus.CANCELLED -> "This goal is archived. Chat is closed."
+                        else -> "Chat is closed for inactive goals."
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.inset, vertical = Spacing.md),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            fontWeight = FontWeight.Medium,
                         )
                     }
                 }

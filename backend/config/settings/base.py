@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "apps.search.apps.SearchConfig",
     "apps.ai.apps.AiConfig",
     "apps.analytics.apps.AnalyticsConfig",
+    "apps.sync.apps.SyncConfig",
     "django.contrib.postgres",
     "django.contrib.contenttypes",
     "django.contrib.auth",
