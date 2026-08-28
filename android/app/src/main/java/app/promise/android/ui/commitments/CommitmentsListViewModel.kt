@@ -54,6 +54,9 @@ class CommitmentsListViewModel @Inject constructor(
     private val _state = MutableStateFlow<LoadState<CommitmentsListUi>>(LoadState.Loading)
     val state: StateFlow<LoadState<CommitmentsListUi>> = _state.asStateFlow()
 
+    private val _selectedFilter = MutableStateFlow(CommitmentListFilter.OPEN)
+    val selectedFilter: StateFlow<CommitmentListFilter> = _selectedFilter.asStateFlow()
+
     private val _createAction = MutableStateFlow<ActionState>(ActionState.Idle)
     val createAction: StateFlow<ActionState> = _createAction.asStateFlow()
 
@@ -92,9 +95,13 @@ class CommitmentsListViewModel @Inject constructor(
     }
 
     fun selectFilter(value: CommitmentListFilter) {
-        if (filter == value && _state.value is LoadState.Ready) return
+        if (_selectedFilter.value == value && _state.value is LoadState.Ready) return
+        _selectedFilter.value = value
         filter = value
-        refresh(fromPull = false)
+        viewModelScope.launch {
+            _state.value = LoadState.Loading
+            loadPage(page = 1, replace = true)
+        }
     }
 
     fun refresh(fromPull: Boolean = false) {
@@ -105,7 +112,6 @@ class CommitmentsListViewModel @Inject constructor(
                     _state.value = current.copy(isRefreshing = true)
                 }
                 current is LoadState.Ready && !fromPull -> {
-                    // Keep Ready visible; silent filter reload (no green spinner).
                     _state.value = current.copy(
                         value = current.value.copy(filter = filter),
                         isRefreshing = false,

@@ -423,3 +423,38 @@ The UI in `NotificationPreferencesSection.kt` is structured into 6 calm, accessi
 - Layout-preserving skeleton during initial async fetch (zero disappearing views).
 - Optimistic toggle state updates with automatic rollback on network failure.
 - Full TalkBack accessibility with 48dp touch targets and announced switch states.
+
+---
+
+## 13. Interactive Notification Actions & Deduplication
+
+### 13.1. Deterministic Entity Hashing & Deduplication
+To prevent duplicate stacked notifications in the shade, notification IDs are computed deterministically per entity:
+```kotlin
+val notificationId: Int
+    get() = computeNotificationId(
+        if (entityId.isNotBlank() && entityType.isNotBlank()) {
+            "${entityType.uppercase()}:$entityId"
+        } else if (identityKey.isNotBlank()) {
+            identityKey
+        } else {
+            "$eventType:$title"
+        }
+    )
+```
+- **In-Place Updates**: Sequential updates (e.g. Due Soon ➔ Due Now ➔ Snooze) update the existing notification card without re-alerting (`setOnlyAlertOnce(true)`).
+- **Group Summary Hygiene**: Eliminated phantom duplicate single-item group summary alerts; set `NotificationCompat.GROUP_ALERT_CHILDREN`.
+
+### 13.2. One-Tap Actions & Inline Replies
+- **Commitments**: `✓ Complete` (calls `CommitmentRepository.complete()`) and `⏰ Snooze 1h` (calls `CommitmentRepository.snooze()`).
+- **Goals**: `✓ Check In` (calls `GoalRepository.checkIn()`).
+- **Shared Goal Chat**: Direct inline reply via `RemoteInput(KEY_TEXT_REPLY)` enabling users to type and send chat messages directly from the notification shade without launching the app.
+
+---
+
+## 14. Event Bus & Glance Widget Synchronization
+When any notification action is executed via `NotificationActionWorker`:
+1. It executes the backend mutation.
+2. Emits the corresponding `AppMutationEvent` on `AppEventBus` (updating in-app UI state immediately).
+3. Invokes `PromiseWidgetUpdater.fetchAndPushWidgetData(appContext)` to push fresh data to Glance Home Screen Widgets with 0ms delay.
+

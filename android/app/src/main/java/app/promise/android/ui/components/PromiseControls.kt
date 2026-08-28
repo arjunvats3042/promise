@@ -1,8 +1,11 @@
 package app.promise.android.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,12 +16,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -27,24 +30,36 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import app.promise.android.ui.theme.Alpha
 import app.promise.android.ui.theme.Elevation
+import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseDarkColor
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
+import app.promise.android.ui.theme.bouncyClickable
+import app.promise.android.ui.theme.pressScale
 
 @Composable
 fun PromiseFieldLabel(text: String) {
@@ -95,14 +110,14 @@ fun PromiseTextField(
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
-        shape = RoundedCornerShape(Radius.sm),
+        shape = RoundedCornerShape(Radius.md),
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = colors.surfaceMuted,
             unfocusedContainerColor = colors.surfaceMuted,
-            disabledContainerColor = colors.surfaceMuted,
+            disabledContainerColor = colors.surfaceMuted.copy(alpha = 0.5f),
             errorContainerColor = colors.surfaceMuted,
-            focusedBorderColor = colors.accent.copy(alpha = Alpha.FocusAccent),
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            focusedBorderColor = colors.accent,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.8f),
             errorBorderColor = MaterialTheme.colorScheme.error,
             focusedTextColor = MaterialTheme.colorScheme.onSurface,
             unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -125,8 +140,12 @@ fun PromisePrimaryButton(
         enabled = enabled && !loading,
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = TouchTarget.buttonMin),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = Elevation.none),
+            .heightIn(min = TouchTarget.buttonMin)
+            .pressScale(0.97f, enabled = enabled && !loading),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = Elevation.none,
+            pressedElevation = Elevation.none,
+        ),
         colors = ButtonDefaults.buttonColors(
             containerColor = colors.primaryControl,
             contentColor = colors.onPrimaryControl,
@@ -137,7 +156,7 @@ fun PromisePrimaryButton(
     ) {
         if (loading) {
             CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
                 color = colors.onPrimaryControl,
                 strokeWidth = 2.dp,
             )
@@ -147,13 +166,121 @@ fun PromisePrimaryButton(
             text = text,
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.2.sp,
+        )
+    }
+}
+
+@Composable
+fun PromiseSecondaryButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val colors = PromiseThemeColors.current
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = TouchTarget.buttonMin)
+            .pressScale(0.97f, enabled = enabled),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = Elevation.none),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = colors.surfaceMuted,
+            contentColor = colors.textPrimary,
+            disabledContainerColor = colors.surfaceMuted.copy(alpha = Alpha.DisabledContainer),
+            disabledContentColor = colors.textSecondary.copy(alpha = Alpha.DisabledContent),
+        ),
+        shape = RoundedCornerShape(Radius.button),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+        ),
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.2.sp,
+        )
+    }
+}
+
+@Composable
+fun PromiseGhostButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    color: Color? = null,
+) {
+    val colors = PromiseThemeColors.current
+    val fg = color ?: colors.textSecondary
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(Radius.button))
+            .clickable(
+                enabled = enabled,
+                onClick = onClick,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(color = fg),
+            )
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = if (enabled) fg else fg.copy(alpha = Alpha.DisabledContent),
         )
     }
 }
 
 /**
+ * Modern surface container for card items.
+ */
+@Composable
+fun PromiseCardSurface(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    borderColor: Color? = null,
+    backgroundColor: Color? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+    val actualBg = backgroundColor ?: colors.surfaceRaised
+    val actualBorder = borderColor ?: MaterialTheme.colorScheme.outline.copy(alpha = 0.65f)
+
+    val baseModifier = modifier
+        .fillMaxWidth()
+        .border(
+            width = Elevation.hairline,
+            color = actualBorder,
+            shape = RoundedCornerShape(Radius.lg),
+        )
+        .clip(RoundedCornerShape(Radius.lg))
+        .background(actualBg)
+
+    val clickableModifier = if (onClick != null) {
+        baseModifier.bouncyClickable(
+            targetScale = 0.98f,
+            onClick = onClick,
+        )
+    } else {
+        baseModifier
+    }
+
+    Column(
+        modifier = clickableModifier.padding(Spacing.cardPadding),
+        content = content,
+    )
+}
+
+/**
  * Extremely restrained tonal grouping for auth forms.
- * Prefer no floating-card appearance: quiet fill + low-contrast hairline.
  */
 @Composable
 fun PromiseQuietFormSurface(
@@ -162,17 +289,17 @@ fun PromiseQuietFormSurface(
 ) {
     val colors = PromiseThemeColors.current
     val isDark = colors.ink == PromiseDarkColor.Ink
-    val fillAlpha = if (isDark) 0.92f else 0.88f
+    val fillAlpha = if (isDark) 0.94f else 0.90f
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .border(
                 width = Elevation.hairline,
                 color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
-                shape = RoundedCornerShape(Radius.lg),
+                shape = RoundedCornerShape(Radius.xl),
             ),
         color = colors.surfaceRaised.copy(alpha = fillAlpha),
-        shape = RoundedCornerShape(Radius.lg),
+        shape = RoundedCornerShape(Radius.xl),
         shadowElevation = 0.dp,
         tonalElevation = 0.dp,
     ) {
@@ -204,7 +331,9 @@ fun PromiseMicroLabel(
     val colors = PromiseThemeColors.current
     Text(
         text = text.uppercase(),
-        style = MaterialTheme.typography.labelMedium,
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.sp,
         color = color ?: colors.textSecondary,
         modifier = modifier,
     )
@@ -221,89 +350,85 @@ fun PromiseLinearProgressBar(
     val actualColor = color ?: colors.accent
     val actualTrack = trackColor ?: colors.surfaceMuted
     val clampedProgress = progress.coerceIn(0f, 1f)
+    val animatedProgress by animateFloatAsState(
+        targetValue = clampedProgress,
+        animationSpec = Motion.standardTween(Motion.CompletionMs),
+        label = "ProgressBarProgress",
+    )
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(6.dp)
-            .clip(RoundedCornerShape(3.dp))
+            .clip(RoundedCornerShape(Radius.pill))
             .background(actualTrack)
             .semantics {
-                progressBarRangeInfo = androidx.compose.ui.semantics.ProgressBarRangeInfo(
+                progressBarRangeInfo = ProgressBarRangeInfo(
                     current = clampedProgress,
                     range = 0f..1f,
                 )
             },
     ) {
-        if (clampedProgress > 0f) {
+        if (animatedProgress > 0f) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(clampedProgress)
+                    .fillMaxWidth(animatedProgress)
                     .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp))
+                    .clip(RoundedCornerShape(Radius.pill))
                     .background(actualColor),
             )
         }
     }
 }
 
+/**
+ * Modern circular momentum progress indicator.
+ */
 @Composable
-fun PromiseCardSurface(
+fun PromiseProgressRing(
+    progress: Float,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit,
+    size: Dp = 56.dp,
+    strokeWidth: Dp = 5.dp,
+    color: Color? = null,
+    trackColor: Color? = null,
+    centerContent: (@Composable () -> Unit)? = null,
 ) {
     val colors = PromiseThemeColors.current
-    val baseModifier = modifier
-        .fillMaxWidth()
-        .border(
-            width = Elevation.hairline,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
-            shape = RoundedCornerShape(Radius.lg),
-        )
-        .clip(RoundedCornerShape(Radius.lg))
-        .background(colors.surfaceRaised)
-
-    val clickableModifier = if (onClick != null) {
-        baseModifier.clickable(onClick = onClick)
-    } else {
-        baseModifier
-    }
-
-    Column(
-        modifier = clickableModifier.padding(Spacing.md),
-        content = content,
+    val actualColor = color ?: colors.accent
+    val actualTrack = trackColor ?: colors.surfaceMuted
+    val clampedProgress = progress.coerceIn(0f, 1f)
+    val animatedProgress by animateFloatAsState(
+        targetValue = clampedProgress,
+        animationSpec = Motion.standardTween(Motion.CompletionMs + 100),
+        label = "ProgressRingProgress",
     )
-}
 
-@Composable
-fun PromiseSecondaryButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-) {
-    val colors = PromiseThemeColors.current
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = TouchTarget.buttonMin),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = Elevation.none),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = colors.surfaceMuted,
-            contentColor = colors.textPrimary,
-            disabledContainerColor = colors.surfaceMuted.copy(alpha = Alpha.DisabledContainer),
-            disabledContentColor = colors.textSecondary.copy(alpha = Alpha.DisabledContent),
-        ),
-        shape = RoundedCornerShape(Radius.button),
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Canvas(modifier = Modifier.size(size)) {
+            val strokePx = strokeWidth.toPx()
+            val radius = (this.size.minDimension - strokePx) / 2f
+            // Track
+            drawCircle(
+                color = actualTrack,
+                radius = radius,
+                style = Stroke(width = strokePx, cap = StrokeCap.Round),
+            )
+            // Progress arc
+            if (animatedProgress > 0f) {
+                drawArc(
+                    color = actualColor,
+                    startAngle = -90f,
+                    sweepAngle = 360f * animatedProgress,
+                    useCenter = false,
+                    style = Stroke(width = strokePx, cap = StrokeCap.Round),
+                )
+            }
+        }
+        centerContent?.invoke()
     }
 }
 
@@ -315,17 +440,17 @@ fun PromiseStreakBadge(
     val colors = PromiseThemeColors.current
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(Radius.sm))
+            .clip(RoundedCornerShape(Radius.pill))
             .background(colors.accent.copy(alpha = 0.12f))
-            .padding(horizontal = Spacing.xs + 2.dp, vertical = Spacing.xxs),
+            .border(1.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(Radius.pill))
+            .padding(horizontal = Spacing.sm, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         Text(
-            text = "STREAK",
+            text = "🔥",
             style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.accent,
+            fontSize = 11.sp,
         )
         Text(
             text = streakText,
@@ -352,6 +477,21 @@ fun PromiseEmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(colors.surfaceMuted),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(colors.textSecondary.copy(alpha = 0.35f)),
+            )
+        }
+        Spacer(modifier = Modifier.height(Spacing.md))
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
@@ -363,7 +503,7 @@ fun PromiseEmptyState(
             text = description,
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
-            lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified,
+            lineHeight = 20.sp,
         )
         if (!actionLabel.isNullOrBlank() && onActionClick != null) {
             Spacer(modifier = Modifier.height(Spacing.lg))
@@ -388,7 +528,7 @@ fun PromiseErrorBanner(
             .fillMaxWidth()
             .border(
                 width = Elevation.hairline,
-                color = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
+                color = MaterialTheme.colorScheme.error.copy(alpha = 0.35f),
                 shape = RoundedCornerShape(Radius.md),
             ),
         color = MaterialTheme.colorScheme.error.copy(alpha = 0.08f),
@@ -410,7 +550,7 @@ fun PromiseErrorBanner(
                 modifier = Modifier.weight(1f),
             )
             if (onRetry != null) {
-                Spacer(modifier = Modifier.height(Spacing.sm))
+                Spacer(modifier = Modifier.width(Spacing.sm))
                 Button(
                     onClick = onRetry,
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
@@ -440,7 +580,7 @@ enum class DayProgressState {
 
 @Composable
 fun PromiseWeeklyProgressDots(
-    days: List<Pair<String, DayProgressState>>, // e.g. ("Mon", Completed), ("Tue", Completed), etc.
+    days: List<Pair<String, DayProgressState>>,
     modifier: Modifier = Modifier,
 ) {
     val colors = PromiseThemeColors.current
@@ -466,7 +606,7 @@ fun PromiseWeeklyProgressDots(
                         .clip(CircleShape)
                         .background(
                             when (state) {
-                                DayProgressState.Completed -> colors.accent.copy(alpha = 0.2f)
+                                DayProgressState.Completed -> colors.accent.copy(alpha = 0.18f)
                                 DayProgressState.Pending -> colors.surfaceMuted
                                 DayProgressState.Missed -> MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
                                 DayProgressState.Inactive -> colors.surfaceMuted.copy(alpha = 0.5f)
@@ -476,9 +616,9 @@ fun PromiseWeeklyProgressDots(
                             1.dp,
                             when (state) {
                                 DayProgressState.Completed -> colors.accent
-                                DayProgressState.Pending -> MaterialTheme.colorScheme.outline
+                                DayProgressState.Pending -> MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                                 DayProgressState.Missed -> MaterialTheme.colorScheme.error.copy(alpha = 0.4f)
-                                DayProgressState.Inactive -> MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                DayProgressState.Inactive -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
                             },
                             CircleShape,
                         ),
@@ -548,18 +688,20 @@ fun PromiseStatusChip(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(Radius.sm))
+            .clip(RoundedCornerShape(Radius.pill))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(Radius.sm))
-            .padding(horizontal = Spacing.xs + 2.dp, vertical = Spacing.xxs),
+            .border(1.dp, border, RoundedCornerShape(Radius.pill))
+            .padding(horizontal = Spacing.sm, vertical = 3.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label.uppercase(),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.5.sp,
             color = fg,
         )
     }
 }
+
 

@@ -19,9 +19,28 @@ class AndroidPromiseHaptics @Inject constructor(
         vibratePredefined(VibrationEffect.EFFECT_CLICK)
     }
 
+    override fun selection() {
+        // Delicate crisp tick for scrolling or pill selection
+        vibratePredefined(VibrationEffect.EFFECT_TICK)
+    }
+
     override fun confirm() {
         // Stronger confirmation without a harsh double-thud.
         vibratePredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
+    }
+
+    override fun celebrate() {
+        // Multi-pulse rhythmic tactile celebration for completed goals/commitments
+        if (!hapticsEnabled()) return
+        val vibrator = vibrator() ?: return
+        if (!vibrator.hasVibrator()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val timings = longArrayOf(0, 30, 60, 45, 60, 60)
+            val amplitudes = intArrayOf(0, 140, 0, 180, 0, 255)
+            vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+        } else {
+            vibratePredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
+        }
     }
 
     override fun error() {

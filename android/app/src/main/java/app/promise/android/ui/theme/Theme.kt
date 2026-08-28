@@ -25,6 +25,7 @@ data class PromiseExtendedColors(
     val ink: Color,
     val success: Color,
     val warning: Color,
+    val error: Color = PromiseColor.Error,
     val textPrimary: Color,
     val textSecondary: Color,
     val surfaceMuted: Color,
@@ -32,6 +33,11 @@ data class PromiseExtendedColors(
     val outlineStrong: Color,
     val primaryControl: Color,
     val onPrimaryControl: Color,
+    val cardBackground: Color = surfaceRaised,
+    val cardBorder: Color = outlineStrong,
+    val chipBackground: Color = surfaceMuted,
+    val glowAccent: Color = accent.copy(alpha = 0.14f),
+    val isDark: Boolean = false,
 )
 
 val LocalPromiseColors = staticCompositionLocalOf {
@@ -40,6 +46,7 @@ val LocalPromiseColors = staticCompositionLocalOf {
         ink = PromiseColor.Primary,
         success = PromiseColor.Success,
         warning = PromiseColor.Warning,
+        error = PromiseColor.Error,
         textPrimary = PromiseColor.TextPrimary,
         textSecondary = PromiseColor.TextSecondary,
         surfaceMuted = PromiseColor.SurfaceMuted,
@@ -47,6 +54,11 @@ val LocalPromiseColors = staticCompositionLocalOf {
         outlineStrong = PromiseColor.OutlineStrong,
         primaryControl = PromiseColor.PrimaryControl,
         onPrimaryControl = PromiseColor.OnPrimaryControl,
+        cardBackground = PromiseColor.SurfaceRaised,
+        cardBorder = PromiseColor.Outline,
+        chipBackground = PromiseColor.SurfaceMuted,
+        glowAccent = PromiseColor.Accent.copy(alpha = 0.12f),
+        isDark = false,
     )
 }
 
@@ -107,6 +119,7 @@ fun PromiseTheme(
             ink = PromiseColor.Primary,
             success = accent,
             warning = PromiseColor.Warning,
+            error = PromiseColor.Error,
             textPrimary = PromiseColor.TextPrimary,
             textSecondary = PromiseColor.TextSecondary,
             surfaceMuted = PromiseColor.SurfaceMuted,
@@ -114,12 +127,18 @@ fun PromiseTheme(
             outlineStrong = PromiseColor.OutlineStrong,
             primaryControl = PromiseColor.PrimaryControl,
             onPrimaryControl = PromiseColor.OnPrimaryControl,
+            cardBackground = PromiseColor.Surface,
+            cardBorder = PromiseColor.Outline,
+            chipBackground = PromiseColor.SurfaceMuted,
+            glowAccent = accent.copy(alpha = 0.12f),
+            isDark = false,
         )
         PromiseThemeMode.Dark -> PromiseExtendedColors(
             accent = accent,
             ink = PromiseDarkColor.Ink,
             success = accent,
             warning = PromiseDarkColor.Warning,
+            error = PromiseDarkColor.Error,
             textPrimary = PromiseDarkColor.TextPrimary,
             textSecondary = PromiseDarkColor.TextSecondary,
             surfaceMuted = PromiseDarkColor.SurfaceMuted,
@@ -127,6 +146,11 @@ fun PromiseTheme(
             outlineStrong = PromiseDarkColor.OutlineStrong,
             primaryControl = PromiseDarkColor.PrimaryControl,
             onPrimaryControl = PromiseDarkColor.OnPrimaryControl,
+            cardBackground = PromiseDarkColor.Surface,
+            cardBorder = PromiseDarkColor.Outline,
+            chipBackground = PromiseDarkColor.SurfaceMuted,
+            glowAccent = accent.copy(alpha = 0.16f),
+            isDark = true,
         )
     }
     val view = LocalView.current

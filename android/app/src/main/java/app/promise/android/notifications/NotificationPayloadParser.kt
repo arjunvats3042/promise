@@ -11,13 +11,17 @@ object NotificationPayloadParser {
         val title = data["title"] ?: "Promise"
         val body = data["body"] ?: ""
         val deepLink = data["deep_link"] ?: "promise://home"
+        val senderName = data["sender_name"] ?: ""
+        val streakCount = data["streak_count"]?.toIntOrNull() ?: 0
+        val subtitle = data["subtitle"] ?: ""
 
-        if (reminderId.isEmpty() && identityKey.isEmpty() && entityId.isEmpty()) {
+        if (reminderId.isEmpty() && identityKey.isEmpty() && entityId.isEmpty() && title.isEmpty()) {
             return null
         }
 
         val channelId = data["channel_id"] ?: when {
             eventType == "commitment.due_now" -> NotificationChannels.CHANNEL_COMMITMENT_ALERTS
+            eventType == "goal.chat.message_created" || eventType.startsWith("goal.participant.") -> NotificationChannels.CHANNEL_COMMUNITY
             eventType == "digest.weekly" || entityType == "DIGEST" -> NotificationChannels.CHANNEL_SYSTEM
             eventType.startsWith("security.") || eventType.startsWith("auth.") || entityType == "SECURITY" || entityType == "SYSTEM" -> NotificationChannels.CHANNEL_SYSTEM
             eventType.startsWith("goal.") || entityType == "GOAL" -> NotificationChannels.CHANNEL_GOAL_REMINDERS
@@ -37,7 +41,7 @@ object NotificationPayloadParser {
 
         return PromiseNotificationData(
             reminderId = reminderId,
-            identityKey = if (identityKey.isNotEmpty()) identityKey else "$reminderId:$entityType:$entityId:$eventType",
+            identityKey = if (identityKey.isNotEmpty()) identityKey else "$entityType:$entityId:$eventType",
             entityType = entityType,
             entityId = entityId,
             eventType = eventType,
@@ -46,6 +50,10 @@ object NotificationPayloadParser {
             deepLink = deepLink,
             channelId = channelId,
             priority = priority,
+            senderName = senderName,
+            streakCount = streakCount,
+            subtitle = subtitle,
         )
     }
 }
+

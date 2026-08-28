@@ -203,9 +203,9 @@ LOGGING = {
 GEMINI_API_KEY_1 = env("GEMINI_API_KEY_1", default="")
 GEMINI_API_KEY_2 = env("GEMINI_API_KEY_2", default="")
 GEMINI_API_KEY_3 = env("GEMINI_API_KEY_3", default="")
-GEMINI_DEFAULT_MODEL = env("GEMINI_DEFAULT_MODEL", default="gemini-3.5-flash")
-GEMINI_FAST_MODEL = env("GEMINI_FAST_MODEL", default="gemini-3.5-flash-lite")
-GEMINI_TIMEOUT_SECONDS = env.int("GEMINI_TIMEOUT_SECONDS", default=15)
+GEMINI_DEFAULT_MODEL = env("GEMINI_DEFAULT_MODEL", default="gemini-3.7-flash")
+GEMINI_FAST_MODEL = env("GEMINI_FAST_MODEL", default="gemini-3.7-flash")
+GEMINI_TIMEOUT_SECONDS = env.int("GEMINI_TIMEOUT_SECONDS", default=12)
 GEMINI_MAX_OUTPUT_TOKENS = env.int("GEMINI_MAX_OUTPUT_TOKENS", default=1024)
 
 # Media Files (User Uploads, Avatars)

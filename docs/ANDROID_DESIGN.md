@@ -707,5 +707,51 @@ Modals, not screens: snooze, create commitment, check-in, confirm destructive, l
 | Sealed UI state | **DECIDED** |
 | Four-tab main graph | **DECIDED** |
 | Domain rules stay on the backend | **DECIDED** |
-| FCM / dark theme / offline sync | **DEFERRED** |
-| Android implementation | **9.2–9.6 IMPLEMENTED** (through Goals UI); Shared Goals / FCM / Room **NOT** |
+| Glance AppWidgets with in-widget actions & LazyColumn | **IMPLEMENTED** |
+| Interactive notifications with inline reply & 1-tap complete | **IMPLEMENTED** |
+| Streamlined 3-category commitment tabs with shimmer skeletons | **IMPLEMENTED** |
+
+---
+
+## 21. Autonomous Glance Home Screen Widgets
+
+The application exposes two responsive Glance AppWidgets:
+1. `GoalsGlanceWidget`: Displays all daily habits and practices with Glance `LazyColumn`.
+   - **In-Widget Check-Ins**: Tapping `CHECK IN` toggles practice completion directly on the backend via `HomeRepository.checkInPractice()` and refreshes widget UI optimistically.
+   - **Deep Linking**: Tapping any goal row deep-links directly into `promise://goal/{goalId}`.
+   - **Live Sync**: Dedicated `🔄` button calling `RefreshWidgetActionCallback` pulls fresh backend data on demand.
+2. `CommitmentsGlanceWidget`: Displays all active commitments with Glance `LazyColumn`.
+   - **In-Widget Completion**: Tapping `COMPLETE` completes the commitment in the backend via `CommitmentRepository.complete()`.
+   - **Overdue Tags & Due Times**: Badges overdue items (`⚠️ OVERDUE`) and formatted due times (`⏰ 06:00 PM`).
+   - **Deep Linking**: Tapping any commitment row opens `promise://commitment/{commitmentId}`.
+
+---
+
+## 22. Designer Auth & Modern Navigation Shell
+
+### 22.1. Designer Login Experience
+- Ambient radial illumination (indigo & violet atmospheric lighting).
+- Brand monogram squircle badge with live sync status pill.
+- 3 bento feature showcase cards (Daily Practice & Habit Rings, Zero-Overdue Commitment Tracker, Gemini AI Behavioral Insights).
+- Custom 4-color Google "G" vector rendered via Compose Canvas inside a full-width elevated sign-in button.
+
+### 22.2. Ergonomic Bottom Navigation Bar
+- 64dp elevated container wrapped with `.navigationBarsPadding()` to guarantee compatibility with Android 3-button and gesture navigation bars.
+- 24dp icons paired with distinct typography labels ("Home", "Commitments", "Goals", "Profile").
+- Spring physics `bouncyClickable(0.92f)` micro-interactions on tab selection.
+
+---
+
+## 23. Streamlined Commitments & Instant Tab Loaders
+
+### 23.1. 3-Category Commitments Model
+Simplified the commitments view from 5 overlapping categories down to 3 focused buckets:
+1. `All Open`: All active commitments currently in progress.
+2. `Overdue`: High-priority items past deadline requiring zero-overdue attention.
+3. `Completed`: Finished and archived promises.
+
+### 23.2. Instant Tab Switching with Shimmer Skeletons
+- `selectedFilter` is decoupled as a dedicated `StateFlow`, giving 0ms instantaneous tab highlight feedback.
+- On filter switch, `_state` transitions to `LoadState.Loading`, displaying `PromiseListSkeleton` during the network request.
+- Completely eliminates false "No items found" / "Nothing overdue" empty state flashes.
+

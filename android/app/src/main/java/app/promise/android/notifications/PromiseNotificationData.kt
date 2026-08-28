@@ -3,7 +3,7 @@ package app.promise.android.notifications
 data class PromiseNotificationData(
     val reminderId: String,
     val identityKey: String,
-    val entityType: String, // COMMITMENT, GOAL, SYSTEM
+    val entityType: String, // COMMITMENT, GOAL, SYSTEM, DIGEST
     val entityId: String,
     val eventType: String,
     val title: String,
@@ -11,15 +11,26 @@ data class PromiseNotificationData(
     val deepLink: String,
     val channelId: String = NotificationChannels.CHANNEL_COMMITMENT_REMINDERS,
     val priority: String = "normal",
+    val senderName: String = "",
+    val streakCount: Int = 0,
+    val subtitle: String = "",
 ) {
     val notificationId: Int
-        get() = computeNotificationId(identityKey)
+        get() = computeNotificationId(
+            if (entityId.isNotBlank() && entityType.isNotBlank()) {
+                "${entityType.uppercase()}:$entityId"
+            } else if (identityKey.isNotBlank()) {
+                identityKey
+            } else {
+                "$eventType:$title"
+            }
+        )
 
     companion object {
-        fun computeNotificationId(identityKey: String): Int {
-            if (identityKey.isEmpty()) return 1001
+        fun computeNotificationId(key: String): Int {
+            if (key.isEmpty()) return 1001
             var hash = 0x811c9dc5.toInt()
-            for (b in identityKey.toByteArray(Charsets.UTF_8)) {
+            for (b in key.toByteArray(Charsets.UTF_8)) {
                 hash = hash xor (b.toInt() and 0xff)
                 hash *= 0x01000193
             }
@@ -28,3 +39,4 @@ data class PromiseNotificationData(
         }
     }
 }
+

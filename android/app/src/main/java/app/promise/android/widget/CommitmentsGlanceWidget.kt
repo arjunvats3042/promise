@@ -21,6 +21,8 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
+import androidx.glance.appwidget.lazy.LazyColumn
+import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.currentState
@@ -42,9 +44,23 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import app.promise.android.ui.theme.PromiseColor
 import app.promise.android.ui.theme.PromiseDarkColor
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class CommitmentsGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = CommitmentsGlanceWidget()
+
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: android.appwidget.AppWidgetManager,
+        appWidgetIds: IntArray,
+    ) {
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+        CoroutineScope(Dispatchers.IO).launch {
+            PromiseWidgetUpdater.fetchAndPushWidgetData(context)
+        }
+    }
 }
 
 class CommitmentsGlanceWidget : GlanceAppWidget() {
@@ -65,7 +81,13 @@ class CommitmentsGlanceWidget : GlanceAppWidget() {
         provideContent {
             GlanceTheme {
                 val prefs = currentState<Preferences>()
-                val rawJson = prefs[WIDGET_DATA_PREF_KEY]
+                var rawJson = prefs[WIDGET_DATA_PREF_KEY]
+                if (rawJson.isNullOrBlank()) {
+                    val cached = PromiseWidgetUpdater.getCachedWidgetData(context)
+                    if (cached.items.isNotEmpty()) {
+                        rawJson = cached.toJson()
+                    }
+                }
                 val widgetData = PromiseWidgetData.fromJson(rawJson)
                 val commitmentItems = widgetData.items.filter { it.type == WidgetItemType.COMMITMENT }
                 val completedCount = commitmentItems.count { it.isCompleted }
@@ -79,12 +101,11 @@ class CommitmentsGlanceWidget : GlanceAppWidget() {
                         .cornerRadius(20.dp)
                         .padding(12.dp),
                 ) {
-                    if (size.width >= 240.dp) {
+                    if (size.width >= 220.dp) {
                         ExpandedCommitmentsWidgetContent(
                             items = commitmentItems,
                             completedCount = completedCount,
                             totalCount = totalCount,
-                            expandedItemId = widgetData.expandedItemId,
                             theme = theme,
                         )
                     } else {
@@ -102,7 +123,7 @@ class CommitmentsGlanceWidget : GlanceAppWidget() {
 
     companion object {
         private val SMALL_SQUARE = DpSize(120.dp, 120.dp)
-        private val HORIZONTAL_RECTANGLE = DpSize(240.dp, 120.dp)
+        private val HORIZONTAL_RECTANGLE = DpSize(220.dp, 120.dp)
     }
 }
 
@@ -119,6 +140,10 @@ internal data class CommitmentsThemeTokens(
     val commitBadgeText: ColorProvider,
     val completedBtnBg: ColorProvider,
     val completedBtnText: ColorProvider,
+    val pendingBtnBg: ColorProvider,
+    val pendingBtnText: ColorProvider,
+    val overdueBadgeBg: ColorProvider,
+    val overdueBadgeText: ColorProvider,
 ) {
     companion object {
         val Light = CommitmentsThemeTokens(
@@ -132,8 +157,12 @@ internal data class CommitmentsThemeTokens(
             onPrimaryControl = ColorProvider(PromiseColor.OnPrimaryControl),
             commitBadgeBg = ColorProvider(PromiseColor.Accent.copy(alpha = 0.12f)),
             commitBadgeText = ColorProvider(PromiseColor.Accent),
-            completedBtnBg = ColorProvider(PromiseColor.Outline),
-            completedBtnText = ColorProvider(PromiseColor.TextSecondary),
+            completedBtnBg = ColorProvider(Color(0xFF10B981).copy(alpha = 0.18f)),
+            completedBtnText = ColorProvider(Color(0xFF047857)),
+            pendingBtnBg = ColorProvider(PromiseColor.PrimaryControl),
+            pendingBtnText = ColorProvider(PromiseColor.OnPrimaryControl),
+            overdueBadgeBg = ColorProvider(Color(0xFFEF4444).copy(alpha = 0.14f)),
+            overdueBadgeText = ColorProvider(Color(0xFFDC2626)),
         )
 
         val Dark = CommitmentsThemeTokens(
@@ -147,8 +176,12 @@ internal data class CommitmentsThemeTokens(
             onPrimaryControl = ColorProvider(PromiseDarkColor.OnPrimaryControl),
             commitBadgeBg = ColorProvider(PromiseDarkColor.Accent.copy(alpha = 0.18f)),
             commitBadgeText = ColorProvider(PromiseDarkColor.Accent),
-            completedBtnBg = ColorProvider(PromiseDarkColor.Outline),
-            completedBtnText = ColorProvider(PromiseDarkColor.TextSecondary),
+            completedBtnBg = ColorProvider(Color(0xFF059669).copy(alpha = 0.25f)),
+            completedBtnText = ColorProvider(Color(0xFF34D399)),
+            pendingBtnBg = ColorProvider(PromiseDarkColor.PrimaryControl),
+            pendingBtnText = ColorProvider(PromiseDarkColor.OnPrimaryControl),
+            overdueBadgeBg = ColorProvider(Color(0xFFEF4444).copy(alpha = 0.25f)),
+            overdueBadgeText = ColorProvider(Color(0xFFFCA5A5)),
         )
     }
 }
@@ -165,16 +198,24 @@ private fun CompactCommitmentsWidgetContent(
     Column(
         modifier = GlanceModifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "COMMITMENTS",
-            style = TextStyle(
-                color = theme.accent,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-            ),
-        )
+        // Header with open action
+        Row(
+            modifier = GlanceModifier
+                .fillMaxWidth()
+                .clickable(openHomeAction()),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "📋 TASKS",
+                style = TextStyle(
+                    color = theme.accent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+        }
 
         Spacer(modifier = GlanceModifier.height(4.dp))
 
@@ -182,54 +223,59 @@ private fun CompactCommitmentsWidgetContent(
             Box(
                 modifier = GlanceModifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                    .defaultWeight()
                     .background(theme.surfaceMuted)
-                    .cornerRadius(12.dp),
+                    .cornerRadius(12.dp)
+                    .clickable(openHomeAction()),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = GlanceModifier.padding(8.dp),
+                    modifier = GlanceModifier.padding(6.dp),
                 ) {
                     Text(
                         text = "All clear! ✨",
                         style = TextStyle(
                             color = theme.textPrimary,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.Bold,
                         ),
                     )
                     Text(
-                        text = "No commitments due today",
+                        text = "Tap to open",
                         style = TextStyle(
                             color = theme.textSecondary,
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                         ),
                     )
                 }
             }
         } else {
+            // Progress Summary Box
             Box(
                 modifier = GlanceModifier
-                    .padding(2.dp)
+                    .fillMaxWidth()
                     .background(theme.surfaceMuted)
-                    .cornerRadius(50.dp),
+                    .cornerRadius(10.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .clickable(openHomeAction()),
                 contentAlignment = Alignment.Center,
             ) {
-                Column(
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = GlanceModifier.padding(horizontal = 14.dp, vertical = 6.dp),
                 ) {
                     Text(
-                        text = "$progressPercent%",
+                        text = "$progressPercent% Done",
                         style = TextStyle(
                             color = theme.textPrimary,
-                            fontSize = 18.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                         ),
                     )
+                    Spacer(modifier = GlanceModifier.width(4.dp))
                     Text(
-                        text = "$completedCount/$totalCount Done",
+                        text = "($completedCount/$totalCount)",
                         style = TextStyle(
                             color = theme.textSecondary,
                             fontSize = 10.sp,
@@ -240,25 +286,54 @@ private fun CompactCommitmentsWidgetContent(
 
             Spacer(modifier = GlanceModifier.height(4.dp))
 
-            val topPending = items.firstOrNull { !it.isCompleted } ?: items.firstOrNull()
-            if (topPending != null) {
-                Button(
-                    text = if (topPending.isCompleted) "DONE ✓" else "COMPLETE",
-                    onClick = actionRunCallback<ToggleCommitmentActionCallback>(
-                        actionParametersOf(
-                            ToggleCommitmentActionCallback.ITEM_ID_PARAM to topPending.id,
-                            ToggleCommitmentActionCallback.ACTION_TYPE_PARAM to "TOGGLE_COMPLETE",
-                        ),
-                    ),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = if (topPending.isCompleted) theme.completedBtnBg else theme.primaryControl,
-                        contentColor = if (topPending.isCompleted) theme.completedBtnText else theme.onPrimaryControl,
-                    ),
-                    modifier = GlanceModifier
-                        .fillMaxWidth()
-                        .height(32.dp)
-                        .cornerRadius(16.dp),
-                )
+            // Show top actionable items
+            val displayItems = items.take(2)
+            Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
+                displayItems.forEach { item ->
+                    Row(
+                        modifier = GlanceModifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .background(theme.surfaceRaised)
+                            .cornerRadius(8.dp)
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(
+                            modifier = GlanceModifier
+                                .defaultWeight()
+                                .clickable(openCommitmentAction(item.id)),
+                        ) {
+                            Text(
+                                text = item.title,
+                                style = TextStyle(
+                                    color = if (item.isCompleted) theme.textSecondary else theme.textPrimary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                                maxLines = 1,
+                            )
+                        }
+
+                        Button(
+                            text = if (item.isCompleted) "✓" else "+",
+                            onClick = actionRunCallback<ToggleCommitmentActionCallback>(
+                                actionParametersOf(
+                                    ToggleCommitmentActionCallback.ITEM_ID_PARAM to item.id,
+                                    ToggleCommitmentActionCallback.ACTION_TYPE_PARAM to "TOGGLE_COMPLETE",
+                                ),
+                            ),
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = if (item.isCompleted) theme.completedBtnBg else theme.pendingBtnBg,
+                                contentColor = if (item.isCompleted) theme.completedBtnText else theme.pendingBtnText,
+                            ),
+                            modifier = GlanceModifier
+                                .width(28.dp)
+                                .height(24.dp)
+                                .cornerRadius(6.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -269,32 +344,66 @@ private fun ExpandedCommitmentsWidgetContent(
     items: List<WidgetCommitmentItem>,
     completedCount: Int,
     totalCount: Int,
-    expandedItemId: String?,
     theme: CommitmentsThemeTokens,
 ) {
+    val progressPercent = if (totalCount > 0) ((completedCount.toFloat() / totalCount) * 100).toInt() else 0
+
     Column(
         modifier = GlanceModifier.fillMaxSize(),
     ) {
+        // Dynamic Header: Brand + Progress + Live Sync
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "COMMITMENTS",
-                style = TextStyle(
-                    color = theme.accent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
+            Row(
+                modifier = GlanceModifier.clickable(openHomeAction()),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "📋 COMMITMENTS",
+                    style = TextStyle(
+                        color = theme.accent,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                )
+            }
+
             Spacer(modifier = GlanceModifier.defaultWeight())
-            Text(
-                text = "$completedCount/$totalCount Done",
-                style = TextStyle(
-                    color = theme.textSecondary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
+
+            // Progress Tag
+            Box(
+                modifier = GlanceModifier
+                    .background(theme.surfaceMuted)
+                    .cornerRadius(8.dp)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clickable(openHomeAction()),
+            ) {
+                Text(
+                    text = "$progressPercent% ($completedCount/$totalCount)",
+                    style = TextStyle(
+                        color = theme.textPrimary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                )
+            }
+
+            Spacer(modifier = GlanceModifier.width(6.dp))
+
+            // Sync Button
+            Button(
+                text = "🔄",
+                onClick = actionRunCallback<RefreshWidgetActionCallback>(),
+                colors = ButtonDefaults.buttonColors(
+                    backgroundColor = theme.surfaceMuted,
+                    contentColor = theme.textPrimary,
                 ),
+                modifier = GlanceModifier
+                    .width(30.dp)
+                    .height(24.dp)
+                    .cornerRadius(8.dp),
             )
         }
 
@@ -307,7 +416,8 @@ private fun ExpandedCommitmentsWidgetContent(
                     .defaultWeight()
                     .background(theme.surfaceMuted)
                     .cornerRadius(14.dp)
-                    .padding(12.dp),
+                    .padding(12.dp)
+                    .clickable(openHomeAction()),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -316,88 +426,39 @@ private fun ExpandedCommitmentsWidgetContent(
                         style = TextStyle(
                             color = theme.textPrimary,
                             fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.Bold,
                         ),
                     )
-                    Spacer(modifier = GlanceModifier.height(4.dp))
+                    Spacer(modifier = GlanceModifier.height(2.dp))
                     Text(
-                        text = "Open Promise to add commitments",
+                        text = "Tap to open Promise & add commitments",
                         style = TextStyle(
                             color = theme.textSecondary,
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                         ),
                     )
                 }
             }
         } else {
-            val displayItems = items.take(3)
-            displayItems.forEach { item ->
-                val isExpanded = expandedItemId == item.id
+            // Scrollable LazyColumn containing all commitments
+            LazyColumn(
+                modifier = GlanceModifier.fillMaxSize(),
+            ) {
+                items(items) { item ->
+                    val isOverdue = item.subtitle.contains("Overdue", ignoreCase = true)
 
-                Column(
-                    modifier = GlanceModifier
-                        .fillMaxWidth()
-                        .padding(vertical = 3.dp)
-                        .background(if (isExpanded) theme.surfaceRaised else theme.surfaceMuted)
-                        .cornerRadius(12.dp)
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                ) {
                     Row(
                         modifier = GlanceModifier
                             .fillMaxWidth()
-                            .clickable(
-                                actionRunCallback<ToggleCommitmentActionCallback>(
-                                    actionParametersOf(
-                                        ToggleCommitmentActionCallback.ITEM_ID_PARAM to item.id,
-                                        ToggleCommitmentActionCallback.ACTION_TYPE_PARAM to "TOGGLE_EXPAND",
-                                    ),
-                                ),
-                            ),
+                            .padding(vertical = 3.dp)
+                            .background(theme.surfaceRaised)
+                            .cornerRadius(12.dp)
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            modifier = GlanceModifier
-                                .padding(end = 8.dp)
-                                .background(theme.commitBadgeBg)
-                                .cornerRadius(6.dp)
-                                .padding(horizontal = 5.dp, vertical = 2.dp),
-                        ) {
-                            Text(
-                                text = "COMMIT",
-                                style = TextStyle(
-                                    color = theme.commitBadgeText,
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                            )
-                        }
-
-                        Column(modifier = GlanceModifier.defaultWeight()) {
-                            Text(
-                                text = item.title,
-                                style = TextStyle(
-                                    color = if (item.isCompleted) theme.textSecondary else theme.textPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                ),
-                                maxLines = 1,
-                            )
-                            if (item.subtitle.isNotBlank()) {
-                                Text(
-                                    text = item.subtitle,
-                                    style = TextStyle(
-                                        color = theme.textSecondary,
-                                        fontSize = 9.sp,
-                                    ),
-                                    maxLines = 1,
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = GlanceModifier.width(6.dp))
-
+                        // 1-Tap Checkbox / Complete Button
                         Button(
-                            text = if (item.isCompleted) "DONE ✓" else "COMPLETE",
+                            text = if (item.isCompleted) "✓ DONE" else "COMPLETE",
                             onClick = actionRunCallback<ToggleCommitmentActionCallback>(
                                 actionParametersOf(
                                     ToggleCommitmentActionCallback.ITEM_ID_PARAM to item.id,
@@ -405,28 +466,72 @@ private fun ExpandedCommitmentsWidgetContent(
                                 ),
                             ),
                             colors = ButtonDefaults.buttonColors(
-                                backgroundColor = if (item.isCompleted) theme.completedBtnBg else theme.primaryControl,
-                                contentColor = if (item.isCompleted) theme.completedBtnText else theme.onPrimaryControl,
+                                backgroundColor = if (item.isCompleted) theme.completedBtnBg else theme.pendingBtnBg,
+                                contentColor = if (item.isCompleted) theme.completedBtnText else theme.pendingBtnText,
                             ),
                             modifier = GlanceModifier
-                                .height(26.dp)
-                                .cornerRadius(13.dp),
+                                .height(28.dp)
+                                .cornerRadius(14.dp),
                         )
-                    }
 
-                    if (isExpanded) {
-                        Spacer(modifier = GlanceModifier.height(4.dp))
-                        Row(
-                            modifier = GlanceModifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
+                        Spacer(modifier = GlanceModifier.width(8.dp))
+
+                        // Commitment Content Column: Tapping jumps directly to that Commitment in app
+                        Column(
+                            modifier = GlanceModifier
+                                .defaultWeight()
+                                .clickable(openCommitmentAction(item.id)),
                         ) {
                             Text(
-                                text = "Status: ${if (item.isCompleted) "Completed" else "Pending"} • ${item.dueTimeFormatted}",
+                                text = item.title,
                                 style = TextStyle(
-                                    color = theme.accent,
-                                    fontSize = 10.sp,
+                                    color = if (item.isCompleted) theme.textSecondary else theme.textPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
                                 ),
-                                modifier = GlanceModifier.defaultWeight(),
+                                maxLines = 1,
+                            )
+                            if (item.subtitle.isNotBlank()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (isOverdue) {
+                                        Text(
+                                            text = "⚠️ ${item.subtitle}",
+                                            style = TextStyle(
+                                                color = theme.overdueBadgeText,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                            ),
+                                            maxLines = 1,
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "⏰ ${item.subtitle}",
+                                            style = TextStyle(
+                                                color = theme.textSecondary,
+                                                fontSize = 9.sp,
+                                            ),
+                                            maxLines = 1,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = GlanceModifier.width(4.dp))
+
+                        // Quick Arrow to open in app
+                        Box(
+                            modifier = GlanceModifier
+                                .padding(4.dp)
+                                .clickable(openCommitmentAction(item.id)),
+                        ) {
+                            Text(
+                                text = "↗",
+                                style = TextStyle(
+                                    color = theme.textSecondary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                ),
                             )
                         }
                     }
@@ -435,3 +540,4 @@ private fun ExpandedCommitmentsWidgetContent(
         }
     }
 }
+

@@ -7,8 +7,24 @@ import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import app.promise.android.domain.HomeCommitment
 import app.promise.android.domain.HomePractice
+import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object PromiseWidgetUpdater {
+
+    private const val CACHE_PREFS_NAME = "promise_widget_cache"
+    private const val CACHED_DATA_KEY = "cached_widget_data_json"
+
+    fun getCachedWidgetData(context: Context): PromiseWidgetData {
+        return try {
+            val prefs = context.getSharedPreferences(CACHE_PREFS_NAME, Context.MODE_PRIVATE)
+            val json = prefs.getString(CACHED_DATA_KEY, null)
+            PromiseWidgetData.fromJson(json)
+        } catch (_: Throwable) {
+            PromiseWidgetData.emptyData()
+        }
+    }
 
     suspend fun updateWidget(
         context: Context,
@@ -54,6 +70,14 @@ object PromiseWidgetUpdater {
             lastUpdatedTimestamp = System.currentTimeMillis(),
         )
 
+        // Cache persistently in SharedPreferences for instant retrieval by newly added widgets
+        runCatching {
+            context.getSharedPreferences(CACHE_PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(CACHED_DATA_KEY, widgetData.toJson())
+                .apply()
+        }
+
         updateGlanceWidgetState(context, widgetData)
     }
 
@@ -63,23 +87,42 @@ object PromiseWidgetUpdater {
         // 1. Update Goals Widgets
         val goalsIds = glanceManager.getGlanceIds(GoalsGlanceWidget::class.java)
         for (glanceId in goalsIds) {
-            updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
-                val mutable = prefs.toMutablePreferences()
-                mutable[WIDGET_DATA_PREF_KEY] = widgetData.toJson()
-                mutable
+            runCatching {
+                updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+                    val mutable = prefs.toMutablePreferences()
+                    mutable[WIDGET_DATA_PREF_KEY] = widgetData.toJson()
+                    mutable
+                }
+                GoalsGlanceWidget().update(context, glanceId)
             }
-            GoalsGlanceWidget().update(context, glanceId)
         }
 
         // 2. Update Commitments Widgets
         val commitmentsIds = glanceManager.getGlanceIds(CommitmentsGlanceWidget::class.java)
         for (glanceId in commitmentsIds) {
-            updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
-                val mutable = prefs.toMutablePreferences()
-                mutable[WIDGET_DATA_PREF_KEY] = widgetData.toJson()
-                mutable
+            runCatching {
+                updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+                    val mutable = prefs.toMutablePreferences()
+                    mutable[WIDGET_DATA_PREF_KEY] = widgetData.toJson()
+                    mutable
+                }
+                CommitmentsGlanceWidget().update(context, glanceId)
             }
-            CommitmentsGlanceWidget().update(context, glanceId)
+        }
+    }
+
+    suspend fun fetchAndPushWidgetData(context: Context) {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val entryPoint = EntryPointAccessors.fromApplication(
+                    context.applicationContext,
+                    ToggleCommitmentActionCallback.WidgetEntryPoint::class.java,
+                )
+                val tz = java.util.TimeZone.getDefault().id.ifBlank { "UTC" }
+                val feed = entryPoint.homeRepository().loadFeed(tz)
+                updateWidget(context, feed.commitments, feed.practices)
+            }
         }
     }
 }
+

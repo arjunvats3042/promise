@@ -127,8 +127,6 @@ fun ProfileScreen(
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val unreadHistory by viewModel.unreadHistory.collectAsStateWithLifecycle()
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
-    val isSendingTest by viewModel.isSendingTest.collectAsStateWithLifecycle()
-    val testSuccessMessage by viewModel.testSuccessMessage.collectAsStateWithLifecycle()
 
     var showPhotoOptionsDialog by remember { mutableStateOf(false) }
     var showLogoutAllDialog by remember { mutableStateOf(false) }
@@ -174,17 +172,18 @@ fun ProfileScreen(
                     .statusBarsPadding()
                     .verticalScroll(scrollState)
                     .padding(horizontal = Spacing.inset)
-                    .padding(top = Spacing.lg, bottom = Spacing.xxl),
+                    .padding(top = Spacing.sm, bottom = Spacing.xxl),
             ) {
                 // Profile header card: Prominent avatar, greeting, editorial serif name, email, and change action
-                Column(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(Radius.lg))
-                        .background(colors.surfaceMuted)
-                        .padding(Spacing.md),
+                        .clip(RoundedCornerShape(Radius.xl))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.65f), RoundedCornerShape(Radius.xl)),
+                    color = colors.surfaceRaised,
                 ) {
                     Row(
+                        modifier = Modifier.padding(Spacing.cardPadding),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
@@ -205,11 +204,25 @@ fun ProfileScreen(
                             contentDescription = "Profile photo. Tap to choose from gallery",
                         )
                         Column(modifier = Modifier.weight(1f)) {
-                            PromiseGreetingText(text = greeting)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(Radius.pill))
+                                    .background(colors.accent.copy(alpha = 0.12f))
+                                    .padding(horizontal = Spacing.sm, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    text = greeting.uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.accent,
+                                    letterSpacing = 0.8.sp,
+                                )
+                            }
                             Spacer(modifier = Modifier.height(Spacing.xxs))
                             Text(
                                 text = name,
-                                style = MaterialTheme.typography.displayLarge,
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Bold,
                                 color = colors.textPrimary,
                             )
                             Spacer(modifier = Modifier.height(Spacing.xxs))
@@ -220,7 +233,7 @@ fun ProfileScreen(
                             )
                             Spacer(modifier = Modifier.height(Spacing.xs))
                             Text(
-                                text = "Choose profile picture",
+                                text = "Change photo",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = colors.accent,
@@ -245,9 +258,6 @@ fun ProfileScreen(
                     onUpdate = { patch -> viewModel.updatePreferences(patch) },
                     onOpenNotification = { item -> viewModel.openNotification(item) },
                     onMarkAllRead = { viewModel.markAllNotificationsRead() },
-                    onSendTest = { viewModel.sendTestNotification() },
-                    isSendingTest = isSendingTest,
-                    testSuccessMessage = testSuccessMessage,
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.section))
@@ -260,15 +270,17 @@ fun ProfileScreen(
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
 
-                Column(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(Radius.lg))
-                        .background(colors.surfaceMuted)
-                        .padding(Spacing.md),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.lg)),
+                    color = colors.surfaceRaised,
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.cardPadding),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -276,6 +288,7 @@ fun ProfileScreen(
                             Text(
                                 text = "Google Account",
                                 style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
                                 color = colors.textPrimary,
                             )
                             Spacer(modifier = Modifier.height(2.dp))
@@ -290,45 +303,134 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.section))
 
-                // Home Screen Widget Section
+                // Home Screen Widgets Section
                 val context = LocalContext.current
                 Text(
-                    text = "Home Screen Widget",
+                    text = "Home Screen Widgets",
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Text(
+                    text = "Glance widgets for instant glanceable momentum & check-ins",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
 
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(Radius.lg))
-                        .background(colors.surfaceMuted)
-                        .padding(Spacing.md),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                    // Widget 1: Daily Goals & Habits
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Radius.lg))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.lg)),
+                        color = colors.surfaceRaised,
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Interactive Glance Widget",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = colors.textPrimary,
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "One-tap habit check-in & progress ring",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary,
-                            )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.cardPadding),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                ) {
+                                    Text(
+                                        text = "🎯 Daily Goals & Habits",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colors.textPrimary,
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(Radius.pill))
+                                            .background(colors.accent.copy(alpha = 0.12f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    ) {
+                                        Text(
+                                            text = "Goals",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = colors.accent,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Habit streaks, completion ring & 1-tap check-in",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary,
+                                )
+                            }
+                            if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
+                                TextButton(
+                                    onClick = { PromiseGlanceWidgetPinHelper.requestPinGoalsWidget(context) },
+                                ) {
+                                    Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
                         }
-                        if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
-                            TextButton(
-                                onClick = { PromiseGlanceWidgetPinHelper.requestPinWidget(context) },
-                            ) {
-                                Text("Add to Home", color = colors.accent)
+                    }
+
+                    // Widget 2: Commitments & Schedule
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Radius.lg))
+                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.lg)),
+                        color = colors.surfaceRaised,
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.cardPadding),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                ) {
+                                    Text(
+                                        text = "📋 Commitments & Tasks",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colors.textPrimary,
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(Radius.pill))
+                                            .background(colors.surfaceMuted)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    ) {
+                                        Text(
+                                            text = "Tasks",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = colors.textSecondary,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Due dates, overdue alerts & quick completion",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary,
+                                )
+                            }
+                            if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
+                                TextButton(
+                                    onClick = { PromiseGlanceWidgetPinHelper.requestPinCommitmentsWidget(context) },
+                                ) {
+                                    Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
+                                }
                             }
                         }
                     }
@@ -355,63 +457,68 @@ fun ProfileScreen(
                 }
                 Spacer(modifier = Modifier.height(Spacing.sm))
 
-                Column(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(Radius.lg))
-                        .background(colors.surfaceMuted)
-                        .padding(Spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.lg)),
+                    color = colors.surfaceRaised,
                 ) {
-                    if (sessions.isEmpty()) {
-                        Text(
-                            text = "No active sessions found",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.textSecondary,
-                        )
-                    } else {
-                        sessions.forEachIndexed { index, session ->
-                            if (index > 0) {
-                                PromiseHairlineDivider()
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = session.deviceName,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = colors.textPrimary,
-                                        )
-                                        if (session.isCurrent) {
-                                            Spacer(modifier = Modifier.width(Spacing.xs))
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(Radius.sm))
-                                                    .background(colors.accent.copy(alpha = 0.15f))
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                                            ) {
-                                                Text(
-                                                    text = "This device",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = colors.accent,
-                                                    fontWeight = FontWeight.Medium,
-                                                )
+                    Column(
+                        modifier = Modifier.padding(Spacing.cardPadding),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        if (sessions.isEmpty()) {
+                            Text(
+                                text = "No active sessions found",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                            )
+                        } else {
+                            sessions.forEachIndexed { index, session ->
+                                if (index > 0) {
+                                    PromiseHairlineDivider()
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = session.deviceName,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = colors.textPrimary,
+                                            )
+                                            if (session.isCurrent) {
+                                                Spacer(modifier = Modifier.width(Spacing.xs))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(Radius.pill))
+                                                        .background(colors.accent.copy(alpha = 0.15f))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                ) {
+                                                    Text(
+                                                        text = "This device",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = colors.accent,
+                                                        fontWeight = FontWeight.Medium,
+                                                    )
+                                                }
                                             }
                                         }
+                                        Text(
+                                            text = "Platform: ${session.platform.replaceFirstChar { it.uppercase() }}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = colors.textSecondary,
+                                        )
                                     }
-                                    Text(
-                                        text = "Platform: ${session.platform.replaceFirstChar { it.uppercase() }}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = colors.textSecondary,
-                                    )
-                                }
-                                if (!session.isCurrent) {
-                                    TextButton(onClick = { sessionToRevoke = session }) {
-                                        Text("Sign out", color = MaterialTheme.colorScheme.error)
+                                    if (!session.isCurrent) {
+                                        TextButton(onClick = { sessionToRevoke = session }) {
+                                            Text("Sign out", color = MaterialTheme.colorScheme.error)
+                                        }
                                     }
                                 }
                             }
@@ -421,7 +528,7 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.section))
 
-                // Help & FAQ Section (Concise 10 Items with 48dp touch targets)
+                // Help & FAQ Section
                 Text(
                     text = "Help & FAQ",
                     style = MaterialTheme.typography.titleLarge,
@@ -429,26 +536,30 @@ fun ProfileScreen(
                 )
                 Spacer(modifier = Modifier.height(Spacing.sm))
 
-                Column(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(Radius.lg))
-                        .background(colors.surfaceMuted)
-                        .padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.lg)),
+                    color = colors.surfaceRaised,
                 ) {
-                    PROMISE_FAQS.forEachIndexed { index, item ->
-                        if (index > 0) {
-                            Spacer(modifier = Modifier.height(Spacing.xs))
-                            PromiseHairlineDivider()
-                            Spacer(modifier = Modifier.height(Spacing.xs))
+                    Column(
+                        modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+                    ) {
+                        PROMISE_FAQS.forEachIndexed { index, item ->
+                            if (index > 0) {
+                                Spacer(modifier = Modifier.height(Spacing.xs))
+                                PromiseHairlineDivider()
+                                Spacer(modifier = Modifier.height(Spacing.xs))
+                            }
+                            FaqAccordionRow(
+                                item = item,
+                                expanded = expandedFaqIndex == index,
+                                onToggle = {
+                                    expandedFaqIndex = if (expandedFaqIndex == index) null else index
+                                },
+                            )
                         }
-                        FaqAccordionRow(
-                            item = item,
-                            expanded = expandedFaqIndex == index,
-                            onToggle = {
-                                expandedFaqIndex = if (expandedFaqIndex == index) null else index
-                            },
-                        )
                     }
                 }
 
@@ -465,18 +576,20 @@ fun ProfileScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = TouchTarget.min)
-                        .clip(RoundedCornerShape(Radius.md))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), RoundedCornerShape(Radius.md))
-                        .background(colors.surfaceMuted),
+                        .clip(RoundedCornerShape(Radius.pill))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.pill))
+                        .background(colors.surfaceMuted)
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     ThemeSegment(
-                        label = "Light",
+                        label = "☀️ Light",
                         selected = mode == PromiseThemeMode.Light,
                         onSelect = { viewModel.setMode(PromiseThemeMode.Light) },
                         modifier = Modifier.weight(1f),
                     )
                     ThemeSegment(
-                        label = "Dark",
+                        label = "🌙 Dark",
                         selected = mode == PromiseThemeMode.Dark,
                         onSelect = { viewModel.setMode(PromiseThemeMode.Dark) },
                         modifier = Modifier.weight(1f),

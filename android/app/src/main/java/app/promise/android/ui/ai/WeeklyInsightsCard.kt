@@ -90,34 +90,63 @@ fun WeeklyInsightsCard(
             Surface(
                 modifier = modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.md))
-                    .border(1.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(Radius.md))
+                    .clip(RoundedCornerShape(Radius.lg))
+                    .border(1.dp, colors.accent.copy(alpha = 0.28f), RoundedCornerShape(Radius.lg))
                     .semantics(mergeDescendants = true) {
                         contentDescription = accessibilityText
                     },
-                color = colors.surfaceMuted,
+                color = colors.surfaceRaised,
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+                    modifier = Modifier.padding(Spacing.cardPadding),
                 ) {
                     // Header
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.AutoAwesome,
-                            contentDescription = null,
-                            tint = colors.accent,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(
-                            text = "WEEKLY INSIGHTS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.accent,
-                            letterSpacing = 1.2.sp,
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(RoundedCornerShape(Radius.sm))
+                                    .background(colors.accent.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(15.dp),
+                                )
+                            }
+                            Text(
+                                text = "WEEKLY INSIGHTS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.accent,
+                                letterSpacing = 1.2.sp,
+                            )
+                        }
+                        if (facts.totalCommitments > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(Radius.pill))
+                                    .background(colors.accent.copy(alpha = 0.12f))
+                                    .padding(horizontal = Spacing.sm, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    text = "$ratePercent% DONE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.accent,
+                                )
+                            }
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(Spacing.md))
@@ -125,91 +154,73 @@ fun WeeklyInsightsCard(
                     // 1. Top Metrics Row
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                     ) {
-                        // Completion Rate
-                        Column(modifier = Modifier.weight(1.2f)) {
-                            Text(
-                                text = if (facts.totalCommitments > 0) "$ratePercent%" else "—",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (ratePercent >= 70) colors.success else colors.textPrimary,
-                            )
-                            Spacer(modifier = Modifier.height(Spacing.xxs))
-                            Text(
-                                text = if (facts.totalCommitments > 0) "Completion (${facts.completedCommitments}/${facts.totalCommitments})" else "No commitments",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.textSecondary,
-                            )
+                        // Metric 1: Completion
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            color = colors.surfaceMuted,
+                            shape = RoundedCornerShape(Radius.md),
+                        ) {
+                            Column(modifier = Modifier.padding(Spacing.sm)) {
+                                Text(
+                                    text = if (facts.totalCommitments > 0) "$ratePercent%" else "—",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (ratePercent >= 70) colors.success else colors.textPrimary,
+                                )
+                                Text(
+                                    text = "Completed",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textSecondary,
+                                )
+                            }
                         }
 
-                        // Check-ins
-                        Column(modifier = Modifier.weight(0.9f)) {
-                            Text(
-                                text = "${facts.checkInsPast7Days}",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.textPrimary,
-                            )
-                            Spacer(modifier = Modifier.height(Spacing.xxs))
-                            Text(
-                                text = "Check-ins",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.textSecondary,
-                            )
+                        // Metric 2: Check-ins
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            color = colors.surfaceMuted,
+                            shape = RoundedCornerShape(Radius.md),
+                        ) {
+                            Column(modifier = Modifier.padding(Spacing.sm)) {
+                                Text(
+                                    text = "${facts.checkInsPast7Days}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textPrimary,
+                                )
+                                Text(
+                                    text = "Check-ins",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textSecondary,
+                                )
+                            }
                         }
 
-                        // Active Goals
-                        Column(modifier = Modifier.weight(0.9f)) {
-                            Text(
-                                text = "${facts.activeGoalsCount}",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.textPrimary,
-                            )
-                            Spacer(modifier = Modifier.height(Spacing.xxs))
-                            Text(
-                                text = "Goals",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.textSecondary,
-                            )
+                        // Metric 3: Active Goals
+                        Surface(
+                            modifier = Modifier.weight(1f),
+                            color = colors.surfaceMuted,
+                            shape = RoundedCornerShape(Radius.md),
+                        ) {
+                            Column(modifier = Modifier.padding(Spacing.sm)) {
+                                Text(
+                                    text = "${facts.activeGoalsCount}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textPrimary,
+                                )
+                                Text(
+                                    text = "Active Goals",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.textSecondary,
+                                )
+                            }
                         }
                     }
 
-                    // 2. Time-of-Day Distribution Bars (if completions exist)
-                    val maxCompletions = maxOf(
-                        facts.morningCompletions,
-                        facts.afternoonCompletions,
-                        facts.eveningCompletions,
-                        1,
-                    )
-
-                    Spacer(modifier = Modifier.height(Spacing.md))
-                    PromiseHairlineDivider()
-                    Spacer(modifier = Modifier.height(Spacing.sm))
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        TimeOfDayBar(
-                            label = "Morning",
-                            count = facts.morningCompletions,
-                            maxCount = maxCompletions,
-                        )
-                        TimeOfDayBar(
-                            label = "Afternoon",
-                            count = facts.afternoonCompletions,
-                            maxCount = maxCompletions,
-                        )
-                        TimeOfDayBar(
-                            label = "Evening",
-                            count = facts.eveningCompletions,
-                            maxCount = maxCompletions,
-                        )
-                    }
-
-                    // 3. AI / Factual Insight Summary
+                    // 2. AI / Factual Insight Summary
                     if (content.summary.isNotBlank()) {
                         Spacer(modifier = Modifier.height(Spacing.md))
                         PromiseHairlineDivider()
@@ -232,53 +243,6 @@ fun WeeklyInsightsCard(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun TimeOfDayBar(
-    label: String,
-    count: Int,
-    maxCount: Int,
-) {
-    val colors = PromiseThemeColors.current
-    val fraction = (count.toFloat() / maxCount.toFloat()).coerceIn(0f, 1f)
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = colors.textSecondary,
-            modifier = Modifier.width(72.dp),
-        )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(colors.surfaceRaised),
-        ) {
-            if (count > 0) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(fraction)
-                        .height(6.dp)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(colors.accent),
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(Spacing.sm))
-        Text(
-            text = "$count",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            color = if (count > 0) colors.textPrimary else colors.textSecondary.copy(alpha = 0.6f),
-            modifier = Modifier.width(20.dp),
-        )
     }
 }
 
@@ -339,30 +303,22 @@ private fun WeeklyInsightsSkeleton(
             PromiseHairlineDivider()
             Spacer(modifier = Modifier.height(Spacing.sm))
 
-            // Bars skeleton
-            repeat(3) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(60.dp)
-                            .height(10.dp)
-                            .clip(RoundedCornerShape(Radius.sm))
-                            .background(colors.surfaceRaised.copy(alpha = 0.5f)),
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.sm))
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(colors.surfaceRaised.copy(alpha = 0.4f)),
-                    )
-                }
-                Spacer(modifier = Modifier.height(Spacing.xs))
-            }
+            // Summary text skeleton
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(Radius.sm))
+                    .background(colors.surfaceRaised.copy(alpha = 0.5f)),
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(Radius.sm))
+                    .background(colors.surfaceRaised.copy(alpha = 0.4f)),
+            )
         }
     }
 }

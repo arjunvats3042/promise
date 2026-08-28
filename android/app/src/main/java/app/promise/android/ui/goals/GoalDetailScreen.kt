@@ -353,11 +353,29 @@ private fun DetailContent(
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = Spacing.inset),
+            .padding(horizontal = Spacing.screenHorizontal),
     ) {
-        TextButton(onClick = onBack) {
-            Text("Back", style = MaterialTheme.typography.labelLarge, color = colors.textSecondary)
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Radius.pill))
+                    .background(colors.surfaceMuted)
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+            ) {
+                Text(
+                    text = "← Back",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                )
+            }
         }
+        Spacer(modifier = Modifier.height(Spacing.md))
         AnimatedContent(
             targetState = goal.status,
             transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -365,16 +383,18 @@ private fun DetailContent(
         ) { status ->
             PromiseMicroLabel(
                 text = GoalPresentation.statusLabel(status),
-                color = colors.textSecondary,
+                color = colors.accent,
             )
         }
         Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
             text = goal.title,
-            style = MaterialTheme.typography.displayLarge,
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
             color = colors.textPrimary,
         )
         Spacer(modifier = Modifier.height(Spacing.xs))
+
         Text(
             text = detailMeta(goal),
             style = MaterialTheme.typography.bodyMedium,

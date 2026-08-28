@@ -56,6 +56,9 @@ class GoalsListViewModel @Inject constructor(
     private val _state = MutableStateFlow<LoadState<GoalsListUi>>(LoadState.Loading)
     val state: StateFlow<LoadState<GoalsListUi>> = _state.asStateFlow()
 
+    private val _selectedFilter = MutableStateFlow(GoalListFilter.ACTIVE)
+    val selectedFilter: StateFlow<GoalListFilter> = _selectedFilter.asStateFlow()
+
     private val _createAction = MutableStateFlow<ActionState>(ActionState.Idle)
     val createAction: StateFlow<ActionState> = _createAction.asStateFlow()
 
@@ -99,9 +102,13 @@ class GoalsListViewModel @Inject constructor(
     }
 
     fun selectFilter(value: GoalListFilter) {
-        if (filter == value && _state.value is LoadState.Ready) return
+        if (_selectedFilter.value == value && _state.value is LoadState.Ready) return
+        _selectedFilter.value = value
         filter = value
-        refresh(fromPull = false)
+        viewModelScope.launch {
+            _state.value = LoadState.Loading
+            loadPage(page = 1, replace = true)
+        }
     }
 
     fun refresh(fromPull: Boolean = false) {

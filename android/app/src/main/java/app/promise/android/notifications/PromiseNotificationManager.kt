@@ -4,8 +4,11 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.RemoteInput
 import app.promise.android.MainActivity
 import app.promise.android.R
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -41,7 +44,7 @@ class PromiseNotificationManagerImpl @Inject constructor(
             reminderToNotificationId[data.reminderId] = notificationId
         }
         if (data.entityId.isNotEmpty()) {
-            entityToNotificationId["${data.entityType}:${data.entityId}"] = notificationId
+            entityToNotificationId["${data.entityType.uppercase()}:${data.entityId}"] = notificationId
         }
 
         val contentIntent = PendingIntent.getActivity(
@@ -54,26 +57,65 @@ class PromiseNotificationManagerImpl @Inject constructor(
         )
 
         val groupKey = when {
-            data.eventType == "goal.chat.message_created" -> GROUP_CHAT
+            data.eventType == "goal.chat.message_created" || data.channelId == NotificationChannels.CHANNEL_COMMUNITY -> GROUP_CHAT
             data.entityType == "GOAL" -> GROUP_GOALS
             data.entityType == "DIGEST" || data.eventType == "digest.weekly" -> GROUP_DIGEST
             data.entityType == "SECURITY" || data.entityType == "SYSTEM" -> GROUP_SYSTEM
             else -> GROUP_COMMITMENTS
         }
 
+        val subText = when (data.entityType) {
+            "GOAL" -> if (data.streakCount > 0) "Daily Practice · 🔥 ${data.streakCount}d streak" else "Daily Habit"
+            "COMMITMENT" -> "Zero-Overdue Tracker"
+            "DIGEST" -> "Gemini AI Digest"
+            "SECURITY" -> "Account Security"
+            else -> "Promise"
+        }
+
+        val isUrgent = data.priority == "high" || data.eventType == "commitment.due_now"
+
         val builder = NotificationCompat.Builder(context, data.channelId)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setColor(0xFF4F46E5.toInt()) // Promise Indigo accent
             .setContentTitle(data.title)
             .setContentText(data.body)
+            .setSubText(subText)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .setGroup(groupKey)
+            .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(true)
             .setPriority(
-                if (data.priority == "high") NotificationCompat.PRIORITY_HIGH
+                if (isUrgent) NotificationCompat.PRIORITY_HIGH
                 else NotificationCompat.PRIORITY_DEFAULT
             )
+            .setCategory(
+                when {
+                    isUrgent -> NotificationCompat.CATEGORY_ALARM
+                    data.eventType == "goal.chat.message_created" -> NotificationCompat.CATEGORY_MESSAGE
+                    data.entityType == "GOAL" -> NotificationCompat.CATEGORY_REMINDER
+                    else -> NotificationCompat.CATEGORY_REMINDER
+                }
+            )
 
-        // Attach action buttons based on entity and event type
+        // Enrich with BigTextStyle formatted body
+        val bigText = when {
+            data.eventType == "goal.chat.message_created" -> data.body
+            data.entityType == "GOAL" && data.streakCount > 0 -> "${data.body}\n🔥 Keep your ${data.streakCount}-day streak alive! Tap Check In below."
+            data.eventType == "commitment.due_now" -> "🚨 Due right now: ${data.body}\nComplete it to maintain your zero-overdue status."
+            data.eventType == "commitment.overdue" -> "⚠️ Overdue: ${data.body}\nAction required. Tap Complete or Snooze."
+            else -> data.body
+        }
+
+        builder.setStyle(
+            NotificationCompat.BigTextStyle()
+                .setBigContentTitle(data.title)
+                .setSummaryText(subText)
+                .bigText(bigText)
+        )
+
+        // Attach rich interactive action buttons based on entity and event type
         when (data.entityType) {
             "COMMITMENT" -> {
                 val completeIntent = PendingIntent.getBroadcast(
@@ -99,11 +141,39 @@ class PromiseNotificationManagerImpl @Inject constructor(
                     },
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
                 )
-                builder.addAction(0, "Complete", completeIntent)
-                builder.addAction(0, "Snooze 1h", snoozeIntent)
+                builder.addAction(0, "✓ Complete", completeIntent)
+                builder.addAction(0, "⏰ Snooze 1h", snoozeIntent)
             }
             "GOAL" -> {
-                if (data.eventType != "goal.chat.message_created" && !data.eventType.startsWith("goal.participant.")) {
+                if (data.eventType == "goal.chat.message_created") {
+                    // Direct Reply Action with RemoteInput
+                    val remoteInput = RemoteInput.Builder(NotificationActionReceiver.KEY_TEXT_REPLY)
+                        .setLabel("Type a quick reply...")
+                        .build()
+
+                    val replyIntent = PendingIntent.getBroadcast(
+                        context,
+                        notificationId * 10 + 4,
+                        Intent(context, NotificationActionReceiver::class.java).apply {
+                            action = NotificationActionReceiver.ACTION_REPLY_CHAT
+                            putExtra(NotificationActionReceiver.EXTRA_ENTITY_ID, data.entityId)
+                            putExtra(NotificationActionReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+                        },
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                        } else {
+                            PendingIntent.FLAG_UPDATE_CURRENT
+                        },
+                    )
+
+                    val replyAction = NotificationCompat.Action.Builder(
+                        0,
+                        "💬 Reply",
+                        replyIntent,
+                    ).addRemoteInput(remoteInput).build()
+
+                    builder.addAction(replyAction)
+                } else if (!data.eventType.startsWith("goal.participant.")) {
                     val checkInIntent = PendingIntent.getBroadcast(
                         context,
                         notificationId * 10 + 3,
@@ -115,44 +185,15 @@ class PromiseNotificationManagerImpl @Inject constructor(
                         },
                         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
                     )
-                    builder.addAction(0, "Check in", checkInIntent)
+                    builder.addAction(0, "✓ Check In", checkInIntent)
                 }
+            }
+            "DIGEST" -> {
+                builder.addAction(0, "✨ View AI Insights", contentIntent)
             }
         }
 
         notificationManager.notify(notificationId, builder.build())
-        postGroupSummary(groupKey, data.channelId)
-    }
-
-    private fun postGroupSummary(groupKey: String, channelId: String) {
-        val (summaryId, summaryTitle) = when (groupKey) {
-            GROUP_CHAT -> SUMMARY_ID_CHAT to "Group Chat"
-            GROUP_GOALS -> SUMMARY_ID_GOALS to "Practice Reminders"
-            GROUP_DIGEST -> SUMMARY_ID_DIGEST to "Weekly Digest"
-            GROUP_SYSTEM -> SUMMARY_ID_SYSTEM to "Account & Security"
-            else -> SUMMARY_ID_COMMITMENTS to "Commitments"
-        }
-
-        val summaryIntent = PendingIntent.getActivity(
-            context,
-            summaryId,
-            Intent(Intent.ACTION_VIEW, Uri.parse("promise://home"), context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-
-        val summaryNotification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(summaryTitle)
-            .setContentText("Promise notifications")
-            .setGroup(groupKey)
-            .setGroupSummary(true)
-            .setAutoCancel(true)
-            .setContentIntent(summaryIntent)
-            .build()
-
-        notificationManager.notify(summaryId, summaryNotification)
     }
 
     override fun update(data: PromiseNotificationData) {
@@ -171,10 +212,9 @@ class PromiseNotificationManagerImpl @Inject constructor(
     }
 
     override fun cancelByEntity(entityType: String, entityId: String) {
-        val notificationId = entityToNotificationId.remove("${entityType.uppercase()}:$entityId")
-        if (notificationId != null) {
-            notificationManager.cancel(notificationId)
-        }
+        val key = "${entityType.uppercase()}:$entityId"
+        val notificationId = entityToNotificationId.remove(key) ?: PromiseNotificationData.computeNotificationId(key)
+        notificationManager.cancel(notificationId)
     }
 
     companion object {
@@ -183,11 +223,6 @@ class PromiseNotificationManagerImpl @Inject constructor(
         const val GROUP_CHAT = "app.promise.CHAT"
         const val GROUP_DIGEST = "app.promise.DIGEST"
         const val GROUP_SYSTEM = "app.promise.SYSTEM"
-
-        const val SUMMARY_ID_COMMITMENTS = 10001
-        const val SUMMARY_ID_GOALS = 10002
-        const val SUMMARY_ID_CHAT = 10003
-        const val SUMMARY_ID_DIGEST = 10004
-        const val SUMMARY_ID_SYSTEM = 10005
     }
 }
+

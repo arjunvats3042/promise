@@ -192,6 +192,14 @@ class GeminiProvider(AIProvider):
 
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
+    STABLE_FALLBACK_MODELS = [
+        "gemini-3.7-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-flash-8b",
+    ]
+
     def __init__(
         self,
         api_keys: Optional[List[str]] = None,
@@ -210,9 +218,9 @@ class GeminiProvider(AIProvider):
 
         self.default_model = (
             default_model
-            or getattr(settings, "GEMINI_DEFAULT_MODEL", "gemini-3.5-flash")
+            or getattr(settings, "GEMINI_DEFAULT_MODEL", "gemini-3.7-flash")
         )
-        self.timeout = timeout or getattr(settings, "GEMINI_TIMEOUT_SECONDS", 15)
+        self.timeout = timeout or getattr(settings, "GEMINI_TIMEOUT_SECONDS", 12)
         self.max_output_tokens = (
             max_output_tokens
             or getattr(settings, "GEMINI_MAX_OUTPUT_TOKENS", 1024)
@@ -288,78 +296,113 @@ class GeminiProvider(AIProvider):
             )
             raise AiUnavailableError("AI provider is not configured.")
 
+        # Build candidate models starting with requested model, then stable backups
+        model_candidates = [model]
+        for m in self.STABLE_FALLBACK_MODELS:
+            if m not in model_candidates:
+                model_candidates.append(m)
+
         last_exception = None
         start_time = time.time()
 
-        for attempt, candidate in enumerate(candidates, start=1):
-            key_index = candidate.key_index
-            try:
-                result = self._invoke_api(
-                    api_key=candidate.api_key,
-                    prompt=prompt,
-                    system_prompt=system_prompt,
-                    model=model,
-                    response_mime_type=response_mime_type,
-                    response_schema=response_schema,
-                )
-                duration_ms = int((time.time() - start_time) * 1000)
-                self._scheduler.record_success(key_index)
+        for current_model in model_candidates:
+            model_unsupported = False
+            for attempt, candidate in enumerate(candidates, start=1):
+                key_index = candidate.key_index
+                try:
+                    result = self._invoke_api(
+                        api_key=candidate.api_key,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        model=current_model,
+                        response_mime_type=response_mime_type,
+                        response_schema=response_schema,
+                    )
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    self._scheduler.record_success(key_index)
 
-                record_ai_metric(
-                    feature=feature,
-                    model=model,
-                    prompt_version="1.0",
-                    latency_ms=duration_ms,
-                    success=True,
-                    fallback_key_index=key_index,
-                )
-                return result
+                    record_ai_metric(
+                        feature=feature,
+                        model=current_model,
+                        prompt_version="1.0",
+                        latency_ms=duration_ms,
+                        success=True,
+                        fallback_key_index=key_index,
+                    )
+                    return result
 
-            except (AiBadRequestError, AiRefusalError) as non_retryable:
-                # Permanent non-retryable user/prompt error - fail-fast without burning remaining keys
-                duration_ms = int((time.time() - start_time) * 1000)
-                category = "refusal" if isinstance(non_retryable, AiRefusalError) else "bad_request"
-                record_ai_metric(
-                    feature=feature,
-                    model=model,
-                    prompt_version="1.0",
-                    latency_ms=duration_ms,
-                    success=False,
-                    failure_category=category,
-                    fallback_key_index=key_index,
-                )
-                raise
+                except AiRefusalError as refusal_err:
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    record_ai_metric(
+                        feature=feature,
+                        model=current_model,
+                        prompt_version="1.0",
+                        latency_ms=duration_ms,
+                        success=False,
+                        failure_category="refusal",
+                        fallback_key_index=key_index,
+                    )
+                    raise refusal_err
 
-            except Exception as exc:
-                category = self._classify_failure(exc)
-                force_cooldown = False
-                err_str = str(exc).lower()
-                if "rate limit" in err_str or "429" in err_str or "quota" in err_str or "unauthorized" in err_str or "invalid" in err_str:
-                    force_cooldown = True
+                except AiBadRequestError as bad_req_err:
+                    err_msg = str(bad_req_err).lower()
+                    if "not found" in err_msg or "not supported" in err_msg or "model" in err_msg:
+                        # Model name issue -> move on to next fallback model immediately
+                        model_unsupported = True
+                        last_exception = bad_req_err
+                        break
+                    # User request validation issue -> fail fast
+                    duration_ms = int((time.time() - start_time) * 1000)
+                    record_ai_metric(
+                        feature=feature,
+                        model=current_model,
+                        prompt_version="1.0",
+                        latency_ms=duration_ms,
+                        success=False,
+                        failure_category="bad_request",
+                        fallback_key_index=key_index,
+                    )
+                    raise bad_req_err
 
-                self._scheduler.record_failure(
-                    key_index=key_index,
-                    is_transient=True,
-                    force_cooldown=force_cooldown,
-                )
+                except Exception as exc:
+                    err_str = str(exc).lower()
+                    if "not found" in err_str or "not supported" in err_str or "unsupported" in err_str:
+                        model_unsupported = True
+                        last_exception = exc
+                        break
 
-                logger.warning(
-                    f"Gemini API key {key_index} (attempt {attempt}/{len(candidates)}) failed: {category}",
-                    extra={
-                        "provider": "gemini",
-                        "model": model,
-                        "key_index": key_index,
-                        "attempt": attempt,
-                        "failure_category": category,
-                    },
-                )
-                last_exception = exc
-                # Try next candidate key in rotation
+                    category = self._classify_failure(exc)
+                    force_cooldown = False
+                    if "rate limit" in err_str or "429" in err_str or "quota" in err_str or "unauthorized" in err_str or "invalid" in err_str:
+                        force_cooldown = True
 
-        # All candidate keys failed
+                    self._scheduler.record_failure(
+                        key_index=key_index,
+                        is_transient=True,
+                        force_cooldown=force_cooldown,
+                    )
+
+                    logger.warning(
+                        f"Gemini API key {key_index} (model {current_model}, attempt {attempt}/{len(candidates)}) failed: {category}",
+                        extra={
+                            "provider": "gemini",
+                            "model": current_model,
+                            "key_index": key_index,
+                            "attempt": attempt,
+                            "failure_category": category,
+                        },
+                    )
+                    last_exception = exc
+                    # Try next key in rotation for this model
+
+            if model_unsupported:
+                logger.info(f"Model {current_model} unsupported/unavailable; attempting fallback model")
+                continue
+
+        # All candidate models and keys failed
         duration_ms = int((time.time() - start_time) * 1000)
         logger.error(
-            f"All {len(candidates)} Gemini API keys failed",
+            f"All Gemini models and {len(candidates)} API keys failed",
             extra={"provider": "gemini", "model": model, "failure_category": "all_keys_exhausted"},
         )
         record_ai_metric(
@@ -428,8 +471,11 @@ class GeminiProvider(AIProvider):
             err_body = http_err.read().decode("utf-8", errors="replace")
             err_body_lower = err_body.lower()
 
-            # 1. Key-specific authorization / invalid key failure (401, 403, or API key invalid in body)
-            # This is a key-specific error -> retryable on the next key in rotation.
+            # 1. Model not found or unsupported -> retry with fallback model
+            if status_code in (400, 404) and ("not found" in err_body_lower or "not supported" in err_body_lower or "is not found for api version" in err_body_lower):
+                raise AiUnavailableError(f"Gemini model '{model}' not found or unsupported: {status_code}") from http_err
+
+            # 2. Key-specific authorization / invalid key failure (401, 403, or API key invalid in body)
             is_key_auth_error = (
                 status_code in (401, 403)
                 or "api_key" in err_body_lower
@@ -441,16 +487,15 @@ class GeminiProvider(AIProvider):
             if is_key_auth_error:
                 raise AiUnavailableError(f"Gemini API key invalid or unauthorized: {status_code}") from http_err
 
-            # 2. Malformed request / validation failure (400, 422)
-            # Permanent request error -> fail-fast immediately (AiBadRequestError), NOT retryable across keys.
+            # 3. Malformed request / validation failure (400, 422)
             elif status_code in (400, 422):
                 raise AiBadRequestError(f"AI request validation failed: {status_code}") from http_err
 
-            # 3. Rate limiting / Quota (429) -> retryable transient error
+            # 4. Rate limiting / Quota (429) -> retryable transient error
             elif status_code == 429:
                 raise AiUnavailableError("AI rate limit / quota exceeded: 429") from http_err
 
-            # 4. Server errors (500, 502, 503, 504) -> retryable transient error
+            # 5. Server errors (500, 502, 503, 504) -> retryable transient error
             elif status_code in (500, 502, 503, 504):
                 raise AiUnavailableError(f"AI provider server error: {status_code}") from http_err
 

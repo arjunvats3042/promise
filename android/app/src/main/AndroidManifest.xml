@@ -50,14 +50,6 @@
             android:exported="false" />
 
         <receiver
-            android:name=".notifications.TestNotificationReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="app.promise.android.ACTION_TEST_NOTIFICATION" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
             android:name=".widget.GoalsGlanceWidgetReceiver"
             android:exported="true"
             android:label="@string/widget_goals_label">

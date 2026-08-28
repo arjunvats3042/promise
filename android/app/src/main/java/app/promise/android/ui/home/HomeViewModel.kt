@@ -202,7 +202,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 homeRepository.completeCommitment(id)
-                haptics.confirm()
+                haptics.celebrate()
                 homeFreshness.markDirty()
                 loadMutex.withLock { loadFeed() }
                 appEventBus.emit(AppMutationEvent.CommitmentCompleted(id))
@@ -219,7 +219,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 homeRepository.checkInPractice(id, input)
-                haptics.confirm()
+                haptics.celebrate()
                 homeFreshness.markDirty()
                 loadMutex.withLock { loadFeed() }
                 appEventBus.emit(AppMutationEvent.GoalCheckedIn(id))

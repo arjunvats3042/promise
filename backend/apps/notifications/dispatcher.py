@@ -242,14 +242,17 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                     cancelled += 1
                     continue
             if reminder.event_type == "commitment.due_now":
-                title = "Due now"
+                title = "🚨 Due Right Now"
                 channel_id = "channel_commitment_alerts"
                 priority = "high"
             elif reminder.event_type == "commitment.overdue":
-                title = "Unfinished commitment"
+                title = "⚠️ Action Needed (Overdue)"
+                channel_id = "channel_commitment_reminders"
+            elif reminder.event_type == "commitment.snooze_expired":
+                title = "⏰ Snooze Expired"
                 channel_id = "channel_commitment_reminders"
             else:
-                title = "Due soon"
+                title = "⏰ Due Soon"
                 channel_id = "channel_commitment_reminders"
             body = commitment.title
             deep_link = f"promise://commitment/{commitment.id}"
@@ -292,23 +295,28 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                     suppressed += 1
                     continue
 
-                title = goal.title
+                channel_id = "channel_community"
+                title = f"💬 {goal.title}"
                 body = f"{sender_name}: {msg.body}"
                 deep_link = f"promise://goal/{goal.id}/chat"
             elif reminder.event_type == "goal.participant.joined":
-                title = goal.title
-                body = "A participant joined your shared goal."
+                channel_id = "channel_community"
+                title = f"👥 {goal.title}"
+                body = "A new participant joined your shared goal."
                 deep_link = f"promise://goal/{goal.id}"
             elif reminder.event_type == "goal.participant.left":
-                title = goal.title
+                channel_id = "channel_community"
+                title = f"👥 {goal.title}"
                 body = "A participant left your shared goal."
                 deep_link = f"promise://goal/{goal.id}"
             elif reminder.event_type == "goal.participant.removed":
-                title = goal.title
+                channel_id = "channel_community"
+                title = f"👥 {goal.title}"
                 body = f"You were removed from {goal.title}."
                 deep_link = "promise://home"
             elif reminder.event_type == "goal.ownership_transferred":
-                title = goal.title
+                channel_id = "channel_community"
+                title = f"👑 {goal.title}"
                 body = f"You are now the owner of {goal.title}."
                 deep_link = f"promise://goal/{goal.id}"
             else:
@@ -317,13 +325,17 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                         cancel_reminders_for_entity(Reminder.EntityType.GOAL, reminder.entity_id, "ALREADY_CHECKED_IN")
                         cancelled += 1
                         continue
-                title = "Practice check-in" if "streak" in reminder.event_type else "Today’s practice"
-                body = goal.title
+                if "streak" in reminder.event_type:
+                    title = "🔥 Protect Your Streak"
+                    body = f"Complete your daily habit for {goal.title}"
+                else:
+                    title = "🎯 Today’s Focus"
+                    body = f"Time for your daily practice: {goal.title}"
                 deep_link = f"promise://goal/{goal.id}"
 
         elif reminder.entity_type == Reminder.EntityType.DIGEST:
             channel_id = "channel_system"
-            title = "Your Promise week"
+            title = "✨ Your Weekly AI Digest"
             from apps.notifications.services import calculate_weekly_digest_summary
             from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
             try:
@@ -345,15 +357,15 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
             channel_id = "channel_system"
             priority = "high"
             if reminder.event_type == "security.new_device_login":
-                title = "New device login"
+                title = "🔒 New Device Login"
                 body = "A new device logged into your Promise account."
             else:
-                title = "Security alert"
+                title = "🔒 Security Alert"
                 body = "An important security event occurred on your account."
             deep_link = "promise://profile"
 
         else:
-            title = "Promise Reminder"
+            title = "🔔 Promise Reminder"
             body = "You have an active promise item."
             deep_link = "promise://home"
             channel_id = "channel_system"

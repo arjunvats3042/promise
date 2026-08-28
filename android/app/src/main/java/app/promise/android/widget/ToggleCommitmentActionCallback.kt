@@ -1,10 +1,14 @@
 package app.promise.android.widget
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import app.promise.android.core.events.AppEventBus
@@ -21,6 +25,36 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 val WIDGET_DATA_PREF_KEY = stringPreferencesKey("promise_widget_data_json")
+
+fun openGoalAction(goalId: String) = actionStartActivity(
+    Intent(Intent.ACTION_VIEW, Uri.parse("promise://goal/$goalId")).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    },
+)
+
+fun openCommitmentAction(commitmentId: String) = actionStartActivity(
+    Intent(Intent.ACTION_VIEW, Uri.parse("promise://commitment/$commitmentId")).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    },
+)
+
+fun openHomeAction() = actionStartActivity(
+    Intent(Intent.ACTION_VIEW, Uri.parse("promise://home")).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    },
+)
+
+class RefreshWidgetActionCallback : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters,
+    ) {
+        withContext(Dispatchers.IO) {
+            PromiseWidgetUpdater.fetchAndPushWidgetData(context)
+        }
+    }
+}
 
 class ToggleCommitmentActionCallback : ActionCallback {
 
@@ -59,12 +93,16 @@ class ToggleCommitmentActionCallback : ActionCallback {
                     return@updateAppWidgetState mutable
                 }
 
+                val targetCompleted = targetItem?.isCompleted ?: false
+                val newCompletedState = !targetCompleted
+
                 if (targetItem != null) {
                     if (targetItem.type == WidgetItemType.GOAL) {
                         runCatching {
+                            val status = if (newCompletedState) GoalCheckInStatus.COMPLETED else GoalCheckInStatus.SKIPPED
                             entryPoint.homeRepository().checkInPractice(
                                 id = itemId,
-                                input = CheckInInput(status = GoalCheckInStatus.COMPLETED),
+                                input = CheckInInput(status = status),
                             )
                         }
                         entryPoint.appEventBus().emit(AppMutationEvent.GoalCheckedIn(itemId))
@@ -78,7 +116,7 @@ class ToggleCommitmentActionCallback : ActionCallback {
 
                 val updatedItems = currentData.items.map { item ->
                     if (item.id == itemId) {
-                        item.copy(isCompleted = !item.isCompleted)
+                        item.copy(isCompleted = newCompletedState)
                     } else {
                         item
                     }
@@ -101,6 +139,9 @@ class ToggleCommitmentActionCallback : ActionCallback {
 
             runCatching { GoalsGlanceWidget().update(context, glanceId) }
             runCatching { CommitmentsGlanceWidget().update(context, glanceId) }
+
+            // Sync fresh feed in background
+            runCatching { PromiseWidgetUpdater.fetchAndPushWidgetData(context) }
         }
     }
 

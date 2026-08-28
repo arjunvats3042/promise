@@ -53,9 +53,9 @@ All Gemini configuration is managed strictly on the backend:
 | `GEMINI_API_KEY_1` | Yes | — | Primary Google Gemini API Key |
 | `GEMINI_API_KEY_2` | No | `""` | Secondary round-robin / fallback key |
 | `GEMINI_API_KEY_3` | No | `""` | Tertiary round-robin / fallback key |
-| `GEMINI_DEFAULT_MODEL`| No | `gemini-3.5-flash` | Standard reasoning model |
-| `GEMINI_FAST_MODEL` | No | `gemini-3.5-flash-lite` | Low-latency parsing model |
-| `GEMINI_TIMEOUT_SECONDS`| No | `15` | Request timeout ceiling |
+| `GEMINI_DEFAULT_MODEL`| No | `gemini-3.7-flash` | Standard reasoning model |
+| `GEMINI_FAST_MODEL` | No | `gemini-3.7-flash` | Low-latency parsing model |
+| `GEMINI_TIMEOUT_SECONDS`| No | `12` | Request timeout ceiling |
 | `GEMINI_MAX_OUTPUT_TOKENS`| No | `1024` | Maximum tokens per response |
 
 > [!CAUTION]

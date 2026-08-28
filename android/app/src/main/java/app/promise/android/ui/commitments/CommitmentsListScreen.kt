@@ -3,6 +3,7 @@ package app.promise.android.ui.commitments
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -34,6 +35,7 @@ import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -65,6 +67,7 @@ import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
+import app.promise.android.ui.theme.pressScale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +76,7 @@ fun CommitmentsListScreen(
     viewModel: CommitmentsListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
     val createAction by viewModel.createAction.collectAsStateWithLifecycle()
     var showCreate by remember { mutableStateOf(false) }
     var showRefiner by remember { mutableStateOf(false) }
@@ -83,13 +87,16 @@ fun CommitmentsListScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showCreate = true },
-                containerColor = colors.accent,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                containerColor = colors.primaryControl,
+                contentColor = colors.onPrimaryControl,
+                shape = RoundedCornerShape(Radius.button),
                 elevation = FloatingActionButtonDefaults.elevation(
                     defaultElevation = 0.dp,
                     pressedElevation = 0.dp,
                 ),
-                modifier = Modifier.semantics { contentDescription = "New commitment" },
+                modifier = Modifier
+                    .semantics { contentDescription = "New commitment" }
+                    .pressScale(0.92f),
             ) {
                 Icon(Icons.Outlined.Add, contentDescription = null)
             }
@@ -108,7 +115,7 @@ fun CommitmentsListScreen(
                 modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.sm),
             )
             FilterChipsRow(
-                selected = (state as? LoadState.Ready)?.value?.filter ?: CommitmentListFilter.OPEN,
+                selected = selectedFilter,
                 onSelect = viewModel::selectFilter,
             )
             when (val s = state) {
@@ -158,11 +165,13 @@ fun CommitmentsListScreen(
                                     ),
                                 ) {
                                     items(s.value.items, key = { it.id }) { item ->
-                                        CommitmentRow(
-                                            commitment = item,
-                                            timeZoneId = s.value.timeZoneId,
-                                            onClick = { onOpenDetail(item.id) },
-                                        )
+                                        Box(modifier = Modifier.animateItem()) {
+                                            CommitmentRow(
+                                                commitment = item,
+                                                timeZoneId = s.value.timeZoneId,
+                                                onClick = { onOpenDetail(item.id) },
+                                            )
+                                        }
                                     }
                                     item { Spacer(modifier = Modifier.height(88.dp)) }
                                 }
@@ -222,24 +231,35 @@ private fun FilterChipsRow(
     onSelect: (CommitmentListFilter) -> Unit,
 ) {
     val colors = PromiseThemeColors.current
+    val visibleFilters = listOf(
+        CommitmentListFilter.OPEN,
+        CommitmentListFilter.OVERDUE,
+        CommitmentListFilter.DONE,
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.inset),
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = Spacing.screenHorizontal),
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        CommitmentListFilter.entries.forEach { filter ->
+        visibleFilters.forEach { filter ->
             val isSelected = filter == selected
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(Radius.sm))
-                    .background(if (isSelected) colors.surfaceMuted else MaterialTheme.colorScheme.background)
+                    .clip(RoundedCornerShape(Radius.pill))
+                    .background(if (isSelected) colors.accent.copy(alpha = 0.12f) else colors.surfaceMuted)
+                    .border(
+                        1.dp,
+                        if (isSelected) colors.accent.copy(alpha = 0.35f) else androidx.compose.ui.graphics.Color.Transparent,
+                        RoundedCornerShape(Radius.pill),
+                    )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
+                        indication = androidx.compose.material3.ripple(color = colors.accent),
                         onClick = { onSelect(filter) },
                     )
-                    .padding(horizontal = Spacing.md, vertical = Spacing.xs)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs + 2.dp)
                     .semantics {
                         role = Role.Tab
                         this.selected = isSelected
@@ -248,14 +268,14 @@ private fun FilterChipsRow(
             ) {
                 Text(
                     text = filter.label(),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (isSelected) colors.textPrimary else colors.textSecondary,
+                    color = if (isSelected) colors.accent else colors.textSecondary,
                 )
             }
         }
     }
-    Spacer(modifier = Modifier.height(Spacing.xs))
+    Spacer(modifier = Modifier.height(Spacing.sm))
 }
 
 @Composable
@@ -268,40 +288,49 @@ fun CommitmentRow(
     val statusText = if (commitment.isOverdue) "Overdue" else "Due"
     val commitmentDesc = "${commitment.title}, $statusText · ${commitment.metaLine(timeZoneId)}"
 
-    Column(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(vertical = Spacing.xs)
+            .clip(RoundedCornerShape(Radius.lg))
+            .border(
+                1.dp,
+                if (commitment.isOverdue && commitment.status != app.promise.android.domain.CommitmentStatus.COMPLETED) colors.warning.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                RoundedCornerShape(Radius.lg),
+            )
             .clickable(onClick = onClick)
-            .padding(vertical = Spacing.md)
             .semantics(mergeDescendants = true) {
                 contentDescription = commitmentDesc
             },
+        color = if (commitment.isOverdue && commitment.status != app.promise.android.domain.CommitmentStatus.COMPLETED) colors.warning.copy(alpha = 0.04f) else colors.surfaceRaised,
     ) {
-        Text(
-            text = commitment.title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.textPrimary,
-        )
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (commitment.isOverdue) {
-                Box(
-                    modifier = Modifier
-                        .size(Spacing.statusMark)
-                        .clip(CircleShape)
-                        .background(colors.warning),
-                )
-                Spacer(modifier = Modifier.width(Spacing.xs))
-            }
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
+        ) {
             Text(
-                text = commitment.metaLine(timeZoneId),
-                style = MaterialTheme.typography.bodySmall,
-                color = if (commitment.isOverdue) colors.warning else colors.textSecondary,
+                text = commitment.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.textPrimary,
             )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (commitment.isOverdue) {
+                    Box(
+                        modifier = Modifier
+                            .size(Spacing.statusMark)
+                            .clip(CircleShape)
+                            .background(colors.warning),
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.xs))
+                }
+                Text(
+                    text = commitment.metaLine(timeZoneId),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (commitment.isOverdue) colors.warning else colors.textSecondary,
+                )
+            }
         }
-        Spacer(modifier = Modifier.height(Spacing.md))
-        app.promise.android.ui.components.PromiseHairlineDivider()
     }
 }
 
@@ -310,39 +339,22 @@ private fun EmptyCommitments(
     filter: CommitmentListFilter,
     onCreate: () -> Unit,
 ) {
-    val colors = PromiseThemeColors.current
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(Spacing.inset),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = filter.emptyTitle(),
-            style = MaterialTheme.typography.bodyLarge,
-            color = colors.textPrimary,
-        )
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Text(
-            text = filter.emptyBody(),
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textSecondary,
-        )
-        if (filter == CommitmentListFilter.OPEN || filter == CommitmentListFilter.TODAY) {
-            Spacer(modifier = Modifier.height(Spacing.md))
-            TextButton(onClick = onCreate) {
-                Text("New commitment", color = colors.accent)
-            }
-        }
-    }
+    app.promise.android.ui.components.PromiseEmptyState(
+        title = filter.emptyTitle(),
+        description = filter.emptyBody(),
+        actionLabel = if (filter == CommitmentListFilter.OPEN || filter == CommitmentListFilter.TODAY) "Create Commitment" else null,
+        onActionClick = if (filter == CommitmentListFilter.OPEN || filter == CommitmentListFilter.TODAY) onCreate else null,
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
+
 private fun CommitmentListFilter.label(): String = when (this) {
-    CommitmentListFilter.OPEN -> "Open"
+    CommitmentListFilter.OPEN -> "All Open"
     CommitmentListFilter.OVERDUE -> "Overdue"
     CommitmentListFilter.TODAY -> "Today"
     CommitmentListFilter.UPCOMING -> "Upcoming"
-    CommitmentListFilter.DONE -> "Done"
+    CommitmentListFilter.DONE -> "Completed"
 }
 
 private fun CommitmentListFilter.emptyTitle(): String = when (this) {

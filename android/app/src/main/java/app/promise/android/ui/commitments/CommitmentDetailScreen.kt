@@ -1,6 +1,7 @@
 package app.promise.android.ui.commitments
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -172,18 +174,33 @@ private fun DetailContent(
             .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = Spacing.inset),
+            .padding(horizontal = Spacing.screenHorizontal),
     ) {
-        TextButton(
-            onClick = onBack,
-            modifier = Modifier.heightIn(min = TouchTarget.min),
+        Spacer(modifier = Modifier.height(Spacing.sm))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Back", style = MaterialTheme.typography.labelLarge, color = colors.textSecondary)
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(Radius.pill))
+                    .background(colors.surfaceMuted)
+                    .clickable(onClick = onBack)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+            ) {
+                Text(
+                    text = "← Back",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textPrimary,
+                )
+            }
         }
-        Spacer(modifier = Modifier.height(Spacing.xs))
+        Spacer(modifier = Modifier.height(Spacing.md))
         Text(
             text = commitment.title,
-            style = MaterialTheme.typography.displayLarge,
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Bold,
             color = colors.textPrimary,
         )
         Spacer(modifier = Modifier.height(Spacing.md))
@@ -228,7 +245,7 @@ private fun DetailContent(
         Spacer(modifier = Modifier.height(Spacing.xl))
         if (commitment.canComplete) {
             app.promise.android.ui.components.PromisePrimaryButton(
-                text = if (busy) "Working…" else "Complete",
+                text = if (busy) "Working…" else "Complete Commitment",
                 onClick = onComplete,
                 enabled = !busy,
                 modifier = Modifier.semantics { contentDescription = "Complete commitment" },

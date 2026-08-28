@@ -74,6 +74,7 @@ import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
+import app.promise.android.ui.theme.pressScale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,6 +83,7 @@ fun GoalsListScreen(
     viewModel: GoalsListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val selectedFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
     val createAction by viewModel.createAction.collectAsStateWithLifecycle()
     val inviteAction by viewModel.inviteAction.collectAsStateWithLifecycle()
     var showCreate by remember { mutableStateOf(false) }
@@ -90,132 +92,151 @@ fun GoalsListScreen(
     val colors = PromiseThemeColors.current
     val inviteBusy = inviteAction is ActionState.InFlight
 
+    var showCelebration by remember { mutableStateOf(false) }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showCreate = true },
-                containerColor = colors.accent,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                containerColor = colors.primaryControl,
+                contentColor = colors.onPrimaryControl,
+                shape = RoundedCornerShape(Radius.button),
                 elevation = FloatingActionButtonDefaults.elevation(
                     defaultElevation = 0.dp,
                     pressedElevation = 0.dp,
                 ),
-                modifier = Modifier.semantics { contentDescription = "New goal" },
+                modifier = Modifier
+                    .semantics { contentDescription = "New goal" }
+                    .pressScale(0.92f),
             ) {
                 Icon(Icons.Outlined.Add, contentDescription = null)
             }
         },
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .statusBarsPadding(),
+                .padding(padding),
         ) {
-            Text(
-                text = "Goals",
-                style = MaterialTheme.typography.displaySmall,
-                color = colors.textPrimary,
-                modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.sm),
-            )
-            FilterChipsRow(
-                selected = (state as? LoadState.Ready)?.value?.filter ?: GoalListFilter.ACTIVE,
-                onSelect = viewModel::selectFilter,
-            )
-            when (val s = state) {
-                is LoadState.Loading -> {
-                    app.promise.android.ui.components.PromiseListSkeleton(itemCount = 4)
-                }
-                is LoadState.Error -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(Spacing.inset),
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Text(s.kind.toUserMessage(), color = colors.textPrimary)
-                        if (s.canRetry) {
-                            TextButton(onClick = viewModel::refresh) {
-                                Text("Try again", color = colors.accent)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding(),
+            ) {
+                Text(
+                    text = "Goals",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = colors.textPrimary,
+                    modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.sm),
+                )
+                FilterChipsRow(
+                    selected = selectedFilter,
+                    onSelect = viewModel::selectFilter,
+                )
+                when (val s = state) {
+                    is LoadState.Loading -> {
+                        app.promise.android.ui.components.PromiseListSkeleton(itemCount = 4)
+                    }
+                    is LoadState.Error -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(Spacing.inset),
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            Text(s.kind.toUserMessage(), color = colors.textPrimary)
+                            if (s.canRetry) {
+                                TextButton(onClick = viewModel::refresh) {
+                                    Text("Try again", color = colors.accent)
+                                }
                             }
                         }
                     }
-                }
-                is LoadState.Ready -> {
-                    val swipeHost = LocalTabSwipeHost.current
-                    TabSwipeContainer(
-                        currentIndex = swipeHost?.currentIndex ?: 2,
-                        tabCount = swipeHost?.tabCount ?: 4,
-                        enabled = swipeHost?.enabled == true,
-                        modalBlocking = showCreate || checkInGoal != null,
-                        onSwipe = { direction -> swipeHost?.onSwipe(direction) },
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        PullToRefreshBox(
-                            isRefreshing = s.isRefreshing,
-                            onRefresh = { viewModel.refresh(fromPull = true) },
+                    is LoadState.Ready -> {
+                        val swipeHost = LocalTabSwipeHost.current
+                        TabSwipeContainer(
+                            currentIndex = swipeHost?.currentIndex ?: 2,
+                            tabCount = swipeHost?.tabCount ?: 4,
+                            enabled = swipeHost?.enabled == true,
+                            modalBlocking = showCreate || checkInGoal != null,
+                            onSwipe = { direction -> swipeHost?.onSwipe(direction) },
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            if (s.value.items.isEmpty()) {
-                                EmptyGoals(
-                                    filter = s.value.filter,
-                                    onCreate = { showCreate = true },
-                                )
-                            } else {
-                                LazyColumn(
-                                    contentPadding = PaddingValues(
-                                        horizontal = Spacing.inset,
-                                        vertical = Spacing.sm,
-                                    ),
-                                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
-                                ) {
-                                    items(
-                                        s.value.items,
-                                        key = { item ->
-                                            when (item) {
-                                                is GoalListItem.Membership -> item.goal.id
-                                                is GoalListItem.Invite -> item.preview.id
+                            PullToRefreshBox(
+                                isRefreshing = s.isRefreshing,
+                                onRefresh = { viewModel.refresh(fromPull = true) },
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                if (s.value.items.isEmpty()) {
+                                    EmptyGoals(
+                                        filter = s.value.filter,
+                                        onCreate = { showCreate = true },
+                                    )
+                                } else {
+                                    LazyColumn(
+                                        contentPadding = PaddingValues(
+                                            horizontal = Spacing.inset,
+                                            vertical = Spacing.sm,
+                                        ),
+                                        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                                    ) {
+                                        items(
+                                            s.value.items,
+                                            key = { item ->
+                                                when (item) {
+                                                    is GoalListItem.Membership -> item.goal.id
+                                                    is GoalListItem.Invite -> item.preview.id
+                                                }
+                                            },
+                                        ) { item ->
+                                            Box(modifier = Modifier.animateItem()) {
+                                                when (item) {
+                                                    is GoalListItem.Membership -> GoalRow(
+                                                        goal = item.goal,
+                                                        onClick = { onOpenDetail(item.goal.id) },
+                                                        onCheckIn = {
+                                                            showCelebration = true
+                                                            if (item.goal.trackingKind == GoalTrackingKind.BINARY) {
+                                                                viewModel.quickCheckIn(
+                                                                    item.goal.id,
+                                                                    CheckInInput(status = GoalCheckInStatus.COMPLETED),
+                                                                )
+                                                            } else {
+                                                                checkInGoal = item.goal
+                                                            }
+                                                        },
+                                                    )
+                                                    is GoalListItem.Invite -> InvitePreviewRow(
+                                                        preview = item.preview,
+                                                        busy = inviteBusy,
+                                                        onAccept = { viewModel.acceptInvite(item.preview.id) },
+                                                        onDecline = { viewModel.declineInvite(item.preview.id) },
+                                                        onOpenDetail = { onOpenDetail(item.preview.id) },
+                                                    )
+                                                }
                                             }
-                                        },
-                                    ) { item ->
-                                        when (item) {
-                                            is GoalListItem.Membership -> GoalRow(
-                                                goal = item.goal,
-                                                onClick = { onOpenDetail(item.goal.id) },
-                                                onCheckIn = {
-                                                    if (item.goal.trackingKind == GoalTrackingKind.BINARY) {
-                                                        viewModel.quickCheckIn(
-                                                            item.goal.id,
-                                                            CheckInInput(status = GoalCheckInStatus.COMPLETED),
-                                                        )
-                                                    } else {
-                                                        checkInGoal = item.goal
-                                                    }
-                                                },
-                                            )
-                                            is GoalListItem.Invite -> InvitePreviewRow(
-                                                preview = item.preview,
-                                                busy = inviteBusy,
-                                                onAccept = { viewModel.acceptInvite(item.preview.id) },
-                                                onDecline = { viewModel.declineInvite(item.preview.id) },
-                                                onOpenDetail = { onOpenDetail(item.preview.id) },
-                                            )
                                         }
-                                    }
-                                    item {
-                                        LaunchedEffect(s.value.items.size) {
-                                            viewModel.loadMore()
+                                        item {
+                                            LaunchedEffect(s.value.items.size) {
+                                                viewModel.loadMore()
+                                            }
+                                            Spacer(modifier = Modifier.height(88.dp))
                                         }
-                                        Spacer(modifier = Modifier.height(88.dp))
                                     }
                                 }
                             }
                         }
                     }
+                    else -> Unit
                 }
-                else -> Unit
             }
+
+            app.promise.android.ui.components.PromiseCelebrationBurst(
+                trigger = showCelebration,
+                onFinished = { showCelebration = false },
+                modifier = Modifier.fillMaxSize(),
+            )
         }
     }
 
@@ -276,21 +297,26 @@ private fun FilterChipsRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.inset),
+            .padding(horizontal = Spacing.screenHorizontal),
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         GoalListFilter.entries.forEach { filter ->
             val isSelected = filter == selected
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(Radius.sm))
-                    .background(if (isSelected) colors.surfaceMuted else MaterialTheme.colorScheme.background)
+                    .clip(RoundedCornerShape(Radius.pill))
+                    .background(if (isSelected) colors.accent.copy(alpha = 0.12f) else colors.surfaceMuted)
+                    .border(
+                        1.dp,
+                        if (isSelected) colors.accent.copy(alpha = 0.35f) else Color.Transparent,
+                        RoundedCornerShape(Radius.pill),
+                    )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
+                        indication = androidx.compose.material3.ripple(color = colors.accent),
                         onClick = { onSelect(filter) },
                     )
-                    .padding(horizontal = Spacing.md, vertical = Spacing.xs)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.xs + 2.dp)
                     .semantics {
                         role = Role.Tab
                         this.selected = isSelected
@@ -299,15 +325,16 @@ private fun FilterChipsRow(
             ) {
                 Text(
                     text = filter.label(),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (isSelected) colors.textPrimary else colors.textSecondary,
+                    color = if (isSelected) colors.accent else colors.textSecondary,
                 )
             }
         }
     }
-    Spacer(modifier = Modifier.height(Spacing.xs))
+    Spacer(modifier = Modifier.height(Spacing.sm))
 }
+
 
 @Composable
 fun GoalRow(
@@ -536,32 +563,15 @@ private fun EmptyGoals(
     filter: GoalListFilter,
     onCreate: () -> Unit,
 ) {
-    val colors = PromiseThemeColors.current
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(Spacing.inset),
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            text = filter.emptyTitle(),
-            style = MaterialTheme.typography.bodyLarge,
-            color = colors.textPrimary,
-        )
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Text(
-            text = filter.emptyBody(),
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textSecondary,
-        )
-        if (filter == GoalListFilter.ACTIVE) {
-            Spacer(modifier = Modifier.height(Spacing.md))
-            TextButton(onClick = onCreate) {
-                Text("New goal", color = colors.accent)
-            }
-        }
-    }
+    app.promise.android.ui.components.PromiseEmptyState(
+        title = filter.emptyTitle(),
+        description = filter.emptyBody(),
+        actionLabel = if (filter == GoalListFilter.ACTIVE) "Create Goal" else null,
+        onActionClick = if (filter == GoalListFilter.ACTIVE) onCreate else null,
+        modifier = Modifier.fillMaxSize(),
+    )
 }
+
 
 private fun goalMetaLine(goal: Goal): String {
     val parts = mutableListOf(GoalPresentation.recurrenceLabel(goal))
