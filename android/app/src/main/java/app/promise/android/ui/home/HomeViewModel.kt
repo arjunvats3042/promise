@@ -71,7 +71,7 @@ data class HomeUiModel(
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
+    @param:dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
     private val homeRepository: HomeRepository,
     private val authSession: AuthSession,
     private val homeFreshness: HomeFreshness,
