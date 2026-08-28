@@ -49,19 +49,13 @@ class HomeRepositoryImpl @Inject constructor(
         val commitmentsError = commitmentsResult.exceptionOrNull()?.toHomeError()
         val practicesError = goalsResult.exceptionOrNull()?.toHomeError()
 
-        if (commitmentsError != null && practicesError != null) {
-            throw (commitmentsResult.exceptionOrNull() ?: goalsResult.exceptionOrNull())!!
-                .let { if (it is ApiException) it else it.toApiException() }
-        }
-
-        val goalItems = goalsResult.getOrNull().orEmpty()
+        val commitments = commitmentsResult.getOrDefault(emptyList())
+        val goalItems = goalsResult.getOrDefault(emptyList())
         val goals = goalItems.mapNotNull { (it as? GoalListItem.Membership)?.goal }
         val pendingInvites = goalItems.mapNotNull { (it as? GoalListItem.Invite)?.preview }
 
         HomeFeed(
-            commitments = commitmentsResult.getOrNull()
-                ?.let { HomeFeedMapper.commitmentsForHome(it, timeZoneId) }
-                .orEmpty(),
+            commitments = HomeFeedMapper.commitmentsForHome(commitments, timeZoneId),
             practices = HomeFeedMapper.practicesForHome(goals),
             pendingInvites = pendingInvites,
             commitmentsError = commitmentsError,

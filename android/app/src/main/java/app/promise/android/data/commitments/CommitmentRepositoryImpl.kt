@@ -27,6 +27,7 @@ class CommitmentRepositoryImpl @Inject constructor(
     private val commitmentDao: CommitmentDao,
     private val outboxDao: OutboxDao,
     private val syncManager: SyncManager,
+    private val networkMonitor: app.promise.android.core.NetworkMonitor,
 ) : CommitmentRepository {
 
     override suspend fun list(
@@ -35,6 +36,22 @@ class CommitmentRepositoryImpl @Inject constructor(
         timeZoneId: String,
         pageSize: Int,
     ): CommitmentPage {
+        if (!networkMonitor.isOnline.value) {
+            val localEntities = when (filter) {
+                CommitmentListFilter.DONE -> commitmentDao.observeCompleted().firstOrNull().orEmpty()
+                else -> commitmentDao.observeOpen().firstOrNull().orEmpty()
+            }
+            val domainItems = localEntities.map { it.toDomain() }
+            val filtered = when (filter) {
+                CommitmentListFilter.OPEN -> domainItems
+                CommitmentListFilter.OVERDUE -> domainItems.filter { it.isOverdue }
+                CommitmentListFilter.TODAY, CommitmentListFilter.UPCOMING -> {
+                    CommitmentListBucketing.filterClientSide(filter, domainItems, timeZoneId)
+                }
+                CommitmentListFilter.DONE -> domainItems
+            }
+            return CommitmentPage(items = filtered, nextPage = null)
+        }
         return try {
             when (filter) {
                 CommitmentListFilter.OPEN -> {
@@ -65,25 +82,28 @@ class CommitmentRepositoryImpl @Inject constructor(
                     )
                     CommitmentPage(items = filtered, nextPage = null)
                 }
-                CommitmentListFilter.DONE -> listDoneMerged(page)
+                CommitmentListFilter.DONE -> {
+                    val remote = listDoneMerged(page)
+                    commitmentDao.upsertAll(remote.items.map { it.toEntity(isSynced = true) })
+                    remote
+                }
             }
         } catch (t: Throwable) {
             // Offline fallback: load from local Room DB
-            val localEntities = commitmentDao.observeOpen().firstOrNull().orEmpty()
-            if (localEntities.isNotEmpty()) {
-                val domainItems = localEntities.map { it.toDomain() }
-                val filtered = when (filter) {
-                    CommitmentListFilter.OPEN -> domainItems
-                    CommitmentListFilter.OVERDUE -> domainItems.filter { it.isOverdue }
-                    CommitmentListFilter.TODAY, CommitmentListFilter.UPCOMING -> {
-                        CommitmentListBucketing.filterClientSide(filter, domainItems, timeZoneId)
-                    }
-                    CommitmentListFilter.DONE -> domainItems.filter { it.status == CommitmentStatus.COMPLETED }
-                }
-                CommitmentPage(items = filtered, nextPage = null)
-            } else {
-                throw t.toApiException()
+            val localEntities = when (filter) {
+                CommitmentListFilter.DONE -> commitmentDao.observeCompleted().firstOrNull().orEmpty()
+                else -> commitmentDao.observeOpen().firstOrNull().orEmpty()
             }
+            val domainItems = localEntities.map { it.toDomain() }
+            val filtered = when (filter) {
+                CommitmentListFilter.OPEN -> domainItems
+                CommitmentListFilter.OVERDUE -> domainItems.filter { it.isOverdue }
+                CommitmentListFilter.TODAY, CommitmentListFilter.UPCOMING -> {
+                    CommitmentListBucketing.filterClientSide(filter, domainItems, timeZoneId)
+                }
+                CommitmentListFilter.DONE -> domainItems
+            }
+            CommitmentPage(items = filtered, nextPage = null)
         }
     }
 
@@ -141,6 +161,10 @@ class CommitmentRepositoryImpl @Inject constructor(
 
         syncManager.enqueueSync()
 
+        if (!networkMonitor.isOnline.value) {
+            return optimisticCommitment
+        }
+
         return try {
             val remote = api.create(
                 CreateCommitmentRequest(
@@ -175,6 +199,25 @@ class CommitmentRepositoryImpl @Inject constructor(
         )
 
         syncManager.enqueueSync()
+
+        if (!networkMonitor.isOnline.value) {
+            val local = commitmentDao.getById(id)?.toDomain()
+            return local ?: Commitment(
+                id = id,
+                title = "",
+                description = "",
+                status = CommitmentStatus.COMPLETED,
+                dueAt = null,
+                duePrecision = DuePrecision.NONE,
+                source = "MANUAL",
+                snoozedUntil = null,
+                completedAt = nowIso,
+                cancelledAt = null,
+                createdAt = nowIso,
+                updatedAt = nowIso,
+                isOverdue = false,
+            )
+        }
 
         return try {
             val remote = api.complete(id).toDomain()

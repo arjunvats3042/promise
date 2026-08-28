@@ -17,6 +17,7 @@ class AuthRepositoryImpl(
     private val publicApi: AuthApi,
     private val authedApi: AuthApi,
     private val tokenStore: TokenStore,
+    private val userSessionStore: app.promise.android.data.local.UserSessionStore,
     private val memory: AuthSession,
     private val refresher: SessionRefresher,
     private val deviceRegistrationRepository: app.promise.android.domain.DeviceRegistrationRepository? = null,
@@ -155,6 +156,7 @@ class AuthRepositoryImpl(
         } catch (_: Throwable) {
         } finally {
             tokenStore.clear()
+            userSessionStore.clear()
             memory.clear()
             _session.value = SessionState.Unauthenticated
         }
@@ -165,9 +167,11 @@ class AuthRepositoryImpl(
         val stored = tokenStore.readRefreshToken()
         if (stored.isNullOrBlank()) {
             memory.clear()
+            userSessionStore.clear()
             _session.value = SessionState.Unauthenticated
             return
         }
+        val cachedUser = userSessionStore.readUser()
         val refreshed = try {
             refresher.refresh()
         } catch (e: CancellationException) {
@@ -178,7 +182,22 @@ class AuthRepositoryImpl(
         if (!refreshed) {
             if (tokenStore.readRefreshToken() == null) {
                 memory.clear()
+                userSessionStore.clear()
                 _session.value = SessionState.Unauthenticated
+            } else if (cachedUser != null) {
+                // Offline fallback: keep user logged in using cached profile
+                memory.setUser(cachedUser)
+                _session.value = SessionState.Authenticated(cachedUser)
+            } else {
+                val fallbackUser = User(
+                    id = "local_user",
+                    email = "",
+                    name = "You",
+                    timezone = "Asia/Kolkata",
+                    createdAt = "",
+                )
+                memory.setUser(fallbackUser)
+                _session.value = SessionState.Authenticated(fallbackUser)
             }
             return
         }
@@ -186,6 +205,7 @@ class AuthRepositoryImpl(
             val me = authedApi.me()
             val user = me.user.toDomain()
             memory.setUser(user)
+            userSessionStore.saveUser(user)
             _session.value = SessionState.Authenticated(user)
             try {
                 deviceRegistrationRepository?.syncDeviceRegistration()
@@ -196,8 +216,12 @@ class AuthRepositoryImpl(
             val error = t.toApiException()
             if (error.isSessionEnded) {
                 tokenStore.clear()
+                userSessionStore.clear()
                 memory.clear()
                 _session.value = SessionState.Unauthenticated
+            } else if (cachedUser != null) {
+                memory.setUser(cachedUser)
+                _session.value = SessionState.Authenticated(cachedUser)
             }
         }
     }
@@ -214,6 +238,7 @@ class AuthRepositoryImpl(
         } catch (_: Throwable) {
         } finally {
             tokenStore.clear()
+            userSessionStore.clear()
             memory.clear()
             _session.value = SessionState.Unauthenticated
         }
@@ -364,6 +389,7 @@ class AuthRepositoryImpl(
         }
         val user = response.user.toDomain()
         memory.setUser(user)
+        userSessionStore.saveUser(user)
         _session.value = SessionState.Authenticated(user)
         AppLog.d(TAG, "session authenticated")
         try {

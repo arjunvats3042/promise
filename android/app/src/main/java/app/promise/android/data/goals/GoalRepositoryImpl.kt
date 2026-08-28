@@ -42,9 +42,21 @@ class GoalRepositoryImpl @Inject constructor(
     private val goalDao: GoalDao,
     private val outboxDao: OutboxDao,
     private val syncManager: SyncManager,
+    private val networkMonitor: app.promise.android.core.NetworkMonitor,
 ) : GoalRepository {
 
     override suspend fun list(filter: GoalListFilter, page: Int, pageSize: Int): GoalPage {
+        if (!networkMonitor.isOnline.value) {
+            val localEntities = when (filter) {
+                GoalListFilter.ACTIVE -> goalDao.observeActive().firstOrNull().orEmpty()
+                GoalListFilter.PAUSED -> goalDao.observeAll().firstOrNull().orEmpty().filter { it.status == GoalStatus.PAUSED.name }
+                GoalListFilter.COMPLETED -> goalDao.observeAll().firstOrNull().orEmpty().filter {
+                    it.status == GoalStatus.COMPLETED.name || it.status == GoalStatus.CANCELLED.name
+                }
+            }
+            val listItems = localEntities.map { GoalListItem.Membership(it.toDomain()) }
+            return GoalPage(items = listItems, nextPage = null)
+        }
         return try {
             when (filter) {
                 GoalListFilter.ACTIVE -> {
@@ -61,9 +73,14 @@ class GoalRepositoryImpl @Inject constructor(
                         nextPage = goalPageNumberFromNext(response.next),
                     )
                 }
-                GoalListFilter.PAUSED -> pageOf(
-                    api.list(status = GoalStatus.PAUSED.name, page = page, pageSize = pageSize),
-                )
+                GoalListFilter.PAUSED -> {
+                    val res = pageOf(
+                        api.list(status = GoalStatus.PAUSED.name, page = page, pageSize = pageSize),
+                    )
+                    val domainGoals = res.items.mapNotNull { (it as? GoalListItem.Membership)?.goal }
+                    goalDao.upsertAll(domainGoals.map { it.toEntity(isSynced = true) })
+                    res
+                }
                 GoalListFilter.COMPLETED -> {
                     val completed = api.list(
                         status = GoalStatus.COMPLETED.name,
@@ -79,19 +96,23 @@ class GoalRepositoryImpl @Inject constructor(
                         .filter { !it.isInvitePreview() }
                         .map { GoalListItem.Membership(it.toDomain()) }
                         .sortedByDescending { it.goal.updatedAt }
+                    val domainGoals = items.map { it.goal }
+                    goalDao.upsertAll(domainGoals.map { it.toEntity(isSynced = true) })
                     val next = if (completed.next != null || cancelled.next != null) page + 1 else null
                     GoalPage(items = items, nextPage = next)
                 }
             }
         } catch (t: Throwable) {
             // Offline fallback: load from local Room DB
-            val localEntities = goalDao.observeActive().firstOrNull().orEmpty()
-            if (localEntities.isNotEmpty()) {
-                val listItems = localEntities.map { GoalListItem.Membership(it.toDomain()) }
-                GoalPage(items = listItems, nextPage = null)
-            } else {
-                throw t.toApiException()
+            val localEntities = when (filter) {
+                GoalListFilter.ACTIVE -> goalDao.observeActive().firstOrNull().orEmpty()
+                GoalListFilter.PAUSED -> goalDao.observeAll().firstOrNull().orEmpty().filter { it.status == GoalStatus.PAUSED.name }
+                GoalListFilter.COMPLETED -> goalDao.observeAll().firstOrNull().orEmpty().filter {
+                    it.status == GoalStatus.COMPLETED.name || it.status == GoalStatus.CANCELLED.name
+                }
             }
+            val listItems = localEntities.map { GoalListItem.Membership(it.toDomain()) }
+            GoalPage(items = listItems, nextPage = null)
         }
     }
 
@@ -185,6 +206,10 @@ class GoalRepositoryImpl @Inject constructor(
 
         syncManager.enqueueSync()
 
+        if (!networkMonitor.isOnline.value) {
+            return optimisticGoal
+        }
+
         return try {
             val remote = api.create(
                 CreateGoalRequest(
@@ -244,6 +269,19 @@ class GoalRepositoryImpl @Inject constructor(
         )
 
         syncManager.enqueueSync()
+
+        if (!networkMonitor.isOnline.value) {
+            return GoalCheckIn(
+                id = actionId,
+                periodDate = input.periodDate ?: "",
+                status = input.status,
+                value = input.value,
+                note = input.note,
+                checkedAt = nowIso,
+                createdAt = nowIso,
+                updatedAt = nowIso,
+            )
+        }
 
         return try {
             val remote = api.checkIn(
@@ -480,6 +518,7 @@ class GoalRepositoryImpl @Inject constructor(
     }
 
     private fun Goal.toEntity(isSynced: Boolean): GoalEntity {
+        val checkedIn = progress.currentPeriod.required > 0 && progress.currentPeriod.completed >= progress.currentPeriod.required
         return GoalEntity(
             id = id,
             title = title,
@@ -492,7 +531,7 @@ class GoalRepositoryImpl @Inject constructor(
             status = status.name,
             currentStreak = currentStreak,
             longestStreak = currentStreak,
-            checkedInToday = false,
+            checkedInToday = checkedIn,
             periodValue = progress.currentPeriod.value ?: 0,
             isShared = isSharedField,
             unreadChatCount = unreadChatCount,
@@ -504,6 +543,7 @@ class GoalRepositoryImpl @Inject constructor(
         val recKind = runCatching { GoalRecurrenceKind.valueOf(recurrenceKind) }.getOrDefault(GoalRecurrenceKind.DAILY)
         val trkKind = runCatching { GoalTrackingKind.valueOf(trackingKind) }.getOrDefault(GoalTrackingKind.BINARY)
         val goalStatus = runCatching { GoalStatus.valueOf(status) }.getOrDefault(GoalStatus.ACTIVE)
+        val completedCount = if (checkedInToday) 1 else 0
         return Goal(
             id = id,
             title = title,
@@ -527,8 +567,8 @@ class GoalRepositoryImpl @Inject constructor(
             updatedAt = "",
             isEnded = false,
             progress = GoalProgress(
-                currentPeriod = GoalPeriodCounts(required = 1, completed = 0, value = periodValue),
-                weekProgress = GoalPeriodCounts(required = 1, completed = 0),
+                currentPeriod = GoalPeriodCounts(required = 1, completed = completedCount, value = periodValue),
+                weekProgress = GoalPeriodCounts(required = 1, completed = completedCount),
                 consistencyPercent = 0,
             ),
             currentStreak = currentStreak,

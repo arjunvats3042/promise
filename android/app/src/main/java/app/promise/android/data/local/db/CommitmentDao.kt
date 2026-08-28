@@ -8,8 +8,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CommitmentDao {
-    @Query("SELECT * FROM commitments WHERE status = 'OPEN' ORDER BY CASE WHEN dueAt IS NULL THEN 1 ELSE 0 END, dueAt ASC, title ASC")
+    @Query("SELECT * FROM commitments WHERE status IN ('PENDING', 'WAITING', 'SNOOZED') ORDER BY CASE WHEN dueAt IS NULL THEN 1 ELSE 0 END, dueAt ASC, title ASC")
     fun observeOpen(): Flow<List<CommitmentEntity>>
+
+    @Query("SELECT * FROM commitments WHERE status = 'COMPLETED' ORDER BY completedAt DESC, updatedAtEpochMs DESC")
+    fun observeCompleted(): Flow<List<CommitmentEntity>>
 
     @Query("SELECT * FROM commitments ORDER BY updatedAtEpochMs DESC")
     fun observeAll(): Flow<List<CommitmentEntity>>
