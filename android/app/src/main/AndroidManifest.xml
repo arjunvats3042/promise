@@ -69,6 +69,31 @@
                 android:resource="@xml/glance_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.GoalsGlanceWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_goals_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glance_goals_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.CommitmentsGlanceWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_commitments_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/glance_commitments_widget_info" />
+        </receiver>
+
+
         <service
             android:name=".notifications.PromiseFirebaseMessagingService"
             android:exported="false">

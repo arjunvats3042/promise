@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Promise</string>
+    <string name="widget_goals_label">Promise Goals</string>
+    <string name="widget_commitments_label">Promise Commitments</string>
 </resources>

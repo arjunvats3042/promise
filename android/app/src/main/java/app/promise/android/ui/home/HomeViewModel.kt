@@ -1,5 +1,6 @@
 package app.promise.android.ui.home
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.promise.android.core.ErrorKind
@@ -70,6 +71,7 @@ data class HomeUiModel(
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
     private val homeRepository: HomeRepository,
     private val authSession: AuthSession,
     private val homeFreshness: HomeFreshness,
@@ -307,6 +309,11 @@ class HomeViewModel @Inject constructor(
                 isRefreshing = false,
             )
             homeFreshness.markSuccessfulLoad()
+            viewModelScope.launch {
+                runCatching {
+                    app.promise.android.widget.PromiseWidgetUpdater.updateWidget(context, feed.commitments, feed.practices)
+                }
+            }
         } catch (e: ApiException) {
             _state.value = LoadState.Error(e.toErrorKind(), canRetry = true)
         } catch (_: Throwable) {

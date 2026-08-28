@@ -22,7 +22,7 @@ class GlanceStateDataTest {
             streakCount = 12,
         )
         assertEquals(75, data.progressPercent)
-        assertEquals("75% (3/4 Habits)", data.progressSummaryString)
+        assertEquals("75% (3/4 Commitments & Goals)", data.progressSummaryString)
         assertEquals("Medium", data.consistencyLevel)
     }
 
@@ -56,9 +56,9 @@ class GlanceStateDataTest {
     }
 
     @Test
-    fun `test fallback sample data on invalid json string`() {
+    fun `test fallback empty data on invalid json string`() {
         val data = PromiseWidgetData.fromJson("invalid_json_str")
-        assertEquals(3, data.completedCount)
-        assertEquals(4, data.totalCount)
+        assertEquals(0, data.completedCount)
+        assertEquals(0, data.totalCount)
     }
 }

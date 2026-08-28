@@ -18,6 +18,7 @@ import androidx.glance.LocalSize
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
@@ -43,7 +44,11 @@ import androidx.glance.unit.ColorProvider
 import app.promise.android.ui.theme.PromiseColor
 import app.promise.android.ui.theme.PromiseDarkColor
 
-class PromiseGlanceWidget : GlanceAppWidget() {
+class CommitmentsGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
+    override val glanceAppWidget: GlanceAppWidget = CommitmentsGlanceWidget()
+}
+
+class CommitmentsGlanceWidget : GlanceAppWidget() {
 
     override val stateDefinition: GlanceStateDefinition<Preferences> = PreferencesGlanceStateDefinition
 
@@ -60,6 +65,9 @@ class PromiseGlanceWidget : GlanceAppWidget() {
                 val prefs = currentState<Preferences>()
                 val rawJson = prefs[WIDGET_DATA_PREF_KEY]
                 val widgetData = PromiseWidgetData.fromJson(rawJson)
+                val commitmentItems = widgetData.items.filter { it.type == WidgetItemType.COMMITMENT }
+                val completedCount = commitmentItems.count { it.isCompleted }
+                val totalCount = commitmentItems.size
                 val size = LocalSize.current
 
                 Box(
@@ -70,9 +78,18 @@ class PromiseGlanceWidget : GlanceAppWidget() {
                         .padding(12.dp),
                 ) {
                     if (size.width >= 240.dp) {
-                        ExpandedWidgetContent(data = widgetData)
+                        ExpandedCommitmentsWidgetContent(
+                            items = commitmentItems,
+                            completedCount = completedCount,
+                            totalCount = totalCount,
+                            expandedItemId = widgetData.expandedItemId,
+                        )
                     } else {
-                        CompactWidgetContent(data = widgetData)
+                        CompactCommitmentsWidgetContent(
+                            items = commitmentItems,
+                            completedCount = completedCount,
+                            totalCount = totalCount,
+                        )
                     }
                 }
             }
@@ -93,7 +110,11 @@ private fun widgetColor(day: Color, night: Color): ColorProvider {
 }
 
 @Composable
-private fun CompactWidgetContent(data: PromiseWidgetData) {
+private fun CompactCommitmentsWidgetContent(
+    items: List<WidgetCommitmentItem>,
+    completedCount: Int,
+    totalCount: Int,
+) {
     val accentColor = widgetColor(day = PromiseColor.Accent, night = PromiseDarkColor.Accent)
     val textPrimaryColor = widgetColor(day = PromiseColor.TextPrimary, night = PromiseDarkColor.TextPrimary)
     val textSecondaryColor = widgetColor(day = PromiseColor.TextSecondary, night = PromiseDarkColor.TextSecondary)
@@ -103,13 +124,15 @@ private fun CompactWidgetContent(data: PromiseWidgetData) {
     val completedBtnBg = widgetColor(day = PromiseColor.Outline, night = PromiseDarkColor.Outline)
     val completedBtnText = widgetColor(day = PromiseColor.TextSecondary, night = PromiseDarkColor.TextSecondary)
 
+    val progressPercent = if (totalCount > 0) ((completedCount.toFloat() / totalCount) * 100).toInt() else 0
+
     Column(
         modifier = GlanceModifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "PROMISE",
+            text = "COMMITMENTS",
             style = TextStyle(
                 color = accentColor,
                 fontSize = 10.sp,
@@ -119,7 +142,7 @@ private fun CompactWidgetContent(data: PromiseWidgetData) {
 
         Spacer(modifier = GlanceModifier.height(4.dp))
 
-        if (data.items.isEmpty()) {
+        if (items.isEmpty()) {
             Box(
                 modifier = GlanceModifier
                     .fillMaxWidth()
@@ -133,7 +156,7 @@ private fun CompactWidgetContent(data: PromiseWidgetData) {
                     modifier = GlanceModifier.padding(8.dp),
                 ) {
                     Text(
-                        text = "All caught up! ✨",
+                        text = "All clear! ✨",
                         style = TextStyle(
                             color = textPrimaryColor,
                             fontSize = 12.sp,
@@ -141,7 +164,7 @@ private fun CompactWidgetContent(data: PromiseWidgetData) {
                         ),
                     )
                     Text(
-                        text = "No items due today",
+                        text = "No commitments due today",
                         style = TextStyle(
                             color = textSecondaryColor,
                             fontSize = 10.sp,
@@ -162,7 +185,7 @@ private fun CompactWidgetContent(data: PromiseWidgetData) {
                     modifier = GlanceModifier.padding(horizontal = 14.dp, vertical = 6.dp),
                 ) {
                     Text(
-                        text = "${data.progressPercent}%",
+                        text = "$progressPercent%",
                         style = TextStyle(
                             color = textPrimaryColor,
                             fontSize = 18.sp,
@@ -170,7 +193,7 @@ private fun CompactWidgetContent(data: PromiseWidgetData) {
                         ),
                     )
                     Text(
-                        text = "${data.completedCount}/${data.totalCount} Done",
+                        text = "$completedCount/$totalCount Done",
                         style = TextStyle(
                             color = textSecondaryColor,
                             fontSize = 10.sp,
@@ -181,19 +204,19 @@ private fun CompactWidgetContent(data: PromiseWidgetData) {
 
             Spacer(modifier = GlanceModifier.height(4.dp))
 
-            val topItem = data.topPendingItem
-            if (topItem != null) {
+            val topPending = items.firstOrNull { !it.isCompleted } ?: items.firstOrNull()
+            if (topPending != null) {
                 Button(
-                    text = if (topItem.isCompleted) "DONE ✓" else if (topItem.type == WidgetItemType.GOAL) "CHECK IN" else "COMPLETE",
+                    text = if (topPending.isCompleted) "DONE ✓" else "COMPLETE",
                     onClick = actionRunCallback<ToggleCommitmentActionCallback>(
                         actionParametersOf(
-                            ToggleCommitmentActionCallback.ITEM_ID_PARAM to topItem.id,
+                            ToggleCommitmentActionCallback.ITEM_ID_PARAM to topPending.id,
                             ToggleCommitmentActionCallback.ACTION_TYPE_PARAM to "TOGGLE_COMPLETE",
                         ),
                     ),
                     colors = ButtonDefaults.buttonColors(
-                        backgroundColor = if (topItem.isCompleted) completedBtnBg else primaryControlColor,
-                        contentColor = if (topItem.isCompleted) completedBtnText else onPrimaryControlColor,
+                        backgroundColor = if (topPending.isCompleted) completedBtnBg else primaryControlColor,
+                        contentColor = if (topPending.isCompleted) completedBtnText else onPrimaryControlColor,
                     ),
                     modifier = GlanceModifier
                         .fillMaxWidth()
@@ -206,7 +229,12 @@ private fun CompactWidgetContent(data: PromiseWidgetData) {
 }
 
 @Composable
-private fun ExpandedWidgetContent(data: PromiseWidgetData) {
+private fun ExpandedCommitmentsWidgetContent(
+    items: List<WidgetCommitmentItem>,
+    completedCount: Int,
+    totalCount: Int,
+    expandedItemId: String?,
+) {
     val accentColor = widgetColor(day = PromiseColor.Accent, night = PromiseDarkColor.Accent)
     val textPrimaryColor = widgetColor(day = PromiseColor.TextPrimary, night = PromiseDarkColor.TextPrimary)
     val textSecondaryColor = widgetColor(day = PromiseColor.TextSecondary, night = PromiseDarkColor.TextSecondary)
@@ -214,8 +242,6 @@ private fun ExpandedWidgetContent(data: PromiseWidgetData) {
     val surfaceRaisedColor = widgetColor(day = PromiseColor.SurfaceRaised, night = PromiseDarkColor.SurfaceRaised)
     val primaryControlColor = widgetColor(day = PromiseColor.PrimaryControl, night = PromiseDarkColor.PrimaryControl)
     val onPrimaryControlColor = widgetColor(day = PromiseColor.OnPrimaryControl, night = PromiseDarkColor.OnPrimaryControl)
-    val goalBadgeBg = widgetColor(day = Color(0xFF2563EB).copy(alpha = 0.12f), night = Color(0xFF60A5FA).copy(alpha = 0.18f))
-    val goalBadgeText = widgetColor(day = Color(0xFF1D4ED8), night = Color(0xFF93C5FD))
     val commitBadgeBg = widgetColor(day = PromiseColor.Accent.copy(alpha = 0.12f), night = PromiseDarkColor.Accent.copy(alpha = 0.18f))
     val commitBadgeText = accentColor
     val completedBtnBg = widgetColor(day = PromiseColor.Outline, night = PromiseDarkColor.Outline)
@@ -224,13 +250,12 @@ private fun ExpandedWidgetContent(data: PromiseWidgetData) {
     Column(
         modifier = GlanceModifier.fillMaxSize(),
     ) {
-        // Header Row
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "TODAY'S OVERVIEW",
+                text = "COMMITMENTS",
                 style = TextStyle(
                     color = accentColor,
                     fontSize = 11.sp,
@@ -239,7 +264,7 @@ private fun ExpandedWidgetContent(data: PromiseWidgetData) {
             )
             Spacer(modifier = GlanceModifier.defaultWeight())
             Text(
-                text = "${data.completedCount}/${data.totalCount} Done",
+                text = "$completedCount/$totalCount Done",
                 style = TextStyle(
                     color = textSecondaryColor,
                     fontSize = 11.sp,
@@ -250,7 +275,7 @@ private fun ExpandedWidgetContent(data: PromiseWidgetData) {
 
         Spacer(modifier = GlanceModifier.height(6.dp))
 
-        if (data.items.isEmpty()) {
+        if (items.isEmpty()) {
             Box(
                 modifier = GlanceModifier
                     .fillMaxWidth()
@@ -262,7 +287,7 @@ private fun ExpandedWidgetContent(data: PromiseWidgetData) {
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "No ongoing commitments or goals today 🎉",
+                        text = "No commitments for today 🎉",
                         style = TextStyle(
                             color = textPrimaryColor,
                             fontSize = 13.sp,
@@ -271,7 +296,7 @@ private fun ExpandedWidgetContent(data: PromiseWidgetData) {
                     )
                     Spacer(modifier = GlanceModifier.height(4.dp))
                     Text(
-                        text = "Open Promise to manage your commitments",
+                        text = "Open Promise to add commitments",
                         style = TextStyle(
                             color = textSecondaryColor,
                             fontSize = 11.sp,
@@ -280,9 +305,9 @@ private fun ExpandedWidgetContent(data: PromiseWidgetData) {
                 }
             }
         } else {
-            val displayItems = data.items.take(3)
-            displayItems.forEachIndexed { _, item ->
-                val isExpanded = data.expandedItemId == item.id
+            val displayItems = items.take(3)
+            displayItems.forEach { item ->
+                val isExpanded = expandedItemId == item.id
 
                 Column(
                     modifier = GlanceModifier
@@ -305,22 +330,17 @@ private fun ExpandedWidgetContent(data: PromiseWidgetData) {
                             ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // Badge / Type indicator
                         Box(
                             modifier = GlanceModifier
                                 .padding(end = 8.dp)
-                                .background(
-                                    if (item.type == WidgetItemType.GOAL) goalBadgeBg
-                                    else commitBadgeBg,
-                                )
+                                .background(commitBadgeBg)
                                 .cornerRadius(6.dp)
                                 .padding(horizontal = 5.dp, vertical = 2.dp),
                         ) {
                             Text(
-                                text = if (item.type == WidgetItemType.GOAL) "GOAL" else "COMMIT",
+                                text = "COMMIT",
                                 style = TextStyle(
-                                    color = if (item.type == WidgetItemType.GOAL) goalBadgeText
-                                    else commitBadgeText,
+                                    color = commitBadgeText,
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
                                 ),
@@ -352,7 +372,7 @@ private fun ExpandedWidgetContent(data: PromiseWidgetData) {
                         Spacer(modifier = GlanceModifier.width(6.dp))
 
                         Button(
-                            text = if (item.isCompleted) "DONE ✓" else if (item.type == WidgetItemType.GOAL) "CHECK IN" else "COMPLETE",
+                            text = if (item.isCompleted) "DONE ✓" else "COMPLETE",
                             onClick = actionRunCallback<ToggleCommitmentActionCallback>(
                                 actionParametersOf(
                                     ToggleCommitmentActionCallback.ITEM_ID_PARAM to item.id,
@@ -390,4 +410,3 @@ private fun ExpandedWidgetContent(data: PromiseWidgetData) {
         }
     }
 }
-
