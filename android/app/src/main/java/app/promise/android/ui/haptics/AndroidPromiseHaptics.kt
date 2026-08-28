@@ -12,7 +12,7 @@ import javax.inject.Singleton
 
 @Singleton
 class AndroidPromiseHaptics @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) : PromiseHaptics {
     override fun light() {
         // Slightly above the softest tick.
@@ -59,6 +59,7 @@ class AndroidPromiseHaptics @Inject constructor(
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun hapticsEnabled(): Boolean {
         return Settings.System.getInt(
             context.contentResolver,
