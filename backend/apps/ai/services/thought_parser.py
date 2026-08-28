@@ -35,6 +35,48 @@ THOUGHT_PARSER_SCHEMA = {
 }
 
 
+def _normalize_parsed_items(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Sanitizes and normalizes items so commitments conform to Promise API validation rules."""
+    from django.utils.dateparse import parse_datetime
+
+    items = result.get("items", [])
+    normalized = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_type = item.get("type", "commitment")
+        if item_type == "commitment":
+            due_at = item.get("due_at")
+            due_precision = item.get("due_precision")
+
+            # Clean and validate due_at
+            if due_at and isinstance(due_at, str) and due_at.strip():
+                due_at_clean = due_at.strip()
+                try:
+                    parsed_dt = parse_datetime(due_at_clean)
+                    if parsed_dt is not None:
+                        item["due_at"] = parsed_dt.isoformat()
+                        prec_upper = (due_precision or "").upper()
+                        if prec_upper in ("MINUTE", "HOUR", "DATETIME"):
+                            item["due_precision"] = "HOUR"
+                        elif prec_upper in ("DAY", "DATE"):
+                            item["due_precision"] = "DAY"
+                        else:
+                            item["due_precision"] = "HOUR" if (parsed_dt.hour != 0 or parsed_dt.minute != 0) else "DAY"
+                    else:
+                        item["due_at"] = None
+                        item["due_precision"] = None
+                except Exception:
+                    # Non-parseable date string: clear both to avoid API 400 rejection
+                    item["due_at"] = None
+                    item["due_precision"] = None
+            else:
+                item["due_at"] = None
+                item["due_precision"] = None
+        normalized.append(item)
+    return {"items": normalized}
+
+
 def _heuristic_parse_thought(user_thought: str, timezone: str) -> Dict[str, Any]:
     """Resilient rule-based thought parser fallback when AI provider is unavailable."""
     import re
@@ -71,7 +113,8 @@ def _heuristic_parse_thought(user_thought: str, timezone: str) -> Dict[str, Any]
                 "title": line_str[:120],
                 "description": "",
                 "confidence": "MEDIUM",
-                "due_precision": "DAY",
+                "due_at": None,
+                "due_precision": None,
             })
 
     if not items and cleaned:
@@ -80,7 +123,8 @@ def _heuristic_parse_thought(user_thought: str, timezone: str) -> Dict[str, Any]
             "title": cleaned[:120],
             "description": cleaned if len(cleaned) > 120 else "",
             "confidence": "LOW",
-            "due_precision": "DAY",
+            "due_at": None,
+            "due_precision": None,
         })
 
     return {"items": items}
@@ -89,15 +133,21 @@ def _heuristic_parse_thought(user_thought: str, timezone: str) -> Dict[str, Any]
 def parse_thought_into_promises(
     user_thought: str,
     timezone: str = "Asia/Kolkata",
+    current_time_iso: Optional[str] = None,
     provider: Optional[AIProvider] = None,
 ) -> Dict[str, Any]:
     """Decomposes a brain dump into proposed commitments and goals with confidence ratings."""
     if provider is None:
         provider = GeminiProvider()
 
+    if current_time_iso is None:
+        from django.utils import timezone as django_tz
+        current_time_iso = django_tz.now().isoformat()
+
     model = get_model_for_feature("thought_parser")
     sanitized_prompt = (
         f"User timezone: {timezone}\n"
+        f"Reference current time (UTC): {current_time_iso}\n"
         f"User unstructured thought:\n{user_thought.strip()}"
     )
     start_time = time.time()
@@ -112,13 +162,13 @@ def parse_thought_into_promises(
             model=model,
         )
         success = True
-        return result
+        return _normalize_parsed_items(result)
     except Exception as e:
         failure_category = e.__class__.__name__
         # Graceful heuristic fallback: ensure user's brain dump is never lost due to network or provider hiccups
         fallback_result = _heuristic_parse_thought(user_thought, timezone)
         if fallback_result.get("items"):
-            return fallback_result
+            return _normalize_parsed_items(fallback_result)
         raise
     finally:
         latency_ms = int((time.time() - start_time) * 1000)

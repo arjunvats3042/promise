@@ -364,17 +364,24 @@ fun ThoughtParserSheet(
                         val chosen = items.filterIndexed { index, _ -> selectedIndices.contains(index) }
                         chosen.forEach { item ->
                             if (item.type == "commitment") {
+                                val rawDueAt = item.dueAt?.takeIf { it.isNotBlank() }
+                                val duePrecision = when {
+                                    rawDueAt.isNullOrBlank() -> DuePrecision.NONE
+                                    item.duePrecision?.equals("MINUTE", ignoreCase = true) == true -> DuePrecision.DATETIME
+                                    item.duePrecision?.equals("HOUR", ignoreCase = true) == true -> DuePrecision.DATETIME
+                                    item.duePrecision?.equals("DATETIME", ignoreCase = true) == true -> DuePrecision.DATETIME
+                                    item.duePrecision?.equals("DAY", ignoreCase = true) == true -> DuePrecision.DATE
+                                    item.duePrecision?.equals("DATE", ignoreCase = true) == true -> DuePrecision.DATE
+                                    else -> DuePrecision.DATETIME
+                                }
+                                val finalDueAt = if (duePrecision == DuePrecision.NONE) null else rawDueAt
+
                                 onCreateCommitment(
                                     CreateCommitmentInput(
                                         title = item.title,
                                         description = item.description,
-                                        dueAt = item.dueAt,
-                                        duePrecision = when (item.duePrecision?.uppercase()) {
-                                            "MINUTE" -> DuePrecision.DATETIME
-                                            "HOUR" -> DuePrecision.DATETIME
-                                            "DAY" -> DuePrecision.DATE
-                                            else -> DuePrecision.NONE
-                                        },
+                                        dueAt = finalDueAt,
+                                        duePrecision = duePrecision,
                                     ),
                                 )
                             } else {

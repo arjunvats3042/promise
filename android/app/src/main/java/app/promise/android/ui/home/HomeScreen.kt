@@ -285,10 +285,17 @@ private fun HomeContent(
         model.practices.filter { it.isShared }
     }
 
-    val visibleCommitments = if (showAllCommitments || model.commitments.size <= 4) {
-        model.commitments
+    val todayCommitments = remember(model.commitments) {
+        model.commitments.filter { it.isDueToday || it.isOverdue }
+    }
+    val upcomingCommitments = remember(model.commitments) {
+        model.commitments.filter { !it.isDueToday && !it.isOverdue }
+    }
+
+    val visibleTodayCommitments = if (showAllCommitments || todayCommitments.size <= 4) {
+        todayCommitments
     } else {
-        model.commitments.take(4)
+        todayCommitments.take(4)
     }
 
     LazyColumn(
@@ -314,9 +321,9 @@ private fun HomeContent(
             Spacer(modifier = Modifier.height(Spacing.md))
         }
 
-        // Daily Momentum / Focus Card
-        val totalTodayItems = model.commitments.size + model.practices.size
-        val completedTodayItems = model.commitments.count { it.isCompleted } + model.practices.count { it.checkedInToday }
+        // Daily Momentum / Focus Card (Strictly counts today's commitments + today's practices)
+        val totalTodayItems = todayCommitments.size + model.practices.size
+        val completedTodayItems = todayCommitments.count { it.isCompleted } + model.practices.count { it.checkedInToday }
         val momentumProgress = if (totalTodayItems > 0) completedTodayItems.toFloat() / totalTodayItems.toFloat() else 0f
 
         item {
@@ -408,11 +415,11 @@ private fun HomeContent(
         item {
             PromiseSectionHeader(
                 title = "Today's Commitments",
-                subtitle = if (model.commitments.isNotEmpty()) {
-                    "${model.commitments.count { it.isCompleted }} of ${model.commitments.size} completed"
+                subtitle = if (todayCommitments.isNotEmpty()) {
+                    "${todayCommitments.count { it.isCompleted }} of ${todayCommitments.size} completed"
                 } else null,
-                actionLabel = if (model.commitments.size > 4) {
-                    if (showAllCommitments) "Show less" else "View all (${model.commitments.size})"
+                actionLabel = if (todayCommitments.size > 4) {
+                    if (showAllCommitments) "Show less" else "View all (${todayCommitments.size})"
                 } else null,
                 onActionClick = { showAllCommitments = !showAllCommitments },
             )
@@ -429,7 +436,7 @@ private fun HomeContent(
                     Spacer(modifier = Modifier.height(Spacing.sectionGap))
                 }
             }
-            model.commitments.isEmpty() -> {
+            todayCommitments.isEmpty() -> {
                 item {
                     Column(
                         modifier = Modifier
@@ -446,7 +453,7 @@ private fun HomeContent(
                         )
                         Spacer(modifier = Modifier.height(Spacing.cardTitleBottom))
                         Text(
-                            text = "Open Commitments when you’re ready to schedule.",
+                            text = "All clear for today. Open Commitments when you’re ready to schedule.",
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
                         )
@@ -455,7 +462,7 @@ private fun HomeContent(
                 }
             }
             else -> {
-                items(visibleCommitments, key = { it.id }) { commitment ->
+                items(visibleTodayCommitments, key = { it.id }) { commitment ->
                     CommitmentTodayRow(
                         commitment = commitment,
                         reduceMotion = reduceMotion,
@@ -465,6 +472,26 @@ private fun HomeContent(
                 }
                 item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
             }
+        }
+
+        // 2b. UPCOMING COMMITMENTS (Shown if future commitments exist in next 7 days)
+        if (upcomingCommitments.isNotEmpty()) {
+            item {
+                PromiseSectionHeader(
+                    title = "Upcoming Promises",
+                    subtitle = "${upcomingCommitments.size} on the horizon",
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+            }
+            items(upcomingCommitments.take(3), key = { it.id }) { commitment ->
+                CommitmentTodayRow(
+                    commitment = commitment,
+                    reduceMotion = reduceMotion,
+                    onOpen = { onOpenCommitment(commitment.id) },
+                    onComplete = { onComplete(commitment.id) },
+                )
+            }
+            item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
         }
 
         // 3. YOUR PRACTICE (Personal Practices)

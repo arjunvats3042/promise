@@ -39,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,15 +48,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,6 +74,7 @@ import app.promise.android.ui.theme.TouchTarget
 import app.promise.android.ui.theme.pressScale
 import app.promise.android.ui.theme.rememberReduceMotion
 import java.util.Calendar
+import kotlin.math.min
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -115,17 +118,14 @@ fun LoginScreen(
                         .widthIn(max = Spacing.authMaxWidth)
                         .fillMaxWidth(),
                 ) {
-                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Spacer(modifier = Modifier.height(Spacing.sm))
 
-                    // Brand Monogram Emblem
+                    // Top Bar: Calm motivational live indicator pill
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        BrandMonogramBadge(accentColor = colors.accent)
-
-                        // Live status indicator pill
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(Radius.pill))
@@ -135,20 +135,20 @@ fun LoginScreen(
                                     MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
                                     RoundedCornerShape(Radius.pill),
                                 )
-                                .padding(horizontal = Spacing.sm + 2.dp, vertical = 4.dp),
+                                .padding(horizontal = Spacing.sm + 4.dp, vertical = 5.dp),
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
-                                PulsingLiveDot(dotColor = Color(0xFF10B981))
+                                PulsingLiveDot(dotColor = colors.accent)
                                 Text(
-                                    text = "SECURE CLOUD SYNC",
+                                    text = "ONE DAY AT A TIME",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp,
                                     color = colors.textSecondary,
-                                    letterSpacing = 0.8.sp,
+                                    letterSpacing = 1.sp,
                                 )
                             }
                         }
@@ -156,7 +156,7 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(Spacing.lg))
 
-                    // Category Pill
+                    // Category Pill (Clean, without sparkle emoji)
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(Radius.pill))
@@ -169,7 +169,7 @@ fun LoginScreen(
                             .padding(horizontal = Spacing.md, vertical = 4.dp),
                     ) {
                         Text(
-                            text = "✨ INTEGRITY · MOMENTUM · FOCUS",
+                            text = "INTEGRITY · MOMENTUM · FOCUS",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = colors.accent,
@@ -214,28 +214,10 @@ fun LoginScreen(
                         AnimatedLoginGreeting()
                     }
 
-                    Spacer(modifier = Modifier.height(Spacing.lg))
+                    Spacer(modifier = Modifier.height(Spacing.xl))
 
-                    // 3 Feature Showcase Cards
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs + 2.dp),
-                    ) {
-                        FeatureHighlightRow(
-                            iconEmoji = "🎯",
-                            title = "Daily Practice & Habit Rings",
-                            subtitle = "Build daily consistency with streaks & progress rings",
-                        )
-                        FeatureHighlightRow(
-                            iconEmoji = "⚡",
-                            title = "Zero-Overdue Commitment Tracker",
-                            subtitle = "Calm due dates, time precision & overdue alerts",
-                        )
-                        FeatureHighlightRow(
-                            iconEmoji = "🧠",
-                            title = "Gemini AI Behavioral Insights",
-                            subtitle = "Thought parser, weekly pattern discovery & coaching",
-                        )
-                    }
+                    // Typewriter Benefit Carousel
+                    TypewriterBenefitCarousel()
 
                     Spacer(modifier = Modifier.height(Spacing.xl))
 
@@ -246,24 +228,28 @@ fun LoginScreen(
                             .clip(RoundedCornerShape(Radius.xl))
                             .border(
                                 1.dp,
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.75f),
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.65f),
                                 RoundedCornerShape(Radius.xl),
                             ),
                         color = colors.surfaceRaised,
                         shadowElevation = Elevation.none,
                     ) {
-                        Column(modifier = Modifier.padding(Spacing.cardPadding)) {
+                        Column(
+                            modifier = Modifier.padding(Spacing.cardPadding),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
                             Text(
-                                text = "Get Started",
-                                style = MaterialTheme.typography.headlineSmall,
+                                text = "Welcome to Promise",
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = colors.textPrimary,
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Sign in securely with your Google account to sync seamlessly across all your Android devices.",
-                                style = MaterialTheme.typography.bodySmall,
+                                text = "Your quiet space for intentional daily follow-through.",
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = colors.textSecondary,
+                                textAlign = TextAlign.Center,
                             )
 
                             Spacer(modifier = Modifier.height(Spacing.lg))
@@ -275,18 +261,17 @@ fun LoginScreen(
                                         onGoogleSignIn()
                                     } else {
                                         coroutineScope.launch {
-                                            launchGoogleSignIn(
-                                                context = context,
-                                                onSuccess = { idToken ->
-                                                    viewModel.submitGoogleLogin(idToken)
-                                                },
-                                                onError = {
-                                                    viewModel.onGoogleSignInFailed(ErrorKind.Unknown)
-                                                },
-                                                onCancelled = {
+                                            when (val result = performGoogleSignIn(context)) {
+                                                is GoogleSignInResult.Success -> {
+                                                    viewModel.submitGoogleLogin(result.idToken)
+                                                }
+                                                is GoogleSignInResult.Cancelled -> {
                                                     viewModel.onGoogleSignInCancelled()
-                                                },
-                                            )
+                                                }
+                                                is GoogleSignInResult.Error -> {
+                                                    viewModel.onGoogleSignInFailed(ErrorKind.Unknown)
+                                                }
+                                            }
                                         }
                                     }
                                 },
@@ -315,8 +300,8 @@ fun LoginScreen(
                                         fontWeight = FontWeight.SemiBold,
                                     )
                                 } else {
-                                    GoogleLogoIcon(modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(Spacing.sm + 2.dp))
+                                    GoogleLogoIcon(modifier = Modifier.size(20.dp))
+                                    Spacer(modifier = Modifier.width(Spacing.sm + 4.dp))
                                     Text(
                                         text = "Continue with Google",
                                         style = MaterialTheme.typography.labelLarge,
@@ -343,22 +328,6 @@ fun LoginScreen(
                                 ) {
                                     Text("Allow local network", color = colors.accent)
                                 }
-                            }
-
-                            Spacer(modifier = Modifier.height(Spacing.md))
-
-                            // Privacy & Security Guarantee
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = "🔒 No passwords · End-to-end sync · Private by design",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 11.sp,
-                                    color = colors.textSecondary,
-                                )
                             }
                         }
                     }
@@ -394,69 +363,132 @@ fun LoginScreen(
 }
 
 @Composable
-private fun BrandMonogramBadge(accentColor: Color) {
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clip(RoundedCornerShape(Radius.md))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        accentColor,
-                        accentColor.copy(alpha = 0.75f),
-                    ),
-                ),
-            )
-            .border(
-                1.5.dp,
-                Color.White.copy(alpha = 0.25f),
-                RoundedCornerShape(Radius.md),
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = "P",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Black,
-            color = Color.White,
-        )
-    }
-}
-
-@Composable
-private fun FeatureHighlightRow(
-    iconEmoji: String,
-    title: String,
-    subtitle: String,
+private fun TypewriterBenefitCarousel(
+    modifier: Modifier = Modifier,
+    phrases: List<String> = listOf(
+        "Build daily habits without the noise",
+        "Keep every promise you make to yourself",
+        "Never lose track of what matters most",
+        "Stay accountable with quiet daily clarity",
+        "Celebrate progress one day at a time",
+    ),
 ) {
     val colors = PromiseThemeColors.current
-    Row(
-        modifier = Modifier
+    val reduceMotion = rememberReduceMotion()
+
+    var phraseIndex by remember { mutableIntStateOf(0) }
+    var displayedText by remember { mutableStateOf("") }
+
+    // Smooth cursor blink
+    val infiniteTransition = rememberInfiniteTransition(label = "cursorBlink")
+    val cursorAlpha by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "cursorAlpha",
+    )
+
+    LaunchedEffect(reduceMotion, phrases) {
+        if (phrases.isEmpty()) return@LaunchedEffect
+        if (reduceMotion) {
+            while (true) {
+                displayedText = phrases[phraseIndex]
+                delay(4000)
+                phraseIndex = (phraseIndex + 1) % phrases.size
+            }
+        }
+
+        while (true) {
+            val currentPhrase = phrases[phraseIndex]
+
+            // 1. Type forward character-by-character
+            for (i in 1..currentPhrase.length) {
+                displayedText = currentPhrase.take(i)
+                delay(40)
+            }
+
+            // 2. Pause and hold for comfortable reading
+            delay(2400)
+
+            // 3. Backspace character-by-character
+            for (i in currentPhrase.length downTo 0) {
+                displayedText = currentPhrase.take(i)
+                delay(18)
+            }
+
+            // 4. Short gap before next phrase
+            delay(280)
+            phraseIndex = (phraseIndex + 1) % phrases.size
+        }
+    }
+
+    Surface(
+        modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.md))
-            .background(colors.surfaceMuted)
-            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            .clip(RoundedCornerShape(Radius.lg))
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                RoundedCornerShape(Radius.lg),
+            ),
+        color = colors.surfaceMuted,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
     ) {
-        Text(
-            text = iconEmoji,
-            fontSize = 16.sp,
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.textPrimary,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                fontSize = 11.sp,
-                color = colors.textSecondary,
-                maxLines = 1,
-            )
+        Column(
+            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(colors.accent),
+                )
+                Text(
+                    text = "WHY PROMISE",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp,
+                    color = colors.accent,
+                    letterSpacing = 1.2.sp,
+                )
+            }
+            Spacer(modifier = Modifier.height(Spacing.xs + 2.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = displayedText,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.textPrimary,
+                        fontSize = 15.sp,
+                        lineHeight = 22.sp,
+                    )
+                    if (!reduceMotion) {
+                        Text(
+                            text = " |",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.accent.copy(alpha = cursorAlpha),
+                            fontSize = 16.sp,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -523,55 +555,71 @@ private fun GoogleLogoIcon(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
+        val minDim = min(w, h)
+        val strokeWidth = minDim * 0.22f
+        val radius = (minDim - strokeWidth) / 2f
         val cx = w / 2f
         val cy = h / 2f
-        val r = w * 0.46f
 
-        // Draw 4-color authentic Google arcs
+        val topLeft = Offset(cx - radius, cy - radius)
+        val arcSize = Size(radius * 2f, radius * 2f)
+
         val blue = Color(0xFF4285F4)
         val red = Color(0xFFEA4335)
         val yellow = Color(0xFFFBBC05)
         val green = Color(0xFF34A853)
-        val strokeWidth = w * 0.22f
 
-        // Red arc (top)
+        // 1. Red arc (Top): 220° to 330° (sweep 110°)
         drawArc(
             color = red,
-            startAngle = 180f,
-            sweepAngle = 120f,
+            startAngle = 220f,
+            sweepAngle = 110f,
             useCenter = false,
-            style = Stroke(width = strokeWidth),
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
         )
-        // Yellow arc (left)
+
+        // 2. Yellow arc (Left): 140° to 220° (sweep 80°)
         drawArc(
             color = yellow,
-            startAngle = 120f,
-            sweepAngle = 60f,
+            startAngle = 140f,
+            sweepAngle = 80f,
             useCenter = false,
-            style = Stroke(width = strokeWidth),
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
         )
-        // Green arc (bottom)
+
+        // 3. Green arc (Bottom): 35° to 140° (sweep 105°)
         drawArc(
             color = green,
-            startAngle = 0f,
-            sweepAngle = 120f,
+            startAngle = 35f,
+            sweepAngle = 105f,
             useCenter = false,
-            style = Stroke(width = strokeWidth),
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
         )
-        // Blue arc & crossbar (right)
+
+        // 4. Blue arc (Right): 330° to 35° (sweep 65°)
         drawArc(
             color = blue,
-            startAngle = -45f,
-            sweepAngle = 45f,
+            startAngle = 330f,
+            sweepAngle = 65f,
             useCenter = false,
-            style = Stroke(width = strokeWidth),
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
         )
-        // Horizontal bar
+
+        // 5. Blue horizontal crossbar: from center to right edge
         drawLine(
             color = blue,
-            start = Offset(cx, cy),
-            end = Offset(w - strokeWidth / 4f, cy),
+            start = Offset(cx - strokeWidth * 0.1f, cy),
+            end = Offset(cx + radius + strokeWidth / 2f, cy),
             strokeWidth = strokeWidth,
+            cap = StrokeCap.Butt,
         )
     }
 }
@@ -589,7 +637,7 @@ internal fun AnimatedLoginGreeting(
     var started by remember { mutableStateOf(false) }
 
     LaunchedEffect(reduceMotion) {
-        val initial = GreetingClock.greetingForHour(hourProvider())
+        val initial = GreetingClock.editorialGreetingForHour(hourProvider())
         if (reduceMotion) {
             state = GreetingAnimator.reduce(
                 GreetingAnimationState(fullText = ""),
@@ -615,7 +663,7 @@ internal fun AnimatedLoginGreeting(
         if (!started) return@LaunchedEffect
         while (true) {
             delay(60_000)
-            val target = GreetingClock.greetingForHour(hourProvider())
+            val target = GreetingClock.editorialGreetingForHour(hourProvider())
             if (target == state.fullText && state.pendingText == null) continue
             if (reduceMotion) {
                 state = GreetingAnimator.reduce(
@@ -644,7 +692,7 @@ internal fun AnimatedLoginGreeting(
     }
 
     val semantic = state.fullText.ifBlank {
-        GreetingClock.greetingForHour(hourProvider())
+        GreetingClock.editorialGreetingForHour(hourProvider())
     }
     PromiseGreetingText(
         text = state.visibleText,

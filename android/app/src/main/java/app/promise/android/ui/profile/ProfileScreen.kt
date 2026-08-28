@@ -75,44 +75,32 @@ data class FaqItem(
 
 val PROMISE_FAQS = listOf(
     FaqItem(
-        question = "1. What is Promise?",
-        answer = "Promise is a calm accountability app that combines one-time deadline commitments, recurring practice routines, and shared partner goals.",
+        question = "What is the difference between a Commitment and a Goal?",
+        answer = "Commitments are one-time tasks or promises with a specific deadline (e.g., 'Finish project report by Friday'). Goals are recurring daily or weekly practices designed to build long-term consistency (e.g., 'Read 20 pages daily', 'Gym 3x/week').",
     ),
     FaqItem(
-        question = "2. What is a Commitment?",
-        answer = "A Commitment is a bounded promise with a specific due date and time. It helps you stay true to high-leverage tasks.",
+        question = "How does 'Thought → Promise' (AI) work?",
+        answer = "Type or paste an unstructured brain dump (e.g., 'call mom tomorrow at 11pm and workout 4 days a week'). AI automatically decomposes it into clear commitments and recurring goals with accurate due dates. Nothing is created until you review and confirm.",
     ),
     FaqItem(
-        question = "3. What is a Goal?",
-        answer = "A Goal is an ongoing recurring practice (e.g. daily, weekdays, or N times per week) designed to build lasting consistency.",
+        question = "How do Shared Goals work?",
+        answer = "You can invite friends, partners, or teammates to any goal using a shareable link or code. Everyone in the goal sees daily check-ins, tracks shared momentum, and can message inside a private group chat.",
     ),
     FaqItem(
-        question = "4. How do Shared Goals work?",
-        answer = "You invite friends or teammates to a mutual goal. You see each other's check-ins, celebrate milestones, and chat in a private group channel.",
+        question = "Can I check in directly from my Home Screen?",
+        answer = "Yes! Add the Promise Glance widget to your Android home screen to view today's reading list, check in on daily practices, and complete commitments with a single tap without opening the app.",
     ),
     FaqItem(
-        question = "5. How do notifications work?",
-        answer = "Promise delivers quiet, timely alerts for due commitments, daily morning practice routines, evening streak protection, and shared group activity.",
+        question = "When does Promise send notifications?",
+        answer = "Promise only sends quiet, intentional reminders: a morning practice summary, timely alerts when commitments are due, evening streak protection, and shared goal chat messages. You can customize all notification preferences anytime above.",
     ),
     FaqItem(
-        question = "6. Can I use Promise with friends?",
-        answer = "Yes! You can invite friends to any goal with an invite code or link and practice together with shared accountability.",
+        question = "What data is shared with AI?",
+        answer = "Only the specific thought or prompt you enter for AI refinement is sent securely to Google Gemini. Your private account details, email, and unrelated commitments are never shared or used for model training.",
     ),
     FaqItem(
-        question = "7. What does AI do?",
-        answer = "AI helps refine vague thoughts into structured commitments, builds goal schedules from natural language, and summarizes group discussions.",
-    ),
-    FaqItem(
-        question = "8. Does AI create things automatically?",
-        answer = "No. AI only suggests structured options. Nothing is created or scheduled until you review and explicitly tap Confirm & Create.",
-    ),
-    FaqItem(
-        question = "9. What data does Promise send to AI?",
-        answer = "Only the specific prompt, thought text, or chat snippet you request refinement for is sent to Google Gemini. No extraneous personal data is shared.",
-    ),
-    FaqItem(
-        question = "10. How do I delete my account?",
-        answer = "Tap 'Delete account' at the bottom of this screen. Your personal data is immediately anonymized, all active commitments are cancelled, and you are signed out.",
+        question = "How do I delete my account?",
+        answer = "Tap 'Delete account' at the bottom of this screen. Your account will be permanently anonymized, all active commitments cancelled, and your session securely signed out.",
     ),
 )
 

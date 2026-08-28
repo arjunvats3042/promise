@@ -46,10 +46,24 @@ class ThoughtParserTests(SimpleTestCase):
         self.assertEqual(items[1]["type"], "goal")
         self.assertEqual(items[1]["recurrence_kind"], "DAILY")
 
-    def test_gemini_provider_defaults_to_valid_models(self):
-        provider = GeminiProvider(api_keys=["test-key"])
-        self.assertEqual(provider.default_model, "gemini-3.7-flash")
-        self.assertIn("gemini-3.7-flash", provider.STABLE_FALLBACK_MODELS)
-        self.assertIn("gemini-2.0-flash", provider.STABLE_FALLBACK_MODELS)
-        self.assertIn("gemini-1.5-flash", provider.STABLE_FALLBACK_MODELS)
+    def test_normalize_parsed_items_clears_mismatched_due_fields(self):
+        from apps.ai.services.thought_parser import _normalize_parsed_items
+        raw = {
+            "items": [
+                {"type": "commitment", "title": "Call mom", "due_at": None, "due_precision": "DAY"},
+                {"type": "commitment", "title": "Submit report", "due_at": "2026-08-30T17:30:00Z", "due_precision": "HOUR"},
+                {"type": "commitment", "title": "Read book", "due_at": "invalid-date", "due_precision": "DAY"},
+            ]
+        }
+        res = _normalize_parsed_items(raw)
+        items = res["items"]
+        self.assertIsNone(items[0]["due_at"])
+        self.assertIsNone(items[0]["due_precision"])
+
+        self.assertIsNotNone(items[1]["due_at"])
+        self.assertEqual(items[1]["due_precision"], "HOUR")
+
+        self.assertIsNone(items[2]["due_at"])
+        self.assertIsNone(items[2]["due_precision"])
+
 

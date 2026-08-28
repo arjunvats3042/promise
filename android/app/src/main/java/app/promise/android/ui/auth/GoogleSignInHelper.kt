@@ -13,13 +13,14 @@ object GoogleSignInConfig {
     const val WEB_CLIENT_ID = "547289698615-huc17692on1292athsn3ph80fiaagm9p.apps.googleusercontent.com"
 }
 
-suspend fun launchGoogleSignIn(
-    context: Context,
-    onSuccess: (idToken: String) -> Unit,
-    onError: (errorMessage: String) -> Unit,
-    onCancelled: () -> Unit = {},
-) {
-    try {
+sealed interface GoogleSignInResult {
+    data class Success(val idToken: String) : GoogleSignInResult
+    data object Cancelled : GoogleSignInResult
+    data class Error(val message: String) : GoogleSignInResult
+}
+
+suspend fun performGoogleSignIn(context: Context): GoogleSignInResult {
+    return try {
         val credentialManager = CredentialManager.create(context)
         val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)
@@ -39,31 +40,39 @@ suspend fun launchGoogleSignIn(
         val credential = result.credential
         if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
             val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-            val idToken = googleIdTokenCredential.idToken
-            onSuccess(idToken)
+            GoogleSignInResult.Success(googleIdTokenCredential.idToken)
         } else {
-            onError("Unsupported credential type returned.")
+            GoogleSignInResult.Error("Unsupported credential type returned.")
         }
-    } catch (_: kotlinx.coroutines.CancellationException) {
-        onCancelled()
-    } catch (_: java.util.concurrent.CancellationException) {
-        onCancelled()
     } catch (_: GetCredentialCancellationException) {
-        onCancelled()
+        GoogleSignInResult.Cancelled
     } catch (e: GetCredentialException) {
         if (e.message?.contains("cancel", ignoreCase = true) == true) {
-            onCancelled()
+            GoogleSignInResult.Cancelled
         } else {
-            onError(e.localizedMessage ?: "Google sign in failed")
+            GoogleSignInResult.Error(e.localizedMessage ?: "Google sign in failed")
         }
     } catch (t: Throwable) {
         if (t is kotlinx.coroutines.CancellationException ||
             t is java.util.concurrent.CancellationException ||
             t.message?.contains("cancel", ignoreCase = true) == true
         ) {
-            onCancelled()
+            GoogleSignInResult.Cancelled
         } else {
-            onError(t.localizedMessage ?: "Google sign in failed")
+            GoogleSignInResult.Error(t.localizedMessage ?: "Google sign in failed")
         }
+    }
+}
+
+suspend fun launchGoogleSignIn(
+    context: Context,
+    onSuccess: (idToken: String) -> Unit,
+    onError: (errorMessage: String) -> Unit,
+    onCancelled: () -> Unit = {},
+) {
+    when (val result = performGoogleSignIn(context)) {
+        is GoogleSignInResult.Success -> onSuccess(result.idToken)
+        is GoogleSignInResult.Cancelled -> onCancelled()
+        is GoogleSignInResult.Error -> onError(result.message)
     }
 }

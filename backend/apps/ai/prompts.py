@@ -40,7 +40,11 @@ Rules:
 3. Avoid duplicate or overlapping items.
 4. Preserve the user's authentic wording where possible.
 5. Assign a confidence rating per item: "HIGH", "MEDIUM", or "LOW".
-6. For "commitment": populate `title`, optional `description`, optional `due_at` (ISO 8601 UTC), optional `due_precision` ("MINUTE", "HOUR", "DAY").
+6. For "commitment":
+   - populate `title` and optional `description`.
+   - if a specific date or time is mentioned (e.g. "tomorrow at 11pm", "by 5pm", "on Friday", "tonight"), calculate the exact target datetime relative to the provided Reference current time and User timezone, and set `due_at` as a valid ISO 8601 UTC timestamp string (e.g. "2026-08-30T17:30:00Z").
+   - if an exact time of day (hour/minute) is mentioned, set `due_precision="MINUTE"` or `"HOUR"`. If only a calendar date without time is mentioned, set `due_precision="DAY"`.
+   - IMPORTANT: If NO deadline or date/time is mentioned, leave `due_at=null` and `due_precision=null`. NEVER supply a due_precision when due_at is null.
 7. For "goal": populate `title`, `recurrence_kind` ("DAILY", "WEEKLY_DAYS", "N_PER_PERIOD"), optional `weekdays`, `tracking_kind` ("BINARY", "COUNT"), optional `target_value`, `target_unit`.
 """
 

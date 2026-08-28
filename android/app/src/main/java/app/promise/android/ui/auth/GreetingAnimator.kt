@@ -11,6 +11,15 @@ object GreetingClock {
             else -> "Good evening"
         }
     }
+
+    fun editorialGreetingForHour(hour: Int): String {
+        return when (hour) {
+            in 5..11 -> "Good morning · Set your daily intention"
+            in 12..16 -> "Good afternoon · Stay in steady flow"
+            in 17..21 -> "Good evening · Reflect and follow through"
+            else -> "Quiet night · Rest and prepare for tomorrow"
+        }
+    }
 }
 
 enum class GreetingPhase {

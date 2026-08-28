@@ -101,11 +101,13 @@ class HomeViewModel @Inject constructor(
     fun createCommitmentFromThought(input: CreateCommitmentInput) {
         viewModelScope.launch {
             try {
-                commitmentRepository.create(input)
+                val created = commitmentRepository.create(input)
                 haptics.confirm()
                 homeFreshness.markDirty()
+                appEventBus.emit(AppMutationEvent.CommitmentCreated(created.id))
                 refresh(force = true)
-            } catch (_: Throwable) {
+            } catch (t: Throwable) {
+                android.util.Log.e("HomeViewModel", "Failed to create commitment from thought", t)
                 haptics.error()
             }
         }
@@ -114,11 +116,13 @@ class HomeViewModel @Inject constructor(
     fun createGoalFromThought(input: CreateGoalInput) {
         viewModelScope.launch {
             try {
-                goalRepository.create(input)
+                val created = goalRepository.create(input)
                 haptics.confirm()
                 homeFreshness.markDirty()
+                appEventBus.emit(AppMutationEvent.GoalCreated(created.id))
                 refresh(force = true)
-            } catch (_: Throwable) {
+            } catch (t: Throwable) {
+                android.util.Log.e("HomeViewModel", "Failed to create goal from thought", t)
                 haptics.error()
             }
         }
