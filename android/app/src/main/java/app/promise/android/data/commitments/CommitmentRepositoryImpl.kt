@@ -28,6 +28,7 @@ class CommitmentRepositoryImpl @Inject constructor(
     private val outboxDao: OutboxDao,
     private val syncManager: SyncManager,
     private val networkMonitor: app.promise.android.core.NetworkMonitor,
+    private val authSession: app.promise.android.data.network.AuthSession,
 ) : CommitmentRepository {
 
     override suspend fun list(
@@ -56,8 +57,11 @@ class CommitmentRepositoryImpl @Inject constructor(
             when (filter) {
                 CommitmentListFilter.OPEN -> {
                     val remote = listOpenMerged(page, pageSize)
-                    // Cache remote items to local database
+                    // Cache remote items to local database and prune stale local entities
                     val entities = remote.items.map { it.toEntity(isSynced = true) }
+                    if (page == 1) {
+                        commitmentDao.deleteStale(entities.map { it.id })
+                    }
                     commitmentDao.upsertAll(entities)
                     remote
                 }
@@ -119,17 +123,52 @@ class CommitmentRepositoryImpl @Inject constructor(
     }
 
     override suspend fun create(input: CreateCommitmentInput): Commitment {
+        val effectiveInput = if (input.dueAt.isNullOrBlank()) {
+            val tz = authSession.user.value?.timezone ?: "Asia/Kolkata"
+            val parsed = app.promise.android.core.util.NaturalLanguageDateParser.parse(input.title, tz)
+            if (parsed.dueAt != null) {
+                input.copy(
+                    title = parsed.cleanedTitle.takeIf { it.isNotBlank() } ?: input.title,
+                    dueAt = parsed.dueAt,
+                    duePrecision = parsed.duePrecision,
+                )
+            } else {
+                input
+            }
+        } else {
+            input
+        }
+
+        if (networkMonitor.isOnline.value) {
+            try {
+                val remote = api.create(
+                    CreateCommitmentRequest(
+                        title = effectiveInput.title.trim(),
+                        description = effectiveInput.description,
+                        dueAt = effectiveInput.dueAt,
+                        duePrecision = effectiveInput.duePrecision.name,
+                    ),
+                ).toDomain()
+                commitmentDao.upsert(remote.toEntity(isSynced = true))
+                return remote
+            } catch (t: Throwable) {
+                if (t is app.promise.android.data.network.ApiException && t.status in 400..499) {
+                    throw t
+                }
+            }
+        }
+
         val actionId = UUID.randomUUID().toString()
         val localId = actionId
         val nowIso = Instant.now().toString()
 
         val optimisticCommitment = Commitment(
             id = localId,
-            title = input.title.trim(),
-            description = input.description,
+            title = effectiveInput.title.trim(),
+            description = effectiveInput.description,
             status = CommitmentStatus.PENDING,
-            dueAt = input.dueAt,
-            duePrecision = input.duePrecision,
+            dueAt = effectiveInput.dueAt,
+            duePrecision = effectiveInput.duePrecision,
             source = "MANUAL",
             snoozedUntil = null,
             completedAt = null,
@@ -143,10 +182,10 @@ class CommitmentRepositoryImpl @Inject constructor(
         commitmentDao.upsert(optimisticCommitment.toEntity(isSynced = false))
 
         val payload = buildJsonObject {
-            put("title", input.title.trim())
-            put("description", input.description)
-            input.dueAt?.let { put("due_at", it) }
-            put("due_precision", input.duePrecision.name)
+            put("title", effectiveInput.title.trim())
+            put("description", effectiveInput.description)
+            effectiveInput.dueAt?.let { put("due_at", it) }
+            put("due_precision", effectiveInput.duePrecision.name)
         }.toString()
 
         outboxDao.enqueue(
@@ -160,26 +199,7 @@ class CommitmentRepositoryImpl @Inject constructor(
         )
 
         syncManager.enqueueSync()
-
-        if (!networkMonitor.isOnline.value) {
-            return optimisticCommitment
-        }
-
-        return try {
-            val remote = api.create(
-                CreateCommitmentRequest(
-                    title = input.title.trim(),
-                    description = input.description,
-                    dueAt = input.dueAt,
-                    duePrecision = input.duePrecision.name,
-                ),
-            ).toDomain()
-            commitmentDao.upsert(remote.toEntity(isSynced = true))
-            outboxDao.delete(actionId)
-            remote
-        } catch (_: Throwable) {
-            optimisticCommitment
-        }
+        return optimisticCommitment
     }
 
     override suspend fun complete(id: String): Commitment {

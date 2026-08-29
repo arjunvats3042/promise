@@ -3,7 +3,6 @@ package app.promise.android.widget
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
-import android.net.Uri
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -37,10 +36,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import app.promise.android.MainActivity
 import app.promise.android.R
-import app.promise.android.ui.theme.PromiseColor
-import app.promise.android.ui.theme.PromiseDarkColor
 
 class VoiceMicGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = VoiceMicGlanceWidget()
@@ -71,40 +67,51 @@ class VoiceMicGlanceWidget : GlanceAppWidget() {
                     modifier = GlanceModifier
                         .fillMaxSize()
                         .background(theme.background)
-                        .cornerRadius(20.dp)
+                        .cornerRadius(28.dp)
                         .clickable(actionStartActivity(voiceIntent))
-                        .padding(10.dp),
+                        .padding(8.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    if (size.width >= 160.dp) {
+                    if (size.width >= 150.dp) {
                         // Horizontal Pill Mode (2x1)
                         Row(
                             modifier = GlanceModifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            // Glowing Outer Aura Container
                             Box(
                                 modifier = GlanceModifier
-                                    .size(44.dp)
-                                    .background(theme.accent)
-                                    .cornerRadius(22.dp),
+                                    .size(46.dp)
+                                    .background(theme.aura)
+                                    .cornerRadius(23.dp)
+                                    .padding(4.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Image(
-                                    provider = ImageProvider(R.drawable.ic_mic),
-                                    contentDescription = "Speak promise",
-                                    modifier = GlanceModifier.size(24.dp),
-                                )
+                                Box(
+                                    modifier = GlanceModifier
+                                        .fillMaxSize()
+                                        .background(theme.accent)
+                                        .cornerRadius(20.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Image(
+                                        provider = ImageProvider(R.drawable.ic_mic),
+                                        contentDescription = "Speak promise",
+                                        modifier = GlanceModifier.size(24.dp),
+                                    )
+                                }
                             }
 
                             Spacer(modifier = GlanceModifier.width(12.dp))
 
                             Column(
+                                modifier = GlanceModifier.defaultWeight(),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "Speak Promise",
+                                    text = "Voice Promise",
                                     style = TextStyle(
                                         color = theme.textPrimary,
                                         fontSize = 15.sp,
@@ -121,33 +128,62 @@ class VoiceMicGlanceWidget : GlanceAppWidget() {
                                     ),
                                 )
                             }
-                        }
-                    } else {
-                        // Compact Square Mode (1x1)
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+
+                            Spacer(modifier = GlanceModifier.width(6.dp))
+
                             Box(
                                 modifier = GlanceModifier
-                                    .size(48.dp)
-                                    .background(theme.accent)
-                                    .cornerRadius(24.dp),
+                                    .size(28.dp)
+                                    .background(theme.surfaceMuted)
+                                    .cornerRadius(14.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Image(
-                                    provider = ImageProvider(R.drawable.ic_mic),
-                                    contentDescription = "Quick Voice Capture",
-                                    modifier = GlanceModifier.size(26.dp),
+                                    provider = ImageProvider(R.drawable.ic_sparkle),
+                                    contentDescription = "AI Powered",
+                                    modifier = GlanceModifier.size(16.dp),
                                 )
                             }
+                        }
+                    } else {
+                        // Compact Square Mode (1x1) — Floating Tactical Glass Button
+                        Column(
+                            modifier = GlanceModifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            // Floating Glowing Mic Disc
+                            Box(
+                                modifier = GlanceModifier
+                                    .size(54.dp)
+                                    .background(theme.aura)
+                                    .cornerRadius(27.dp)
+                                    .padding(4.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(
+                                    modifier = GlanceModifier
+                                        .fillMaxSize()
+                                        .background(theme.accent)
+                                        .cornerRadius(23.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Image(
+                                        provider = ImageProvider(R.drawable.ic_mic),
+                                        contentDescription = "Quick Voice Capture",
+                                        modifier = GlanceModifier.size(28.dp),
+                                    )
+                                }
+                            }
+
                             Spacer(modifier = GlanceModifier.height(4.dp))
+
                             Text(
-                                text = "Voice",
+                                text = "Speak",
                                 style = TextStyle(
                                     color = theme.textPrimary,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
                                 ),
                             )
                         }
@@ -158,33 +194,36 @@ class VoiceMicGlanceWidget : GlanceAppWidget() {
     }
 
     companion object {
-        private val COMPACT_SQUARE = DpSize(60.dp, 60.dp)
-        private val HORIZONTAL_PILL = DpSize(160.dp, 60.dp)
+        private val COMPACT_SQUARE = DpSize(50.dp, 50.dp)
+        private val HORIZONTAL_PILL = DpSize(150.dp, 50.dp)
     }
 }
 
 internal data class VoiceThemeTokens(
     val background: ColorProvider,
     val surfaceMuted: ColorProvider,
+    val aura: ColorProvider,
     val accent: ColorProvider,
     val textPrimary: ColorProvider,
     val textSecondary: ColorProvider,
 ) {
     companion object {
         val Light = VoiceThemeTokens(
-            background = ColorProvider(PromiseColor.Background),
-            surfaceMuted = ColorProvider(PromiseColor.SurfaceMuted),
-            accent = ColorProvider(PromiseColor.Accent),
-            textPrimary = ColorProvider(PromiseColor.TextPrimary),
-            textSecondary = ColorProvider(PromiseColor.TextSecondary),
+            background = ColorProvider(Color(0xFFFFFFFF)),
+            surfaceMuted = ColorProvider(Color(0xFFF1F5F9)),
+            aura = ColorProvider(Color(0xFFDCFCE7)),
+            accent = ColorProvider(Color(0xFF10B981)),
+            textPrimary = ColorProvider(Color(0xFF0F172A)),
+            textSecondary = ColorProvider(Color(0xFF64748B)),
         )
 
         val Dark = VoiceThemeTokens(
-            background = ColorProvider(PromiseDarkColor.Background),
-            surfaceMuted = ColorProvider(PromiseDarkColor.SurfaceMuted),
-            accent = ColorProvider(PromiseDarkColor.Accent),
-            textPrimary = ColorProvider(PromiseDarkColor.TextPrimary),
-            textSecondary = ColorProvider(PromiseDarkColor.TextSecondary),
+            background = ColorProvider(Color(0xFF131720)),
+            surfaceMuted = ColorProvider(Color(0xFF1E2532)),
+            aura = ColorProvider(Color(0xFF064E3B)),
+            accent = ColorProvider(Color(0xFF10B981)),
+            textPrimary = ColorProvider(Color(0xFFF8FAFC)),
+            textSecondary = ColorProvider(Color(0xFF94A3B8)),
         )
     }
 }

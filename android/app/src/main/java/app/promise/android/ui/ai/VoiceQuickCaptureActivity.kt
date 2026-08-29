@@ -4,10 +4,14 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import app.promise.android.core.events.AppEventBus
 import app.promise.android.core.events.AppMutationEvent
@@ -15,18 +19,26 @@ import app.promise.android.core.speech.SpeechRecognitionManager
 import app.promise.android.data.network.AuthSession
 import app.promise.android.domain.AiRepository
 import app.promise.android.domain.CommitmentRepository
-import app.promise.android.domain.GoalRepository
 import app.promise.android.domain.CreateCommitmentInput
 import app.promise.android.domain.CreateGoalInput
+import app.promise.android.domain.GoalRepository
 import app.promise.android.domain.ParsedThoughtItem
 import app.promise.android.ui.haptics.PromiseHaptics
+import app.promise.android.ui.theme.AccentSession
 import app.promise.android.ui.theme.PromiseTheme
+import app.promise.android.ui.theme.ThemeController
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class VoiceQuickCaptureActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var themeController: ThemeController
+
+    @Inject
+    lateinit var accentSession: AccentSession
 
     @Inject
     lateinit var speechManager: SpeechRecognitionManager
@@ -53,7 +65,14 @@ class VoiceQuickCaptureActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            PromiseTheme {
+            val systemDark = isSystemInDarkTheme()
+            LaunchedEffect(systemDark) {
+                themeController.syncSystem(systemDark)
+            }
+            val mode by themeController.mode.collectAsStateWithLifecycle()
+            val sessionAccent by accentSession.accent.collectAsStateWithLifecycle()
+
+            PromiseTheme(mode = mode, sessionAccent = sessionAccent) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     VoiceCaptureSheet(
                         speechManager = speechManager,

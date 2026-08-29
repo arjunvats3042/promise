@@ -66,4 +66,31 @@ class ThoughtParserTests(SimpleTestCase):
         self.assertIsNone(items[2]["due_at"])
         self.assertIsNone(items[2]["due_precision"])
 
+    def test_heuristic_relative_dates_and_times(self):
+        thought = "call mom at 12:00 p.m. tomorrow\ncall mom day after tomorrow at 12:00 p.m."
+        result = _heuristic_parse_thought(thought, "Asia/Kolkata")
+        items = result.get("items", [])
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0]["type"], "commitment")
+        self.assertIsNotNone(items[0]["due_at"])
+        self.assertEqual(items[0]["due_precision"], "HOUR")
+
+        self.assertEqual(items[1]["type"], "commitment")
+        self.assertIsNotNone(items[1]["due_at"])
+        self.assertEqual(items[1]["due_precision"], "HOUR")
+
+    def test_heuristic_after_n_days_and_afternoon(self):
+        thought = "call mom after 3 days\ncall doctor in afternoon"
+        result = _heuristic_parse_thought(thought, "Asia/Kolkata")
+        items = result.get("items", [])
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0]["type"], "commitment")
+        self.assertIsNotNone(items[0]["due_at"])
+        self.assertEqual(items[0]["due_precision"], "DAY")
+
+        self.assertEqual(items[1]["type"], "commitment")
+        self.assertIsNotNone(items[1]["due_at"])
+        self.assertEqual(items[1]["due_precision"], "HOUR")
+
+
 

@@ -67,6 +67,9 @@ class GoalRepositoryImpl @Inject constructor(
                     )
                     val listItems = pinInvites(response.results.map { it.toListItem() })
                     val domainGoals = listItems.mapNotNull { (it as? GoalListItem.Membership)?.goal }
+                    if (page == 1) {
+                        goalDao.deleteStale(domainGoals.map { it.id })
+                    }
                     goalDao.upsertAll(domainGoals.map { it.toEntity(isSynced = true) })
                     GoalPage(
                         items = listItems,
@@ -148,6 +151,34 @@ class GoalRepositoryImpl @Inject constructor(
     }
 
     override suspend fun create(input: CreateGoalInput): Goal {
+        if (networkMonitor.isOnline.value) {
+            try {
+                val remote = api.create(
+                    CreateGoalRequest(
+                        title = input.title.trim(),
+                        description = input.description,
+                        timezone = input.timezone,
+                        startDate = input.startDate,
+                        endDate = input.endDate,
+                        recurrenceKind = input.recurrenceKind.name,
+                        weekdays = input.weekdays,
+                        periodUnit = input.periodUnit?.name,
+                        timesPerPeriod = input.timesPerPeriod,
+                        trackingKind = input.trackingKind.name,
+                        targetValue = input.targetValue,
+                        targetUnit = input.targetUnit,
+                        isShared = input.isShared,
+                    ),
+                ).toDomain()
+                goalDao.upsert(remote.toEntity(isSynced = true))
+                return remote
+            } catch (t: Throwable) {
+                if (t is app.promise.android.data.network.ApiException && t.status in 400..499) {
+                    throw t
+                }
+            }
+        }
+
         val actionId = UUID.randomUUID().toString()
         val localId = actionId
         val nowIso = Instant.now().toString()
@@ -205,35 +236,7 @@ class GoalRepositoryImpl @Inject constructor(
         )
 
         syncManager.enqueueSync()
-
-        if (!networkMonitor.isOnline.value) {
-            return optimisticGoal
-        }
-
-        return try {
-            val remote = api.create(
-                CreateGoalRequest(
-                    title = input.title.trim(),
-                    description = input.description,
-                    timezone = input.timezone,
-                    startDate = input.startDate,
-                    endDate = input.endDate,
-                    recurrenceKind = input.recurrenceKind.name,
-                    weekdays = input.weekdays,
-                    periodUnit = input.periodUnit?.name,
-                    timesPerPeriod = input.timesPerPeriod,
-                    trackingKind = input.trackingKind.name,
-                    targetValue = input.targetValue,
-                    targetUnit = input.targetUnit,
-                    isShared = input.isShared,
-                ),
-            ).toDomain()
-            goalDao.upsert(remote.toEntity(isSynced = true))
-            outboxDao.delete(actionId)
-            remote
-        } catch (_: Throwable) {
-            optimisticGoal
-        }
+        return optimisticGoal
     }
 
     override suspend fun pause(id: String): Goal = mutateGoal { api.pause(id) }

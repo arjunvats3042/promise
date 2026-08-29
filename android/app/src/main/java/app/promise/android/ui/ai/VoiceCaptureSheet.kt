@@ -4,7 +4,6 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -18,9 +17,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,7 +37,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
@@ -77,7 +74,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -181,12 +177,11 @@ fun VoiceCaptureSheet(
         }
     }
 
-    fun startProcessingAi(text: String) {
+    fun startProcessing(text: String) {
         val query = text.trim()
         if (query.isBlank()) return
 
         if (onParseThought == null) {
-            // Direct transcript mode
             onTranscriptReady?.invoke(query)
             onDismiss()
             return
@@ -198,7 +193,24 @@ fun VoiceCaptureSheet(
 
         scope.launch {
             try {
-                val items = onParseThought(query)
+                val rawItems = onParseThought(query)
+                val items = rawItems.map { item ->
+                    if (item.type == "commitment" && item.dueAt.isNullOrBlank()) {
+                        val parsed = app.promise.android.core.util.NaturalLanguageDateParser.parse(item.title)
+                        val fallback = if (parsed.dueAt == null) app.promise.android.core.util.NaturalLanguageDateParser.parse(query) else parsed
+                        if (fallback.dueAt != null) {
+                            item.copy(
+                                title = parsed.cleanedTitle.takeIf { it.isNotBlank() } ?: item.title,
+                                dueAt = fallback.dueAt,
+                                duePrecision = if (fallback.duePrecision == DuePrecision.DATE) "DAY" else "HOUR",
+                            )
+                        } else {
+                            item
+                        }
+                    } else {
+                        item
+                    }
+                }
                 parsedItems = items
                 selectedIndices.clear()
                 selectedIndices.addAll(items.indices)
@@ -207,7 +219,7 @@ fun VoiceCaptureSheet(
             } catch (_: kotlinx.coroutines.CancellationException) {
                 // Ignore cancellation
             } catch (e: Exception) {
-                errorMessage = e.localizedMessage ?: "Could not structure thoughts. Please try again."
+                errorMessage = e.localizedMessage ?: "Could not process words. Please try again."
                 currentStep = VoicePipelineStep.REVIEW
                 haptics.performHapticFeedback(HapticFeedbackType.Reject)
             }
@@ -301,8 +313,8 @@ fun VoiceCaptureSheet(
                             text = when (currentStep) {
                                 VoicePipelineStep.RECORDING -> titleText
                                 VoicePipelineStep.REVIEW -> "Review Spoken Words"
-                                VoicePipelineStep.AI_PROCESSING -> "Structuring with AI..."
-                                VoicePipelineStep.FINALIZE -> "Finalize Promise(s)"
+                                VoicePipelineStep.AI_PROCESSING -> "Structuring Promise..."
+                                VoicePipelineStep.FINALIZE -> "Create Promise(s)"
                             },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
@@ -312,8 +324,8 @@ fun VoiceCaptureSheet(
                             text = when (currentStep) {
                                 VoicePipelineStep.RECORDING -> subtitleText
                                 VoicePipelineStep.REVIEW -> "Check what was heard or tap Retake."
-                                VoicePipelineStep.AI_PROCESSING -> "Extracting exact tasks and timeline..."
-                                VoicePipelineStep.FINALIZE -> "Select items to add to your plan."
+                                VoicePipelineStep.AI_PROCESSING -> "Setting up dates and schedules..."
+                                VoicePipelineStep.FINALIZE -> "Confirm items to add to your plan."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
@@ -387,7 +399,7 @@ fun VoiceCaptureSheet(
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(min = 90.dp, max = 180.dp)
+                                        .heightIn(min = 90.dp, max = 160.dp)
                                         .border(
                                             1.dp,
                                             if (isListening) colors.accent.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
@@ -420,48 +432,26 @@ fun VoiceCaptureSheet(
 
                                 Spacer(modifier = Modifier.height(Spacing.lg))
 
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                                Button(
+                                    onClick = {
+                                        speechManager.stopListening()
+                                        if (transcriptText.isNotBlank()) {
+                                            currentStep = VoicePipelineStep.REVIEW
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(TouchTarget.min),
+                                    shape = RoundedCornerShape(Radius.sm),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = colors.accent,
+                                        contentColor = colors.surfaceMuted,
+                                    ),
+                                    enabled = transcriptText.isNotBlank(),
                                 ) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            transcriptText = ""
-                                            speechManager.reset()
-                                            speechManager.startListening()
-                                        },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(TouchTarget.min),
-                                        shape = RoundedCornerShape(Radius.sm),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                                    ) {
-                                        Icon(imageVector = Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(Spacing.xs))
-                                        Text("Retake")
-                                    }
-
-                                    Button(
-                                        onClick = {
-                                            speechManager.stopListening()
-                                            if (transcriptText.isNotBlank()) {
-                                                currentStep = VoicePipelineStep.REVIEW
-                                            }
-                                        },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(TouchTarget.min),
-                                        shape = RoundedCornerShape(Radius.sm),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = colors.accent,
-                                            contentColor = colors.surfaceMuted,
-                                        ),
-                                        enabled = transcriptText.isNotBlank(),
-                                    ) {
-                                        Icon(imageVector = Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(Spacing.xs))
-                                        Text("Review")
-                                    }
+                                    Icon(imageVector = Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(Spacing.xs))
+                                    Text("Done Speaking", style = MaterialTheme.typography.labelLarge)
                                 }
                             }
                         }
@@ -475,7 +465,7 @@ fun VoiceCaptureSheet(
                             OutlinedTextField(
                                 value = transcriptText,
                                 onValueChange = { transcriptText = it },
-                                label = { Text("Spoken Thought") },
+                                label = { Text("Spoken Words") },
                                 modifier = Modifier.fillMaxWidth(),
                                 minLines = 3,
                                 maxLines = 6,
@@ -520,7 +510,7 @@ fun VoiceCaptureSheet(
 
                                 Button(
                                     onClick = {
-                                        startProcessingAi(transcriptText)
+                                        startProcessing(transcriptText)
                                     },
                                     modifier = Modifier
                                         .weight(1.3f)
@@ -532,9 +522,9 @@ fun VoiceCaptureSheet(
                                     ),
                                     enabled = transcriptText.isNotBlank(),
                                 ) {
-                                    Icon(imageVector = Icons.Outlined.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Text("Continue")
                                     Spacer(modifier = Modifier.width(Spacing.xs))
-                                    Text("Continue with AI")
+                                    Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -554,14 +544,14 @@ fun VoiceCaptureSheet(
                             )
                             Spacer(modifier = Modifier.height(Spacing.lg))
                             Text(
-                                text = "Extracting details & timeline...",
+                                text = "Structuring your promises...",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = colors.textPrimary,
                             )
                             Spacer(modifier = Modifier.height(Spacing.xs))
                             Text(
-                                text = "Structuring promises with accurate deadlines",
+                                text = "Setting up deadlines and schedules",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary,
                             )
@@ -586,7 +576,7 @@ fun VoiceCaptureSheet(
                                 )
                                 Spacer(modifier = Modifier.height(Spacing.xs))
                                 Text(
-                                    text = "Try speaking concrete tasks, deadlines, or habits.",
+                                    text = "Try speaking concrete tasks, deadlines, or daily habits.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = colors.textSecondary,
                                     textAlign = TextAlign.Center,
@@ -605,13 +595,13 @@ fun VoiceCaptureSheet(
                                         contentColor = colors.surfaceMuted,
                                     ),
                                 ) {
-                                    Text("Edit Spoken Thought")
+                                    Text("Edit Spoken Words")
                                 }
                             }
                         } else {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    text = "DETECTED PROMISES (${selectedIndices.size}/${items.size})",
+                                    text = "PROMISES TO CREATE (${selectedIndices.size}/${items.size})",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = colors.accent,
                                     fontWeight = FontWeight.Bold,
@@ -661,14 +651,19 @@ fun VoiceCaptureSheet(
                                                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                                                     ) {
                                                         Text(
-                                                            text = item.type.uppercase(),
+                                                            text = if (item.type == "goal") "HABIT" else "COMMITMENT",
                                                             style = MaterialTheme.typography.labelSmall,
                                                             fontWeight = FontWeight.Bold,
                                                             color = colors.accent,
                                                         )
                                                         if (!item.dueAt.isNullOrBlank()) {
+                                                            val formattedDue = app.promise.android.ui.commitments.CommitmentTime.formatDue(
+                                                                dueAt = item.dueAt,
+                                                                precision = if (item.duePrecision?.equals("DAY", ignoreCase = true) == true) DuePrecision.DATE else DuePrecision.DATETIME,
+                                                                timeZoneId = "Asia/Kolkata",
+                                                            ) ?: item.dueAt
                                                             Text(
-                                                                text = "• Due ${item.dueAt}",
+                                                                text = "• Due $formattedDue",
                                                                 style = MaterialTheme.typography.labelSmall,
                                                                 color = colors.textSecondary,
                                                             )
@@ -724,7 +719,7 @@ fun VoiceCaptureSheet(
                                     } else {
                                         Icon(imageVector = Icons.Outlined.Check, contentDescription = null)
                                         Spacer(modifier = Modifier.width(Spacing.xs))
-                                        Text("Finalize & Create (${selectedIndices.size})")
+                                        Text("Create Promise(s) (${selectedIndices.size})")
                                     }
                                 }
 
@@ -734,7 +729,7 @@ fun VoiceCaptureSheet(
                                     onClick = { currentStep = VoicePipelineStep.REVIEW },
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
-                                    Text("Edit Spoken Thought")
+                                    Text("Edit Spoken Words")
                                 }
                             }
                         }
