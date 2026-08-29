@@ -1,5 +1,6 @@
 package app.promise.android.ui.haptics
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
@@ -14,16 +15,20 @@ import javax.inject.Singleton
 class AndroidPromiseHaptics @Inject constructor(
     @param:ApplicationContext private val context: Context,
 ) : PromiseHaptics {
+
+    @SuppressLint("InlinedApi")
     override fun light() {
         // Slightly above the softest tick.
         vibratePredefined(VibrationEffect.EFFECT_CLICK)
     }
 
+    @SuppressLint("InlinedApi")
     override fun selection() {
         // Delicate crisp tick for scrolling or pill selection
         vibratePredefined(VibrationEffect.EFFECT_TICK)
     }
 
+    @SuppressLint("InlinedApi")
     override fun confirm() {
         // Stronger confirmation without a harsh double-thud.
         vibratePredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
@@ -34,15 +39,12 @@ class AndroidPromiseHaptics @Inject constructor(
         if (!hapticsEnabled()) return
         val vibrator = vibrator() ?: return
         if (!vibrator.hasVibrator()) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val timings = longArrayOf(0, 30, 60, 45, 60, 60)
-            val amplitudes = intArrayOf(0, 140, 0, 180, 0, 255)
-            vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
-        } else {
-            vibratePredefined(VibrationEffect.EFFECT_HEAVY_CLICK)
-        }
+        val timings = longArrayOf(0, 30, 60, 45, 60, 60)
+        val amplitudes = intArrayOf(0, 140, 0, 180, 0, 255)
+        vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
     }
 
+    @SuppressLint("InlinedApi")
     override fun error() {
         vibratePredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
     }
@@ -55,7 +57,10 @@ class AndroidPromiseHaptics @Inject constructor(
             vibrator.vibrate(VibrationEffect.createPredefined(effectId))
         } else {
             @Suppress("DEPRECATION")
-            vibrator.vibrate(if (effectId == VibrationEffect.EFFECT_HEAVY_CLICK) 40 else 25)
+            @SuppressLint("InlinedApi")
+            val durationMs = if (effectId == VibrationEffect.EFFECT_HEAVY_CLICK) 40L else 25L
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(durationMs)
         }
     }
 

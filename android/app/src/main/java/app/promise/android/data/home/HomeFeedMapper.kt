@@ -22,7 +22,7 @@ object HomeFeedMapper {
         now: Instant = Instant.now(),
     ): List<HomeCommitment> {
         val zone = zoneId(timeZoneId)
-        val today = LocalDate.ofInstant(now, zone)
+        val today = now.atZone(zone).toLocalDate()
         val upcomingEnd = today.plusDays(UPCOMING_DAYS)
         val filtered = open.filter { c ->
             if (c.dueAt.isNullOrBlank()) return@filter false

@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -152,23 +153,7 @@ fun SearchScreen(
             // Body
             when (val state = uiState) {
                 is SearchUiState.Idle -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(Spacing.lg),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "Search your commitments, goals, and shared groups.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.textSecondary,
-                        )
-                    }
-                }
-                is SearchUiState.Loading -> {
-                    // Progress bar shown at top
-                }
-                is SearchUiState.Empty -> {
+                    val idle = app.promise.android.core.copy.EmptyStateCopy.Search.Idle
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -177,13 +162,41 @@ fun SearchScreen(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "No matches found",
+                                text = idle.title,
                                 style = MaterialTheme.typography.titleMedium,
                                 color = colors.textPrimary,
+                                fontWeight = FontWeight.SemiBold,
                             )
                             Spacer(modifier = Modifier.height(Spacing.xs))
                             Text(
-                                text = "Try searching with a different term or keyword.",
+                                text = idle.description,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textSecondary,
+                            )
+                        }
+                    }
+                }
+                is SearchUiState.Loading -> {
+                    // Progress bar shown at top
+                }
+                is SearchUiState.Empty -> {
+                    val noMatches = app.promise.android.core.copy.EmptyStateCopy.Search.NoMatches
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(Spacing.lg),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = noMatches.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = colors.textPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            Text(
+                                text = noMatches.description,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary,
                             )

@@ -12,8 +12,9 @@ sealed interface DeepLinkDestination {
     data class Commitment(val id: String) : DeepLinkDestination
     data class Goal(val id: String) : DeepLinkDestination
     data class GoalChat(val id: String) : DeepLinkDestination
-    object Home : DeepLinkDestination
-    object Profile : DeepLinkDestination
+    data object Home : DeepLinkDestination
+    data object Profile : DeepLinkDestination
+    data object VoiceCapture : DeepLinkDestination
 }
 
 @Singleton
@@ -35,10 +36,14 @@ class DeepLinkRouter @Inject constructor() {
     }
 
     fun routeEntity(entityType: String, entityId: String, eventType: String = ""): Boolean {
-        if (entityId.isBlank() && entityType.uppercase() != "DIGEST" && entityType.uppercase() != "SYSTEM") {
+        val upperType = entityType.uppercase()
+        if (entityId.isBlank() && upperType != "DIGEST" && upperType != "SYSTEM" && upperType != "VOICE" && upperType != "VOICE_CAPTURE") {
             return false
         }
         val dest = when {
+            upperType == "VOICE" || upperType == "VOICE_CAPTURE" -> {
+                DeepLinkDestination.VoiceCapture
+            }
             eventType == "goal.chat.message_created" || eventType.startsWith("goal.chat.") -> {
                 DeepLinkDestination.GoalChat(entityId)
             }
@@ -64,6 +69,10 @@ class DeepLinkRouter @Inject constructor() {
         val host = uri.host?.lowercase().orEmpty()
         val pathSegments = uri.pathSegments
 
+        // promise://voice or promise:///voice
+        if (host == "voice") {
+            return DeepLinkDestination.VoiceCapture
+        }
         // promise://commitment/{id}
         if (host == "commitment" && pathSegments.isNotEmpty()) {
             return DeepLinkDestination.Commitment(pathSegments[0])
@@ -87,15 +96,20 @@ class DeepLinkRouter @Inject constructor() {
         }
 
         // Alternative path parsing for https or full paths (e.g. promise:///goal/123/chat)
-        if (pathSegments.size >= 2) {
+        if (pathSegments.size >= 1) {
             when (pathSegments[0].lowercase()) {
-                "commitment" -> return DeepLinkDestination.Commitment(pathSegments[1])
+                "voice" -> return DeepLinkDestination.VoiceCapture
+                "home" -> return DeepLinkDestination.Home
+                "profile" -> return DeepLinkDestination.Profile
+                "commitment" -> if (pathSegments.size >= 2) return DeepLinkDestination.Commitment(pathSegments[1])
                 "goal" -> {
-                    val goalId = pathSegments[1]
-                    return if (pathSegments.size >= 3 && pathSegments[2].equals("chat", ignoreCase = true)) {
-                        DeepLinkDestination.GoalChat(goalId)
-                    } else {
-                        DeepLinkDestination.Goal(goalId)
+                    if (pathSegments.size >= 2) {
+                        val goalId = pathSegments[1]
+                        return if (pathSegments.size >= 3 && pathSegments[2].equals("chat", ignoreCase = true)) {
+                            DeepLinkDestination.GoalChat(goalId)
+                        } else {
+                            DeepLinkDestination.Goal(goalId)
+                        }
                     }
                 }
             }

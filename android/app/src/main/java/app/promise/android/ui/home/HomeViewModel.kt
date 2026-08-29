@@ -83,11 +83,19 @@ class HomeViewModel @Inject constructor(
     private val profilePhotoStore: app.promise.android.data.local.ProfilePhotoStore,
     private val networkMonitor: app.promise.android.core.NetworkMonitor,
     private val syncManager: app.promise.android.data.sync.SyncManager,
+    val speechManager: app.promise.android.core.speech.SpeechRecognitionManager,
+    private val deepLinkRouter: app.promise.android.ui.navigation.DeepLinkRouter,
 ) : ViewModel() {
     val photoUri: StateFlow<String?> = profilePhotoStore.photoUri
     val isOnline: StateFlow<Boolean> = networkMonitor.isOnline
     private val _state = MutableStateFlow<LoadState<HomeUiModel>>(LoadState.Loading)
     val state: StateFlow<LoadState<HomeUiModel>> = _state.asStateFlow()
+
+    private val _showVoiceCapture = MutableStateFlow(false)
+    val showVoiceCapture: StateFlow<Boolean> = _showVoiceCapture.asStateFlow()
+
+    private val _initialVoiceThought = MutableStateFlow<String?>(null)
+    val initialVoiceThought: StateFlow<String?> = _initialVoiceThought.asStateFlow()
 
     private val _weeklyInsightsState = MutableStateFlow<WeeklyInsightsUiState>(WeeklyInsightsUiState.Loading)
     val weeklyInsightsState: StateFlow<WeeklyInsightsUiState> = _weeklyInsightsState.asStateFlow()
@@ -96,6 +104,23 @@ class HomeViewModel @Inject constructor(
     val dailyMotivationState: StateFlow<DailyMotivationUiState> = _dailyMotivationState.asStateFlow()
 
     private val loadMutex = Mutex()
+
+    fun openVoiceCapture() {
+        _showVoiceCapture.value = true
+    }
+
+    fun closeVoiceCapture() {
+        _showVoiceCapture.value = false
+    }
+
+    fun onVoiceTranscriptReady(transcript: String) {
+        _showVoiceCapture.value = false
+        _initialVoiceThought.value = transcript
+    }
+
+    fun clearInitialVoiceThought() {
+        _initialVoiceThought.value = null
+    }
 
     suspend fun parseThought(thought: String, timezone: String = "Asia/Kolkata"): List<ParsedThoughtItem> {
         return aiRepository.parseThought(thought, timezone)
@@ -135,6 +160,17 @@ class HomeViewModel @Inject constructor(
         refresh(force = true)
         observeEvents()
         observeNetwork()
+        observeDeepLinks()
+    }
+
+    private fun observeDeepLinks() {
+        viewModelScope.launch {
+            deepLinkRouter.destinations.collect { destination ->
+                if (destination is app.promise.android.ui.navigation.DeepLinkDestination.VoiceCapture) {
+                    _showVoiceCapture.value = true
+                }
+            }
+        }
     }
 
     private fun observeNetwork() {

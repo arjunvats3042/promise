@@ -54,6 +54,11 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
 
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material3.IconButton
+import app.promise.android.core.speech.SpeechRecognitionManager
+import app.promise.android.ui.ai.VoiceCaptureSheet
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateGoalSheet(
@@ -62,6 +67,7 @@ fun CreateGoalSheet(
     onDismiss: () -> Unit,
     onSubmit: (CreateGoalInput) -> Unit,
     onOpenAiBuilder: (() -> Unit)? = null,
+    speechManager: SpeechRecognitionManager? = null,
 ) {
     val colors = PromiseThemeColors.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -75,6 +81,7 @@ fun CreateGoalSheet(
     var targetUnit by remember { mutableStateOf("") }
     var isShared by remember { mutableStateOf(false) }
     var endLocalDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showVoiceCapture by remember { mutableStateOf(false) }
     val submitting = action is ActionState.InFlight
     val error = (action as? ActionState.Failed)?.kind
 
@@ -129,6 +136,20 @@ fun CreateGoalSheet(
                 onValueChange = { title = it },
                 enabled = !submitting,
                 singleLine = true,
+                trailingIcon = if (speechManager != null) {
+                    {
+                        IconButton(
+                            onClick = { showVoiceCapture = true },
+                            enabled = !submitting,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Mic,
+                                contentDescription = "Speak goal title",
+                                tint = colors.accent,
+                            )
+                        }
+                    }
+                } else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics { contentDescription = "Goal title" },
@@ -306,6 +327,19 @@ fun CreateGoalSheet(
             }
             Spacer(modifier = Modifier.height(Spacing.md))
         }
+    }
+
+    if (showVoiceCapture && speechManager != null) {
+        VoiceCaptureSheet(
+            speechManager = speechManager,
+            onDismiss = { showVoiceCapture = false },
+            onTranscriptReady = { voiceText ->
+                showVoiceCapture = false
+                title = voiceText
+            },
+            titleText = "Dictate Goal",
+            subtitleText = "Speak your goal or habit title clearly.",
+        )
     }
 }
 

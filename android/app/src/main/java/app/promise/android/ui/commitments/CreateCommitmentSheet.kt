@@ -52,6 +52,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material3.IconButton
+import app.promise.android.core.speech.SpeechRecognitionManager
+import app.promise.android.ui.ai.VoiceCaptureSheet
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateCommitmentSheet(
@@ -60,6 +65,7 @@ fun CreateCommitmentSheet(
     onDismiss: () -> Unit,
     onSubmit: (title: String, description: String, dueAt: String?, precision: DuePrecision) -> Unit,
     onOpenRefiner: (() -> Unit)? = null,
+    speechManager: SpeechRecognitionManager? = null,
 ) {
     val colors = PromiseThemeColors.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -68,6 +74,7 @@ fun CreateCommitmentSheet(
     var dueMode by remember { mutableStateOf(DueMode.None) }
     var dueDate by remember { mutableStateOf(LocalDate.now()) }
     var dueTime by remember { mutableStateOf(LocalTime.of(18, 0)) }
+    var showVoiceCapture by remember { mutableStateOf(false) }
     val submitting = action is ActionState.InFlight
     val error = (action as? ActionState.Failed)?.kind
 
@@ -122,6 +129,20 @@ fun CreateCommitmentSheet(
                 onValueChange = { title = it },
                 enabled = !submitting,
                 singleLine = true,
+                trailingIcon = if (speechManager != null) {
+                    {
+                        IconButton(
+                            onClick = { showVoiceCapture = true },
+                            enabled = !submitting,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Mic,
+                                contentDescription = "Speak commitment title",
+                                tint = colors.accent,
+                            )
+                        }
+                    }
+                } else null,
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics { contentDescription = "Commitment title" },
@@ -188,6 +209,19 @@ fun CreateCommitmentSheet(
             }
             Spacer(modifier = Modifier.height(Spacing.md))
         }
+    }
+
+    if (showVoiceCapture && speechManager != null) {
+        VoiceCaptureSheet(
+            speechManager = speechManager,
+            onDismiss = { showVoiceCapture = false },
+            onTranscriptReady = { voiceText ->
+                showVoiceCapture = false
+                title = voiceText
+            },
+            titleText = "Dictate Commitment",
+            subtitleText = "Speak your commitment title clearly.",
+        )
     }
 }
 

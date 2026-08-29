@@ -1,25 +1,14 @@
 package app.promise.android.ui.auth
 
+import app.promise.android.core.copy.GreetingEngine
+
 /**
  * Time-aware greeting + calm typewriter reducer (pure, unit-testable).
  */
 object GreetingClock {
-    fun greetingForHour(hour: Int): String {
-        return when (hour) {
-            in 5..11 -> "Good morning"
-            in 12..16 -> "Good afternoon"
-            else -> "Good evening"
-        }
-    }
+    fun greetingForHour(hour: Int): String = GreetingEngine.getShortGreeting(hour)
 
-    fun editorialGreetingForHour(hour: Int): String {
-        return when (hour) {
-            in 5..11 -> "Good morning · Set your daily intention"
-            in 12..16 -> "Good afternoon · Stay in steady flow"
-            in 17..21 -> "Good evening · Reflect and follow through"
-            else -> "Quiet night · Rest and prepare for tomorrow"
-        }
-    }
+    fun editorialGreetingForHour(hour: Int): String = GreetingEngine.getEditorialGreeting(hour)
 }
 
 enum class GreetingPhase {

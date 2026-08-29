@@ -1,5 +1,6 @@
 package app.promise.android.ui.components
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -125,6 +126,7 @@ fun PromiseDateField(
     }
 }
 
+@SuppressLint("NonObservableLocale")
 @Composable
 fun PromiseDatePicker(
     value: LocalDate,

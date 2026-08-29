@@ -3,18 +3,15 @@ package app.promise.android.widget
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
-import android.os.Build
 
 object PromiseGlanceWidgetPinHelper {
 
     fun isPinSupported(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
         val appWidgetManager = context.getSystemService(AppWidgetManager::class.java) ?: return false
         return appWidgetManager.isRequestPinAppWidgetSupported
     }
 
     fun requestPinGoalsWidget(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
         val appWidgetManager = context.getSystemService(AppWidgetManager::class.java) ?: return false
         if (!appWidgetManager.isRequestPinAppWidgetSupported) return false
 
@@ -23,7 +20,6 @@ object PromiseGlanceWidgetPinHelper {
     }
 
     fun requestPinCommitmentsWidget(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
         val appWidgetManager = context.getSystemService(AppWidgetManager::class.java) ?: return false
         if (!appWidgetManager.isRequestPinAppWidgetSupported) return false
 
@@ -31,8 +27,11 @@ object PromiseGlanceWidgetPinHelper {
         return appWidgetManager.requestPinAppWidget(provider, null, null)
     }
 
-    fun requestPinWidget(context: Context): Boolean {
-        return requestPinGoalsWidget(context)
+    fun requestPinVoiceWidget(context: Context): Boolean {
+        val appWidgetManager = context.getSystemService(AppWidgetManager::class.java) ?: return false
+        if (!appWidgetManager.isRequestPinAppWidgetSupported) return false
+
+        val provider = ComponentName(context, VoiceMicGlanceWidgetReceiver::class.java)
+        return appWidgetManager.requestPinAppWidget(provider, null, null)
     }
 }
-

@@ -117,6 +117,9 @@ fun MainShell(
                 DeepLinkDestination.Profile -> {
                     pagerState.scrollToPage(3)
                 }
+                DeepLinkDestination.VoiceCapture -> {
+                    pagerState.scrollToPage(0)
+                }
             }
         }
     }

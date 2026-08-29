@@ -3,4 +3,6 @@
     <string name="app_name">Promise</string>
     <string name="widget_goals_label">Promise Goals</string>
     <string name="widget_commitments_label">Promise Commitments</string>
+    <string name="widget_voice_label">Promise Quick Voice</string>
+    <string name="widget_voice_description">Tap to capture promises with your voice</string>
 </resources>

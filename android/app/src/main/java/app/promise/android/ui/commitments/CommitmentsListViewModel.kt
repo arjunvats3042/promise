@@ -46,6 +46,7 @@ class CommitmentsListViewModel @Inject constructor(
     private val haptics: PromiseHaptics,
     private val appEventBus: AppEventBus,
     private val aiRepository: AiRepository,
+    val speechManager: app.promise.android.core.speech.SpeechRecognitionManager,
 ) : ViewModel() {
 
     suspend fun refineCommitment(prompt: String, timezone: String): CommitmentRefinement {

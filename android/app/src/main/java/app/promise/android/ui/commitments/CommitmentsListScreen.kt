@@ -201,6 +201,7 @@ fun CommitmentsListScreen(
                 showCreate = false
                 showRefiner = true
             },
+            speechManager = viewModel.speechManager,
         )
     }
 
@@ -339,15 +340,15 @@ private fun EmptyCommitments(
     filter: CommitmentListFilter,
     onCreate: () -> Unit,
 ) {
+    val content = app.promise.android.core.copy.EmptyStateCopy.forCommitmentFilter(filter)
     app.promise.android.ui.components.PromiseEmptyState(
-        title = filter.emptyTitle(),
-        description = filter.emptyBody(),
-        actionLabel = if (filter == CommitmentListFilter.OPEN || filter == CommitmentListFilter.TODAY) "Create Commitment" else null,
-        onActionClick = if (filter == CommitmentListFilter.OPEN || filter == CommitmentListFilter.TODAY) onCreate else null,
+        title = content.title,
+        description = content.description,
+        actionLabel = content.actionLabel,
+        onActionClick = if (content.actionLabel != null) onCreate else null,
         modifier = Modifier.fillMaxSize(),
     )
 }
-
 
 private fun CommitmentListFilter.label(): String = when (this) {
     CommitmentListFilter.OPEN -> "All Open"
@@ -355,19 +356,6 @@ private fun CommitmentListFilter.label(): String = when (this) {
     CommitmentListFilter.TODAY -> "Today"
     CommitmentListFilter.UPCOMING -> "Upcoming"
     CommitmentListFilter.DONE -> "Completed"
-}
-
-private fun CommitmentListFilter.emptyTitle(): String = when (this) {
-    CommitmentListFilter.OPEN -> "No open commitments."
-    CommitmentListFilter.OVERDUE -> "Nothing overdue."
-    CommitmentListFilter.TODAY -> "Nothing due today."
-    CommitmentListFilter.UPCOMING -> "Nothing upcoming."
-    CommitmentListFilter.DONE -> "No completed commitments yet."
-}
-
-private fun CommitmentListFilter.emptyBody(): String = when (this) {
-    CommitmentListFilter.OPEN, CommitmentListFilter.TODAY -> "Add a promise when you’re ready."
-    else -> "Check another filter, or come back later."
 }
 
 fun Commitment.metaLine(timeZoneId: String): String {

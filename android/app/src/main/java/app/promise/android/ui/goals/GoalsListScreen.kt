@@ -257,6 +257,7 @@ fun GoalsListScreen(
                 showCreate = false
                 showAiBuilder = true
             },
+            speechManager = viewModel.speechManager,
         )
     }
 
@@ -563,11 +564,12 @@ private fun EmptyGoals(
     filter: GoalListFilter,
     onCreate: () -> Unit,
 ) {
+    val content = app.promise.android.core.copy.EmptyStateCopy.forGoalFilter(filter)
     app.promise.android.ui.components.PromiseEmptyState(
-        title = filter.emptyTitle(),
-        description = filter.emptyBody(),
-        actionLabel = if (filter == GoalListFilter.ACTIVE) "Create Goal" else null,
-        onActionClick = if (filter == GoalListFilter.ACTIVE) onCreate else null,
+        title = content.title,
+        description = content.description,
+        actionLabel = content.actionLabel,
+        onActionClick = if (content.actionLabel != null) onCreate else null,
         modifier = Modifier.fillMaxSize(),
     )
 }
@@ -586,15 +588,4 @@ private fun GoalListFilter.label(): String = when (this) {
     GoalListFilter.ACTIVE -> "Active"
     GoalListFilter.PAUSED -> "Paused"
     GoalListFilter.COMPLETED -> "Completed"
-}
-
-private fun GoalListFilter.emptyTitle(): String = when (this) {
-    GoalListFilter.ACTIVE -> "No active goals yet."
-    GoalListFilter.PAUSED -> "No paused goals."
-    GoalListFilter.COMPLETED -> "No completed goals yet."
-}
-
-private fun GoalListFilter.emptyBody(): String = when (this) {
-    GoalListFilter.ACTIVE -> "Start a practice and build consistency."
-    else -> "Check another filter, or come back later."
 }

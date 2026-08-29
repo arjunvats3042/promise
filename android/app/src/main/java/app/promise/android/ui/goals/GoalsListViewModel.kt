@@ -48,6 +48,7 @@ class GoalsListViewModel @Inject constructor(
     private val haptics: PromiseHaptics,
     private val appEventBus: AppEventBus,
     private val aiRepository: AiRepository,
+    val speechManager: app.promise.android.core.speech.SpeechRecognitionManager,
 ) : ViewModel() {
 
     suspend fun suggestGoal(prompt: String, timezone: String): GoalSuggestion {

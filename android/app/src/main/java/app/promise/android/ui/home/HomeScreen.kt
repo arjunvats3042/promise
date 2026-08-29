@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Button
@@ -62,12 +63,15 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.promise.android.core.LoadState
 import app.promise.android.core.toUserMessage
+import app.promise.android.core.copy.EmptyStateCopy
+import app.promise.android.core.copy.MomentumCopy
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.GoalCheckInStatus
 import app.promise.android.domain.GoalTrackingKind
 import app.promise.android.domain.HomeCommitment
 import app.promise.android.domain.HomePractice
 import app.promise.android.ui.ai.ThoughtParserSheet
+import app.promise.android.ui.ai.VoiceCaptureSheet
 import app.promise.android.ui.ai.WeeklyInsightsCard
 import app.promise.android.ui.components.AvatarSize
 import app.promise.android.ui.components.PromiseAvatar
@@ -102,6 +106,8 @@ fun HomeScreen(
     val photoUri by viewModel.photoUri.collectAsStateWithLifecycle()
     val weeklyInsightsState by viewModel.weeklyInsightsState.collectAsStateWithLifecycle()
     val dailyMotivationState by viewModel.dailyMotivationState.collectAsStateWithLifecycle()
+    val showVoiceCapture by viewModel.showVoiceCapture.collectAsStateWithLifecycle()
+    val initialVoiceThought by viewModel.initialVoiceThought.collectAsStateWithLifecycle()
     var countPractice by remember { mutableStateOf<HomePractice?>(null) }
     var showThoughtParser by remember { mutableStateOf(false) }
     var dismissedInvites by remember { mutableStateOf(false) }
@@ -148,6 +154,7 @@ fun HomeScreen(
                         onOpenCommitment = onOpenCommitment,
                         onOpenPractice = onOpenPractice,
                         onOpenSearch = onOpenSearch,
+                        onOpenVoiceCapture = viewModel::openVoiceCapture,
                         onOpenThoughtParser = { showThoughtParser = true },
                         onOpenInvites = { dismissedInvites = false },
                         onComplete = { id ->
@@ -217,9 +224,25 @@ fun HomeScreen(
         )
     }
 
+    if (showVoiceCapture) {
+        VoiceCaptureSheet(
+            speechManager = viewModel.speechManager,
+            onDismiss = { viewModel.closeVoiceCapture() },
+            onTranscriptReady = { transcript ->
+                viewModel.onVoiceTranscriptReady(transcript)
+                showThoughtParser = true
+            },
+        )
+    }
+
     if (showThoughtParser) {
         ThoughtParserSheet(
-            onDismiss = { showThoughtParser = false },
+            onDismiss = {
+                showThoughtParser = false
+                viewModel.clearInitialVoiceThought()
+            },
+            speechManager = viewModel.speechManager,
+            initialThoughtText = initialVoiceThought.orEmpty(),
             onParseThought = { thought -> viewModel.parseThought(thought) },
             onCreateCommitment = { input -> viewModel.createCommitmentFromThought(input) },
             onCreateGoal = { input -> viewModel.createGoalFromThought(input) },
@@ -270,6 +293,7 @@ private fun HomeContent(
     onOpenCommitment: (String) -> Unit,
     onOpenPractice: (String) -> Unit,
     onOpenSearch: () -> Unit = {},
+    onOpenVoiceCapture: () -> Unit = {},
     onOpenThoughtParser: () -> Unit = {},
     onOpenInvites: () -> Unit = {},
     onComplete: (String) -> Unit,
@@ -320,6 +344,7 @@ private fun HomeContent(
                 photoUri = photoUri,
                 onOpenProfile = onOpenProfile,
                 onOpenSearch = onOpenSearch,
+                onOpenVoiceCapture = onOpenVoiceCapture,
                 isOnline = isOnline,
             )
             Spacer(modifier = Modifier.height(Spacing.md))
@@ -441,6 +466,7 @@ private fun HomeContent(
                 }
             }
             todayCommitments.isEmpty() -> {
+                val emptyContent = EmptyStateCopy.Home.EmptyTodayCommitments
                 item {
                     Column(
                         modifier = Modifier
@@ -450,14 +476,14 @@ private fun HomeContent(
                             .padding(Spacing.cardPadding),
                     ) {
                         Text(
-                            text = "Nothing due today.",
+                            text = emptyContent.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = colors.textPrimary,
                         )
                         Spacer(modifier = Modifier.height(Spacing.cardTitleBottom))
                         Text(
-                            text = "All clear for today. Open Commitments when you’re ready to schedule.",
+                            text = emptyContent.description,
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
                         )
@@ -518,6 +544,7 @@ private fun HomeContent(
                 }
             }
             personalPractices.isEmpty() -> {
+                val emptyContent = EmptyStateCopy.Home.EmptyPersonalPractices
                 item {
                     Column(
                         modifier = Modifier
@@ -527,14 +554,14 @@ private fun HomeContent(
                             .padding(Spacing.cardPadding),
                     ) {
                         Text(
-                            text = "No active personal practices yet.",
+                            text = emptyContent.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = colors.textPrimary,
                         )
                         Spacer(modifier = Modifier.height(Spacing.cardTitleBottom))
                         Text(
-                            text = "Create goals in the Goals tab to build daily consistency.",
+                            text = emptyContent.description,
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
                         )
@@ -641,6 +668,7 @@ fun DailyMomentumHeroCard(
 ) {
     val colors = PromiseThemeColors.current
     val percent = (progress * 100).toInt()
+    val copy = MomentumCopy.forProgress(completedCount, totalCount)
 
     Surface(
         modifier = Modifier
@@ -667,26 +695,14 @@ fun DailyMomentumHeroCard(
                 )
                 Spacer(modifier = Modifier.height(Spacing.xxs))
                 Text(
-                    text = if (totalCount == 0) {
-                        "Clear slate for today"
-                    } else if (completedCount == totalCount) {
-                        "All promises fulfilled!"
-                    } else {
-                        "$completedCount of $totalCount completed"
-                    },
+                    text = copy.headline,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = colors.textPrimary,
                 )
                 Spacer(modifier = Modifier.height(Spacing.xxs))
                 Text(
-                    text = if (totalCount == 0) {
-                        "Capture thoughts or schedule commitments."
-                    } else if (completedCount == totalCount) {
-                        "Great momentum! Keep your streak alive."
-                    } else {
-                        "${totalCount - completedCount} actions remaining today."
-                    },
+                    text = copy.subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.textSecondary,
                 )
@@ -885,6 +901,7 @@ fun HomeHeader(
     photoUri: String?,
     onOpenProfile: () -> Unit,
     onOpenSearch: () -> Unit = {},
+    onOpenVoiceCapture: () -> Unit = {},
     isOnline: Boolean = true,
 ) {
     val colors = PromiseThemeColors.current
@@ -919,7 +936,7 @@ fun HomeHeader(
                             .padding(horizontal = Spacing.sm, vertical = 2.dp),
                     ) {
                         Text(
-                            text = "● Offline · Saved locally",
+                            text = "● Working offline · Changes saved locally",
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.textSecondary,
                             fontWeight = FontWeight.Medium,
@@ -940,6 +957,19 @@ fun HomeHeader(
                 animateIn = true,
             )
         }
+        IconButton(
+            onClick = onOpenVoiceCapture,
+            modifier = Modifier
+                .size(TouchTarget.min)
+                .semantics { contentDescription = "Quick voice capture" },
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Mic,
+                contentDescription = null,
+                tint = colors.accent,
+            )
+        }
+        Spacer(modifier = Modifier.width(Spacing.xxs))
         IconButton(
             onClick = onOpenSearch,
             modifier = Modifier

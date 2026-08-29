@@ -1,8 +1,13 @@
 package app.promise.android.ui.ai
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +17,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,6 +54,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material3.IconButton
+import app.promise.android.core.speech.SpeechRecognitionManager
 import app.promise.android.domain.CreateCommitmentInput
 import app.promise.android.domain.CreateGoalInput
 import app.promise.android.domain.DuePrecision
@@ -66,17 +76,63 @@ fun ThoughtParserSheet(
     onParseThought: suspend (String) -> List<ParsedThoughtItem>,
     onCreateCommitment: (CreateCommitmentInput) -> Unit,
     onCreateGoal: (CreateGoalInput) -> Unit,
+    speechManager: SpeechRecognitionManager? = null,
+    initialThoughtText: String = "",
 ) {
     val colors = PromiseThemeColors.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    var thoughtText by remember { mutableStateOf("") }
+    var thoughtText by remember { mutableStateOf(initialThoughtText) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var parsedItems by remember { mutableStateOf<List<ParsedThoughtItem>?>(null) }
     val selectedIndices = remember { mutableStateListOf<Int>() }
+    var showVoiceCapture by remember { mutableStateOf(false) }
+
+    fun triggerParse(textToParse: String) {
+        val query = textToParse.trim()
+        if (query.isNotBlank()) {
+            isLoading = true
+            errorMessage = null
+            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            scope.launch {
+                try {
+                    val items = onParseThought(query)
+                    parsedItems = items
+                    selectedIndices.clear()
+                    selectedIndices.addAll(items.indices)
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                } catch (_: kotlinx.coroutines.CancellationException) {
+                    // Ignored silently on lifecycle/sheet cancel
+                } catch (e: java.net.SocketTimeoutException) {
+                    errorMessage = "Request timed out. Please try again."
+                } catch (e: java.io.IOException) {
+                    errorMessage = "Cannot reach server. Check your network or backend."
+                } catch (e: retrofit2.HttpException) {
+                    errorMessage = when (e.code()) {
+                        400 -> "Thought text is invalid or exceeds 500 characters."
+                        401 -> "Session expired. Please log in again."
+                        429 -> "Rate limit reached. Please wait a moment."
+                        in 500..599 -> "AI service is temporarily unavailable. Please try again."
+                        else -> "Error (${e.code()}). Please try again."
+                    }
+                } catch (e: Exception) {
+                    errorMessage = e.localizedMessage ?: "Could not parse thoughts. Please try again."
+                } finally {
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(initialThoughtText) {
+        if (initialThoughtText.isNotBlank() && parsedItems == null && !isLoading) {
+            thoughtText = initialThoughtText
+            triggerParse(initialThoughtText)
+        }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -136,6 +192,22 @@ fun ThoughtParserSheet(
                             )
                         }
                     },
+                    trailingIcon = if (speechManager != null) {
+                        {
+                            IconButton(
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    showVoiceCapture = true
+                                },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Mic,
+                                    contentDescription = "Speak thoughts",
+                                    tint = colors.accent,
+                                )
+                            }
+                        }
+                    } else null,
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 4,
                     maxLines = 8,
@@ -146,6 +218,44 @@ fun ThoughtParserSheet(
                         unfocusedTextColor = colors.textPrimary,
                     ),
                 )
+
+                if (thoughtText.isBlank() && !isLoading) {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Text(
+                        text = "IDEAS TO TRY",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.textSecondary,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.8.sp,
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.xxs))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        app.promise.android.core.copy.PromiseCopy.INSPIRATION_STARTER_CHIPS.forEach { starter ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(Radius.pill))
+                                    .background(colors.surfaceMuted)
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.pill))
+                                    .clickable {
+                                        thoughtText = starter
+                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    .padding(horizontal = Spacing.sm, vertical = 6.dp),
+                            ) {
+                                Text(
+                                    text = starter,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textPrimary,
+                                )
+                            }
+                        }
+                    }
+                }
 
                 if (errorMessage != null) {
                     Spacer(modifier = Modifier.height(Spacing.sm))
@@ -160,39 +270,7 @@ fun ThoughtParserSheet(
 
                 Button(
                     onClick = {
-                        val query = thoughtText.trim()
-                        if (query.isNotBlank()) {
-                            isLoading = true
-                            errorMessage = null
-                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            scope.launch {
-                                try {
-                                    val items = onParseThought(query)
-                                    parsedItems = items
-                                    selectedIndices.clear()
-                                    selectedIndices.addAll(items.indices)
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                } catch (_: kotlinx.coroutines.CancellationException) {
-                                    // Ignored silently on lifecycle/sheet cancel
-                                } catch (e: java.net.SocketTimeoutException) {
-                                    errorMessage = "Request timed out. Please try again."
-                                } catch (e: java.io.IOException) {
-                                    errorMessage = "Cannot reach server. Check your network or backend."
-                                } catch (e: retrofit2.HttpException) {
-                                    errorMessage = when (e.code()) {
-                                        400 -> "Thought text is invalid or exceeds 500 characters."
-                                        401 -> "Session expired. Please log in again."
-                                        429 -> "Rate limit reached. Please wait a moment."
-                                        in 500..599 -> "AI service is temporarily unavailable. Please try again."
-                                        else -> "Error (${e.code()}). Please try again."
-                                    }
-                                } catch (e: Exception) {
-                                    errorMessage = e.localizedMessage ?: "Could not parse thoughts. Please try again."
-                                } finally {
-                                    isLoading = false
-                                }
-                            }
-                        }
+                        triggerParse(thoughtText)
                     },
                     enabled = thoughtText.isNotBlank() && !isLoading,
                     modifier = Modifier
@@ -237,16 +315,53 @@ fun ThoughtParserSheet(
                             text = "No tasks or habits detected",
                             style = MaterialTheme.typography.titleMedium,
                             color = colors.textPrimary,
+                            fontWeight = FontWeight.SemiBold,
                         )
                         Spacer(modifier = Modifier.height(Spacing.xs))
                         Text(
-                            text = "Try describing things you need to do, deadlines, or recurring habits you'd like to build.",
+                            text = "Try describing concrete tasks, deadlines, or recurring habits. Tap any starter below to try:",
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.textSecondary,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(horizontal = Spacing.md),
                         )
-                        Spacer(modifier = Modifier.height(Spacing.xl))
+                        Spacer(modifier = Modifier.height(Spacing.md))
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            app.promise.android.core.copy.PromiseCopy.INSPIRATION_STARTER_CHIPS.take(3).forEach { starter ->
+                                Surface(
+                                    onClick = {
+                                        thoughtText = starter
+                                        triggerParse(starter)
+                                    },
+                                    shape = RoundedCornerShape(Radius.sm),
+                                    color = colors.surfaceMuted,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.sm),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = colors.accent,
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                        Spacer(modifier = Modifier.width(Spacing.xs))
+                                        Text(
+                                            text = starter,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = colors.textPrimary,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(Spacing.lg))
                         Button(
                             onClick = {
                                 parsedItems = null
@@ -262,7 +377,7 @@ fun ThoughtParserSheet(
                             shape = RoundedCornerShape(Radius.sm),
                         ) {
                             Text(
-                                text = "Try Again",
+                                text = "Edit My Thoughts",
                                 style = MaterialTheme.typography.labelLarge,
                             )
                         }
@@ -439,8 +554,20 @@ fun ThoughtParserSheet(
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(Spacing.lg))
     }
+
+    Spacer(modifier = Modifier.height(Spacing.lg))
 }
+
+    if (showVoiceCapture && speechManager != null) {
+        VoiceCaptureSheet(
+            speechManager = speechManager,
+            onDismiss = { showVoiceCapture = false },
+            onTranscriptReady = { voiceText ->
+                showVoiceCapture = false
+                thoughtText = voiceText
+                triggerParse(voiceText)
+            },
+        )
+    }
 }

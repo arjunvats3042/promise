@@ -24,7 +24,7 @@ object CommitmentListBucketing {
         now: Instant = Instant.now(),
     ): List<Commitment> {
         val zone = zoneId(timeZoneId)
-        val today = LocalDate.ofInstant(now, zone)
+        val today = now.atZone(zone).toLocalDate()
         return when (filter) {
             CommitmentListFilter.OPEN,
             CommitmentListFilter.OVERDUE,
