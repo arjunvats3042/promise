@@ -5,6 +5,7 @@ import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.ui.graphics.vector.ImageVector
 
 data class TabDestination(
@@ -27,6 +28,12 @@ object TabDestinations {
             label = "Commitments",
             icon = Icons.Outlined.TaskAlt,
             contentDescription = "Commitments",
+        ),
+        TabDestination(
+            route = RoadmapRoute,
+            label = "Roadmap",
+            icon = Icons.Outlined.Timeline,
+            contentDescription = "365 Roadmap",
         ),
         TabDestination(
             route = GoalsRoute,

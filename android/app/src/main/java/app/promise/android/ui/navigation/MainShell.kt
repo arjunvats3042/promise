@@ -63,6 +63,7 @@ import app.promise.android.ui.goals.chat.GoalChatScreen
 import app.promise.android.ui.haptics.PromiseHaptics
 import app.promise.android.ui.home.HomeScreen
 import app.promise.android.ui.profile.ProfileScreen
+import app.promise.android.ui.roadmap.RoadmapScreen
 import app.promise.android.ui.search.SearchScreen
 import app.promise.android.ui.theme.Elevation
 import app.promise.android.ui.theme.PromiseThemeColors
@@ -90,7 +91,7 @@ fun MainShell(
     val detailSlidePx = with(density) { 48.dp.roundToPx() }
     val coroutineScope = rememberCoroutineScope()
 
-    val pagerState = rememberPagerState(initialPage = 0, pageCount = { 4 })
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { TabDestinations.items.size })
 
     // Observe and handle deep link events across cold start, background, and foreground
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -114,8 +115,11 @@ fun MainShell(
                 DeepLinkDestination.Home -> {
                     pagerState.scrollToPage(0)
                 }
+                DeepLinkDestination.Roadmap -> {
+                    pagerState.scrollToPage(2)
+                }
                 DeepLinkDestination.Profile -> {
-                    pagerState.scrollToPage(3)
+                    pagerState.scrollToPage(4)
                 }
                 DeepLinkDestination.VoiceCapture -> {
                     pagerState.scrollToPage(0)
@@ -257,7 +261,7 @@ fun MainShell(
                             0 -> HomeScreen(
                                 onOpenProfile = {
                                     coroutineScope.launch {
-                                        if (reduceMotion) pagerState.scrollToPage(3) else pagerState.animateScrollToPage(3, animationSpec = Motion.snappySpring())
+                                        if (reduceMotion) pagerState.scrollToPage(4) else pagerState.animateScrollToPage(4, animationSpec = Motion.snappySpring())
                                     }
                                 },
                                 onOpenCommitment = { id ->
@@ -275,12 +279,13 @@ fun MainShell(
                                     navController.navigate(CommitmentRoute(id))
                                 },
                             )
-                            2 -> GoalsListScreen(
+                            2 -> RoadmapScreen()
+                            3 -> GoalsListScreen(
                                 onOpenDetail = { id ->
                                     navController.navigate(GoalRoute(id))
                                 },
                             )
-                            3 -> ProfileScreen(onSignOut = onSignOut)
+                            4 -> ProfileScreen(onSignOut = onSignOut)
                         }
                     }
                 }

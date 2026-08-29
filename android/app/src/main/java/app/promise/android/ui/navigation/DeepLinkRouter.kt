@@ -13,6 +13,7 @@ sealed interface DeepLinkDestination {
     data class Goal(val id: String) : DeepLinkDestination
     data class GoalChat(val id: String) : DeepLinkDestination
     data object Home : DeepLinkDestination
+    data object Roadmap : DeepLinkDestination
     data object Profile : DeepLinkDestination
     data object VoiceCapture : DeepLinkDestination
 }
@@ -90,6 +91,10 @@ class DeepLinkRouter @Inject constructor() {
         if (host == "home") {
             return DeepLinkDestination.Home
         }
+        // promise://roadmap
+        if (host == "roadmap") {
+            return DeepLinkDestination.Roadmap
+        }
         // promise://profile
         if (host == "profile") {
             return DeepLinkDestination.Profile
@@ -100,6 +105,7 @@ class DeepLinkRouter @Inject constructor() {
             when (pathSegments[0].lowercase()) {
                 "voice" -> return DeepLinkDestination.VoiceCapture
                 "home" -> return DeepLinkDestination.Home
+                "roadmap" -> return DeepLinkDestination.Roadmap
                 "profile" -> return DeepLinkDestination.Profile
                 "commitment" -> if (pathSegments.size >= 2) return DeepLinkDestination.Commitment(pathSegments[1])
                 "goal" -> {

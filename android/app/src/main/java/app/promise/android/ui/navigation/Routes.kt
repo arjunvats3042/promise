@@ -30,6 +30,9 @@ data object CommitmentsRoute
 data object GoalsRoute
 
 @Serializable
+data object RoadmapRoute
+
+@Serializable
 data object ProfileRoute
 
 @Serializable
