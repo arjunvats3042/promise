@@ -263,12 +263,17 @@ fun YearDotMatrix(
                     )
                 }
                 else -> {
-                    // Future Day: Hollow subtle circle
+                    // Future Day: Clearly visible muted slate disc + crisp outline
+                    drawCircle(
+                        color = futureColor.copy(alpha = 0.25f),
+                        radius = dotRadius * 0.90f,
+                        center = Offset(cx, cy),
+                    )
                     drawCircle(
                         color = futureColor,
                         radius = dotRadius * 0.90f,
                         center = Offset(cx, cy),
-                        style = Stroke(width = 1.3.dp.toPx()),
+                        style = Stroke(width = 1.4.dp.toPx()),
                     )
                 }
             }

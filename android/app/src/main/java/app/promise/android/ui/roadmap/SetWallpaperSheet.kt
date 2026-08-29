@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.promise.android.ui.theme.PromiseDarkColor
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
@@ -75,8 +76,8 @@ fun SetWallpaperSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = colors.surfaceRaised,
-        contentColor = colors.textPrimary,
+        containerColor = PromiseDarkColor.Surface,
+        contentColor = PromiseDarkColor.TextPrimary,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
         Column(
