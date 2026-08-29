@@ -58,6 +58,20 @@ Rules:
    - `recurrence_kind`: "DAILY", "WEEKLY_DAYS", or "N_PER_PERIOD".
    - `weekdays`: Optional array of day integers (0=Monday, 6=Sunday).
    - `tracking_kind`: "BINARY" (yes/no check) or "COUNT" (with `target_value` and `target_unit`).
+
+Output Format:
+Always return a valid JSON object with an "items" array:
+{
+  "items": [
+    {
+      "type": "commitment",
+      "title": "Clean Task Title",
+      "description": "optional context",
+      "due_at": "2026-08-30T12:00:00Z",
+      "due_precision": "HOUR"
+    }
+  ]
+}
 """
 
 INSIGHTS_PROMPT_V1 = """You are an AI insights assistant for Promise.

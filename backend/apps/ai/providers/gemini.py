@@ -194,10 +194,9 @@ class GeminiProvider(AIProvider):
 
     STABLE_FALLBACK_MODELS = [
         "gemini-3.7-flash",
-        "gemini-2.0-flash",
-        "gemini-1.5-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash-8b",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.6-flash",
     ]
 
     def __init__(
@@ -240,18 +239,29 @@ class GeminiProvider(AIProvider):
         feature: str = "structured_ai",
     ) -> Dict[str, Any]:
         chosen_model = model or self.default_model
+
+        # Guide LLM to output valid JSON cleanly
+        json_prompt = f"{prompt}\n\nIMPORTANT: Respond with pure, valid JSON ONLY without markdown wrapping or conversational commentary."
+
         raw_text = self._call_with_fallback(
-            prompt=prompt,
+            prompt=json_prompt,
             system_prompt=system_prompt,
             model=chosen_model,
-            response_mime_type="application/json",
-            response_schema=schema,
+            response_mime_type="text/plain",
             feature=feature,
         )
 
         try:
-            parsed = json.loads(raw_text)
-            if not isinstance(parsed, dict) and not isinstance(parsed, list):
+            cleaned_text = raw_text.strip()
+            if cleaned_text.startswith("```"):
+                cleaned_text = re.sub(r"^```(?:json)?\s*", "", cleaned_text, flags=re.IGNORECASE)
+                cleaned_text = re.sub(r"\s*```$", "", cleaned_text)
+                cleaned_text = cleaned_text.strip()
+
+            parsed = json.loads(cleaned_text)
+            if isinstance(parsed, list):
+                parsed = {"items": parsed}
+            elif not isinstance(parsed, dict):
                 raise ValueError("Expected JSON object or array")
             return parsed
         except (json.JSONDecodeError, ValueError) as exc:

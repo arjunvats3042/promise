@@ -113,8 +113,8 @@ fun VoiceCaptureSheet(
     onDismiss: () -> Unit,
     onTranscriptReady: ((String) -> Unit)? = null,
     onParseThought: (suspend (String) -> List<ParsedThoughtItem>)? = null,
-    onCreateCommitment: ((CreateCommitmentInput) -> Unit)? = null,
-    onCreateGoal: ((CreateGoalInput) -> Unit)? = null,
+    onCreateCommitment: (suspend (CreateCommitmentInput) -> Unit)? = null,
+    onCreateGoal: (suspend (CreateGoalInput) -> Unit)? = null,
     titleText: String = "Voice → Promise",
     subtitleText: String = "Speak naturally. Mention tasks, deadlines, or recurring habits.",
 ) {
@@ -177,11 +177,24 @@ fun VoiceCaptureSheet(
         }
     }
 
-    fun startProcessing(text: String) {
-        val query = text.trim()
-        if (query.isBlank()) return
+    fun startListening() {
+        errorMessage = null
+        transcriptText = ""
+        parsedItems = null
+        selectedIndices.clear()
+        currentStep = VoicePipelineStep.RECORDING
+        speechManager.startListening()
+    }
+
+    fun proceedToAIProcessing() {
+        val query = transcriptText.trim()
+        if (query.isBlank()) {
+            errorMessage = "No speech detected. Please speak or edit your text."
+            return
+        }
 
         if (onParseThought == null) {
+            // No AI parser provided; finish with raw transcript
             onTranscriptReady?.invoke(query)
             onDismiss()
             return
@@ -219,62 +232,71 @@ fun VoiceCaptureSheet(
             } catch (_: kotlinx.coroutines.CancellationException) {
                 // Ignore cancellation
             } catch (e: Exception) {
-                errorMessage = e.localizedMessage ?: "Could not process words. Please try again."
+                errorMessage = e.localizedMessage ?: "Could not structure voice input. Please try again."
                 currentStep = VoicePipelineStep.REVIEW
-                haptics.performHapticFeedback(HapticFeedbackType.Reject)
             }
         }
     }
 
-    fun finalizeAndCreate() {
+    fun submitFinalItems() {
         if (isSubmitting) return
         isSubmitting = true
 
         val items = parsedItems ?: emptyList()
         val chosen = items.filterIndexed { index, _ -> selectedIndices.contains(index) }
 
-        chosen.forEach { item ->
-            if (item.type == "commitment") {
-                val rawDueAt = item.dueAt?.takeIf { it.isNotBlank() }
-                val duePrecision = when {
-                    rawDueAt.isNullOrBlank() -> DuePrecision.NONE
-                    item.duePrecision?.equals("MINUTE", ignoreCase = true) == true -> DuePrecision.DATETIME
-                    item.duePrecision?.equals("HOUR", ignoreCase = true) == true -> DuePrecision.DATETIME
-                    item.duePrecision?.equals("DATETIME", ignoreCase = true) == true -> DuePrecision.DATETIME
-                    item.duePrecision?.equals("DAY", ignoreCase = true) == true -> DuePrecision.DATE
-                    item.duePrecision?.equals("DATE", ignoreCase = true) == true -> DuePrecision.DATE
-                    else -> DuePrecision.DATETIME
-                }
-                val finalDueAt = if (duePrecision == DuePrecision.NONE) null else rawDueAt
+        scope.launch {
+            try {
+                for (item in chosen) {
+                    if (item.type == "commitment") {
+                        val rawDueAt = item.dueAt?.takeIf { it.isNotBlank() }
+                        val duePrecision = when {
+                            rawDueAt.isNullOrBlank() -> DuePrecision.NONE
+                            item.duePrecision?.equals("MINUTE", ignoreCase = true) == true -> DuePrecision.DATETIME
+                            item.duePrecision?.equals("HOUR", ignoreCase = true) == true -> DuePrecision.DATETIME
+                            item.duePrecision?.equals("DATETIME", ignoreCase = true) == true -> DuePrecision.DATETIME
+                            item.duePrecision?.equals("DAY", ignoreCase = true) == true -> DuePrecision.DATE
+                            item.duePrecision?.equals("DATE", ignoreCase = true) == true -> DuePrecision.DATE
+                            else -> DuePrecision.DATETIME
+                        }
+                        val finalDueAt = if (duePrecision == DuePrecision.NONE) null else rawDueAt
 
-                onCreateCommitment?.invoke(
-                    CreateCommitmentInput(
-                        title = item.title,
-                        description = item.description,
-                        dueAt = finalDueAt,
-                        duePrecision = duePrecision,
-                    ),
-                )
-            } else {
-                onCreateGoal?.invoke(
-                    CreateGoalInput(
-                        title = item.title,
-                        description = item.description,
-                        recurrenceKind = when (item.recurrenceKind?.uppercase()) {
-                            "WEEKLY_DAYS" -> GoalRecurrenceKind.WEEKLY_DAYS
-                            "N_PER_PERIOD" -> GoalRecurrenceKind.N_PER_PERIOD
-                            else -> GoalRecurrenceKind.DAILY
-                        },
-                        weekdays = item.weekdays,
-                        trackingKind = if (item.trackingKind?.uppercase() == "COUNT") GoalTrackingKind.COUNT else GoalTrackingKind.BINARY,
-                        targetValue = item.targetValue?.toInt(),
-                        targetUnit = item.targetUnit,
-                    ),
-                )
+                        onCreateCommitment?.invoke(
+                            CreateCommitmentInput(
+                                title = item.title,
+                                description = item.description,
+                                dueAt = finalDueAt,
+                                duePrecision = duePrecision,
+                            ),
+                        )
+                    } else {
+                        onCreateGoal?.invoke(
+                            CreateGoalInput(
+                                title = item.title,
+                                description = item.description,
+                                recurrenceKind = when (item.recurrenceKind?.uppercase()) {
+                                    "WEEKLY_DAYS" -> GoalRecurrenceKind.WEEKLY_DAYS
+                                    "N_PER_PERIOD" -> GoalRecurrenceKind.N_PER_PERIOD
+                                    else -> GoalRecurrenceKind.DAILY
+                                },
+                                weekdays = item.weekdays,
+                                trackingKind = if (item.trackingKind?.uppercase() == "COUNT") GoalTrackingKind.COUNT else GoalTrackingKind.BINARY,
+                                targetValue = item.targetValue?.toInt(),
+                                targetUnit = item.targetUnit,
+                            ),
+                        )
+                    }
+                }
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                onDismiss()
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                // Ignore cancellation
+            } catch (e: Exception) {
+                errorMessage = e.localizedMessage ?: "Failed to create items. Please try again."
+            } finally {
+                isSubmitting = false
             }
         }
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        onDismiss()
     }
 
     ModalBottomSheet(
@@ -510,7 +532,7 @@ fun VoiceCaptureSheet(
 
                                 Button(
                                     onClick = {
-                                        startProcessing(transcriptText)
+                                        proceedToAIProcessing()
                                     },
                                     modifier = Modifier
                                         .weight(1.3f)
@@ -699,7 +721,7 @@ fun VoiceCaptureSheet(
                                 Spacer(modifier = Modifier.height(Spacing.md))
 
                                 Button(
-                                    onClick = { finalizeAndCreate() },
+                                    onClick = { submitFinalItems() },
                                     enabled = selectedIndices.isNotEmpty() && !isSubmitting,
                                     modifier = Modifier
                                         .fillMaxWidth()

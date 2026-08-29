@@ -93,35 +93,31 @@ class VoiceQuickCaptureActivity : ComponentActivity() {
         return aiRepository.parseThought(thought, timezone)
     }
 
-    private fun createCommitment(input: CreateCommitmentInput) {
-        lifecycleScope.launch {
-            try {
-                val created = commitmentRepository.create(input)
-                haptics.confirm()
-                appEventBus.emit(AppMutationEvent.CommitmentCreated(created.id))
-                Toast.makeText(this@VoiceQuickCaptureActivity, "Promise created: ${input.title}", Toast.LENGTH_SHORT).show()
-                finish()
-            } catch (t: Throwable) {
-                haptics.error()
-                Toast.makeText(this@VoiceQuickCaptureActivity, "Failed to create promise", Toast.LENGTH_SHORT).show()
-                finish()
-            }
+    private suspend fun createCommitment(input: CreateCommitmentInput) {
+        try {
+            val created = commitmentRepository.create(input)
+            haptics.confirm()
+            appEventBus.emit(AppMutationEvent.CommitmentCreated(created.id))
+            Toast.makeText(this@VoiceQuickCaptureActivity, "Promise created: ${input.title}", Toast.LENGTH_SHORT).show()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            haptics.error()
+            Toast.makeText(this@VoiceQuickCaptureActivity, "Failed to create promise", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun createGoal(input: CreateGoalInput) {
-        lifecycleScope.launch {
-            try {
-                val created = goalRepository.create(input)
-                haptics.confirm()
-                appEventBus.emit(AppMutationEvent.GoalCreated(created.id))
-                Toast.makeText(this@VoiceQuickCaptureActivity, "Goal created: ${input.title}", Toast.LENGTH_SHORT).show()
-                finish()
-            } catch (t: Throwable) {
-                haptics.error()
-                Toast.makeText(this@VoiceQuickCaptureActivity, "Failed to create goal", Toast.LENGTH_SHORT).show()
-                finish()
-            }
+    private suspend fun createGoal(input: CreateGoalInput) {
+        try {
+            val created = goalRepository.create(input)
+            haptics.confirm()
+            appEventBus.emit(AppMutationEvent.GoalCreated(created.id))
+            Toast.makeText(this@VoiceQuickCaptureActivity, "Goal created: ${input.title}", Toast.LENGTH_SHORT).show()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            haptics.error()
+            Toast.makeText(this@VoiceQuickCaptureActivity, "Failed to create goal", Toast.LENGTH_SHORT).show()
         }
     }
 }

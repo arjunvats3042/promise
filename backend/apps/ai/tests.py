@@ -92,5 +92,25 @@ class ThoughtParserTests(SimpleTestCase):
         self.assertIsNotNone(items[1]["due_at"])
         self.assertEqual(items[1]["due_precision"], "HOUR")
 
+    def test_compound_continuous_run_on_sentence(self):
+        thought = "I have to call my mother tomorrow and afternoon and I have to send a pdf to my manager on 1st of September and I have to call my sister 3 days after"
+        result = _heuristic_parse_thought(thought, "Asia/Kolkata")
+        items = result.get("items", [])
+        self.assertEqual(len(items), 3)
+
+        self.assertEqual(items[0]["type"], "commitment")
+        self.assertIn("call my mother", items[0]["title"].lower())
+        self.assertIsNotNone(items[0]["due_at"])
+        self.assertEqual(items[0]["due_precision"], "HOUR")
+
+        self.assertEqual(items[1]["type"], "commitment")
+        self.assertIn("send a pdf to my manager", items[1]["title"].lower())
+        self.assertIsNotNone(items[1]["due_at"])
+
+        self.assertEqual(items[2]["type"], "commitment")
+        self.assertIn("call my sister", items[2]["title"].lower())
+        self.assertIsNotNone(items[2]["due_at"])
+
+
 
 

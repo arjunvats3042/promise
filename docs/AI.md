@@ -71,10 +71,16 @@ The AI layer utilizes structured JSON schema definitions. All raw LLM text outpu
 1. **Commitment Refiner** (`apps.ai.services.commitment_refiner`):
    - Categorizes input into `READY`, `NEEDS_CLARIFICATION`, or `INVALID`.
    - Extracts structured `refined_title`, `due_date_suggestion`, `category`, and clarifying questions.
-2. **Thought Parser** (`apps.ai.services.thought_parser`):
-   - Deconstructs stream-of-consciousness thoughts into discrete, deduplicated `COMMITMENT` and `GOAL` items.
-   - **Temporal Reference Grounding**: Automatically injects dynamic server context (`Reference current time (UTC): {now_utc_iso}` + `User local timezone: {timezone}`) so relative phrases like *"tomorrow at 11pm"* or *"next Monday morning"* map deterministically to accurate ISO 8601 UTC timestamps.
-   - Robust Python normalization parses and validates dates before passing items to the client.
+2. **Thought Parser & Compound Decomposition** (`apps.ai.services.thought_parser`):
+   - **Compound Thought Decomposition (`_split_compound_thoughts`)**: Intelligently decomposes continuous speech streams and run-on sentences with coordinating conjunctions (`"and I have to"`, `"and send"`, `"and call"`, `"also I need to"`) into distinct, individual promise items.
+   - **Universal Temporal Grounding**: Dynamically resolves arbitrary human timelines relative to the user's timezone (`Asia/Kolkata`) and UTC reference time:
+     - Relative prefix offsets: `"after 3 days"`, `"in 2 weeks"`, `"in 2 hours"`
+     - Relative suffix offsets: `"3 days after"`, `"2 weeks later"`, `"5 hours from now"`
+     - Named intervals & periods: `"in afternoon"` (14:00), `"morning"` (09:00), `"evening"` (18:00), `"at night"` (21:00), `"noon"` (12:00)
+     - Calendar dates: `"1st of September"`, `"Sep 15th"`, `"October 20"`
+     - Weekend & day keywords: `"this weekend"`, `"next Monday"`, `"tomorrow"`, `"day after tomorrow"`
+   - **Automatic Title Cleaning**: Automatically strips redundant temporal suffixes and modal verbs (`"I have to..."`, `"and I need to..."`) leaving concise, clean action titles.
+   - **Dual-Layer Fallback**: Full on-device Kotlin safety net (`NaturalLanguageDateParser.kt`) mirrors backend Python heuristic parsing when offline.
 3. **Weekly Insights** (`apps.ai.services.insights`):
    - Calculates authoritative backend facts from PostgreSQL (`commitments_total`, `commitments_completed`, `commitments_overdue`, `commitment_completion_rate`, `completion_time_slots`, `active_goals_count`, `check_ins_past_7_days`).
    - If Gemini succeeds: returns validated structured summary, observed patterns, and constructive suggestion.
@@ -87,7 +93,15 @@ The AI layer utilizes structured JSON schema definitions. All raw LLM text outpu
 
 ---
 
-## 5. Security, Privacy & Safety Guardrails
+## 5. Voice Quick Capture & Client Architecture
+
+1. **Zero-Jargon UI**: The voice experience removes all technical AI jargon in favor of clear human outcomes (*"Setting up deadlines and schedules"*, *"Done Speaking"*, *"Retake"*, *"Continue"*).
+2. **Suspend-and-Await Creation**: The voice sheet awaits database insertion and event bus dispatch before dismissing, preventing coroutine cancellation and premature activity teardown.
+3. **Glance Widget Integration**: 1-tap floating mic widget (`VoiceMicGlanceWidget`) launches translucent `VoiceQuickCaptureActivity` directly from the home screen with theme and accent color synchronization.
+
+---
+
+## 6. Security, Privacy & Safety Guardrails
 
 - **Pseudonymous Context Only**: Prompts receive only necessary entity metadata (e.g. title, target frequency, completion percentage). User identity, email addresses, phone numbers, and cryptographic keys are never sent to the LLM.
 - **Prompt Injection Defense**: User-supplied input is wrapped in isolated, delimited text blocks with explicit system instructions prohibiting override of output schemas or system roles.

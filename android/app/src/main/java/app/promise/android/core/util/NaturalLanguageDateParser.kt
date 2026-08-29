@@ -23,6 +23,11 @@ object NaturalLanguageDateParser {
         Pattern.CASE_INSENSITIVE,
     )
 
+    private val RELATIVE_OFFSET_SUFFIX_REGEX = Pattern.compile(
+        "\\b(?:(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d+))\\s*(days?|weeks?|months?|hours?|hrs?|mins?|minutes?)\\s+(?:after|later|from\\s+now)\\b",
+        Pattern.CASE_INSENSITIVE,
+    )
+
     private val TIME_REGEX = Pattern.compile(
         "\\b(?:at\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*(a\\.?m\\.?|p\\.?m\\.?|am|pm)?\\b",
         Pattern.CASE_INSENSITIVE,
@@ -44,7 +49,7 @@ object NaturalLanguageDateParser {
     ): ExtractedTimeline {
         val raw = text.trim()
         if (raw.isBlank()) {
-            return ExtractedTimeline(dueAt = null, duePrecision = DuePrecision.NONE, cleanedTitle = raw)
+            return ExtractedTimeline(dueAt = null, duePrecision = DuePrecision.NONE, cleanedTitle = "")
         }
 
         val zone = runCatching { ZoneId.of(timeZoneId) }.getOrDefault(ZoneId.of("Asia/Kolkata"))
@@ -55,11 +60,14 @@ object NaturalLanguageDateParser {
         var targetTime: LocalTime? = null
         var precision = DuePrecision.NONE
 
-        // 1. Detect "in/after N days/weeks/months/hours/minutes" (e.g. "after 3 days", "in 2 weeks", "in an hour")
+        // 1. Detect relative offsets (e.g. "after 3 days", "3 days after", "in 2 weeks", "in an hour")
         val offsetMatcher = RELATIVE_OFFSET_REGEX.matcher(lower)
-        if (offsetMatcher.find()) {
-            val amountStr = offsetMatcher.group(1)?.lowercase(Locale.ROOT).orEmpty()
-            val unitStr = offsetMatcher.group(2)?.lowercase(Locale.ROOT).orEmpty()
+        val suffixOffsetMatcher = RELATIVE_OFFSET_SUFFIX_REGEX.matcher(lower)
+        val matchedMatcher = if (offsetMatcher.find()) offsetMatcher else if (suffixOffsetMatcher.find()) suffixOffsetMatcher else null
+
+        if (matchedMatcher != null) {
+            val amountStr = matchedMatcher.group(1)?.lowercase(Locale.ROOT).orEmpty()
+            val unitStr = matchedMatcher.group(2)?.lowercase(Locale.ROOT).orEmpty()
             val amount = parseWordNumber(amountStr)
 
             if (amount > 0) {
@@ -239,6 +247,9 @@ object NaturalLanguageDateParser {
         var cleaned = raw
         val patternsToRemove = listOf(
             "\\b(?:in|after)\\s+(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d+)\\s*(?:days?|weeks?|months?|hours?|hrs?|mins?|minutes?)\\b",
+            "\\b(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d+)\\s*(?:days?|weeks?|months?|hours?|hrs?|mins?|minutes?)\\s+(?:after|later|from\\s+now)\\b",
+            "\\b(?:on|by\\s+)?(?:\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\b",
+            "\\b(?:on|by\\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\s+(?:\\d{1,2})(?:st|nd|rd|th)?\\b",
             "\\bday after tomorrow\\b",
             "\\btomorrow\\b",
             "\\btonight\\b",
@@ -251,12 +262,14 @@ object NaturalLanguageDateParser {
             "\\b(?:at\\s+)?night\\b",
             "\\b(?:at\\s+)?noon\\b",
             "\\b(?:at|by|on)\\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\\b",
-            "\\b(?:at|by)\\s+\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?|am|pm)?\\b",
-            "\\b\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?|am|pm)\\b",
+            "\\b(?:at|by\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:a\\.m\\.|p\\.m\\.|a\\.m|p\\.m|am|pm)",
+            "\\b(?:at|by\\s+)?\\d{1,2}:\\d{2}\\b",
         )
         for (p in patternsToRemove) {
             cleaned = cleaned.replace(Regex(p, RegexOption.IGNORE_CASE), "")
         }
+        // Remove leading modal verbs: e.g. "I have to call...", "and I need to send..."
+        cleaned = cleaned.replace(Regex("^(?:and\\s+|also\\s+|then\\s+|plus\\s+|so\\s+)?(?:i\\s+(?:have\\s+to|need\\s+to|must|want\\s+to|will|should|gotta|plan\\s+to)\\s+)?", RegexOption.IGNORE_CASE), "")
         cleaned = cleaned.replace(Regex("\\b(?:at|by|on|for|in|due)\\s*$", RegexOption.IGNORE_CASE), "")
         cleaned = cleaned.replace(Regex("\\s+"), " ").trim()
 

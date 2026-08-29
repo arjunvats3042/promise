@@ -123,15 +123,16 @@ def _extract_date_time_from_text(text: str, timezone_str: str) -> Optional[tuple
         "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
     }
 
-    # 1. Detect relative offsets (e.g. "after 3 days", "in 2 weeks", "in an hour")
+    # 1. Detect relative offsets (e.g. "after 3 days", "3 days after", "in 2 weeks", "2 weeks later", "in an hour")
     offset_match = re.search(
-        r"\b(?:in|after)\s+(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*(days?|weeks?|months?|hours?|hrs?|minutes?|mins?)\b",
+        r"\b(?:in|after)\s+(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*(days?|weeks?|months?|hours?|hrs?|minutes?|mins?)\b"
+        r"|\b(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*(days?|weeks?|months?|hours?|hrs?|minutes?|mins?)\s+(?:after|later|from\s+now)\b",
         lower,
     )
     if offset_match:
-        amt_str = offset_match.group(1)
-        unit_str = offset_match.group(2)
-        amount = int(amt_str) if amt_str.isdigit() else WORD_NUMBERS.get(amt_str, 1)
+        amt_str = offset_match.group(1) or offset_match.group(3)
+        unit_str = offset_match.group(2) or offset_match.group(4)
+        amount = int(amt_str) if amt_str and amt_str.isdigit() else WORD_NUMBERS.get(amt_str or "", 1)
 
         if unit_str.startswith("day"):
             target_date = now_local.date() + datetime.timedelta(days=amount)
@@ -153,9 +154,61 @@ def _extract_date_time_from_text(text: str, timezone_str: str) -> Optional[tuple
             target_time = datetime.time(future.hour, future.minute)
             precision = "HOUR"
 
-    # 2. Detect day keywords
+    # 2. Detect day keywords or Month & Day
     if target_date is None:
-        if "day after tomorrow" in lower:
+        MONTH_MAP = {
+            "jan": 1, "january": 1,
+            "feb": 2, "february": 2,
+            "mar": 3, "march": 3,
+            "apr": 4, "april": 4,
+            "may": 5,
+            "jun": 6, "june": 6,
+            "jul": 7, "july": 7,
+            "aug": 8, "august": 8,
+            "sep": 9, "september": 9,
+            "oct": 10, "october": 10,
+            "nov": 11, "november": 11,
+            "dec": 12, "december": 12,
+        }
+
+        # Check "1st of September", "15th Oct"
+        dm_match = re.search(
+            r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
+            lower,
+        )
+        # Check "September 1st", "Oct 15"
+        md_match = re.search(
+            r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?\b",
+            lower,
+        )
+
+        if dm_match:
+            day = int(dm_match.group(1))
+            month_str = dm_match.group(2)
+            month = MONTH_MAP.get(month_str, 1)
+            year = now_local.year
+            candidate = datetime.date(year, month, min(day, 28))
+            if candidate < now_local.date():
+                year += 1
+            try:
+                target_date = datetime.date(year, month, day)
+            except ValueError:
+                target_date = datetime.date(year, month, 28)
+            precision = "DAY"
+        elif md_match:
+            month_str = md_match.group(1)
+            day = int(md_match.group(2))
+            month = MONTH_MAP.get(month_str, 1)
+            year = now_local.year
+            candidate = datetime.date(year, month, min(day, 28))
+            if candidate < now_local.date():
+                year += 1
+            try:
+                target_date = datetime.date(year, month, day)
+            except ValueError:
+                target_date = datetime.date(year, month, 28)
+            precision = "DAY"
+        elif "day after tomorrow" in lower:
             target_date = now_local.date() + datetime.timedelta(days=2)
         elif "tomorrow" in lower:
             target_date = now_local.date() + datetime.timedelta(days=1)
@@ -224,10 +277,49 @@ def _extract_date_time_from_text(text: str, timezone_str: str) -> Optional[tuple
     return None
 
 
+def _split_compound_thoughts(text: str) -> List[str]:
+    """Intelligently decomposes continuous speech and run-on sentences into individual task clauses."""
+    cleaned = text.strip()
+    if not cleaned:
+        return []
+
+    # 1. Coarse split by newlines, bullets, and list numbers
+    coarse_chunks = re.split(r"\r?\n|•|\*|(?<=\d)\.\s+", cleaned)
+    fine_chunks = []
+
+    for chunk in coarse_chunks:
+        chunk = re.sub(r"^(?:[-*•]|\d+[.)]\s+)", "", chunk.strip()).strip()
+        if not chunk:
+            continue
+
+        # 2. Split on modal task boundaries or coordinating conjunctions:
+        # e.g. "and I have to", "also I need to", "and I must", "and call", "and send"
+        task_split_pattern = (
+            r"(?:\s+(?:and\s+)?(?:also\s+)?(?:then\s+)?(?:i\s+(?:have\s+to|need\s+to|must|want\s+to|will|should|gotta|plan\s+to))\s+)"
+            r"|(?:\s+(?:and\s+also|and\s+then|plus\s+i)\s+)"
+            r"|(?:\s*,\s*(?:and\s+)?(?:call|send|email|buy|pay|meet|submit|write|finish|clean|visit|schedule|pick\s+up|order|remind|workout|exercise|meditate|drink|read)\b)"
+            r"|(?:\s+and\s+(?:call|send|email|buy|pay|meet|submit|write|finish|clean|visit|schedule|pick\s+up|order|remind|workout|exercise|meditate|drink|read)\b)"
+        )
+        sub_tasks = re.split(task_split_pattern, chunk, flags=re.IGNORECASE)
+        for sub in sub_tasks:
+            if sub and sub.strip() and len(sub.strip()) >= 3:
+                cleaned_sub = re.sub(
+                    r"^(?:and\s+|also\s+|then\s+|plus\s+|so\s+)?(?:i\s+(?:have\s+to|need\s+to|must|want\s+to|will|should|gotta|plan\s+to)\s+)?",
+                    "",
+                    sub.strip(),
+                    flags=re.IGNORECASE,
+                ).strip()
+                if cleaned_sub and len(cleaned_sub) >= 3:
+                    fine_chunks.append(cleaned_sub)
+                elif sub.strip():
+                    fine_chunks.append(sub.strip())
+
+    return fine_chunks if fine_chunks else [cleaned]
+
+
 def _heuristic_parse_thought(user_thought: str, timezone: str) -> Dict[str, Any]:
     """Resilient rule-based thought parser fallback when AI provider is unavailable."""
-    cleaned = user_thought.strip()
-    raw_lines = re.split(r"\r?\n|•|\*|(?<=\d)\.\s+", cleaned)
+    raw_tasks = _split_compound_thoughts(user_thought)
     items = []
 
     goal_keywords = {
@@ -236,44 +328,33 @@ def _heuristic_parse_thought(user_thought: str, timezone: str) -> Dict[str, Any]
         "practice", "routine", "weekly",
     }
 
-    for line in raw_lines:
-        line_str = line.strip().lstrip("-*•0123456789. ")
-        if not line_str or len(line_str) < 3:
+    for task_str in raw_tasks:
+        task_str = task_str.strip().lstrip("-*•0123456789. ")
+        if not task_str or len(task_str) < 3:
             continue
 
-        lower_line = line_str.lower()
-        is_goal = any(kw in lower_line for kw in goal_keywords)
+        lower_task = task_str.lower()
+        is_goal = any(kw in lower_task for kw in goal_keywords)
 
         if is_goal:
             items.append({
                 "type": "goal",
-                "title": _clean_title_heuristic(line_str)[:120],
+                "title": _clean_title_heuristic(task_str)[:120],
                 "description": "",
                 "confidence": "MEDIUM",
                 "recurrence_kind": "DAILY",
                 "tracking_kind": "BINARY",
             })
         else:
-            extracted_due = _extract_date_time_from_text(line_str, timezone)
+            extracted_due = _extract_date_time_from_text(task_str, timezone)
             items.append({
                 "type": "commitment",
-                "title": _clean_title_heuristic(line_str)[:120],
+                "title": _clean_title_heuristic(task_str)[:120],
                 "description": "",
                 "confidence": "HIGH" if extracted_due else "MEDIUM",
                 "due_at": extracted_due[0] if extracted_due else None,
                 "due_precision": extracted_due[1] if extracted_due else None,
             })
-
-    if not items and cleaned:
-        extracted_due = _extract_date_time_from_text(cleaned, timezone)
-        items.append({
-            "type": "commitment",
-            "title": _clean_title_heuristic(cleaned)[:120],
-            "description": cleaned if len(cleaned) > 120 else "",
-            "confidence": "LOW",
-            "due_at": extracted_due[0] if extracted_due else None,
-            "due_precision": extracted_due[1] if extracted_due else None,
-        })
 
     return {"items": items}
 
@@ -282,6 +363,9 @@ def _clean_title_heuristic(text: str) -> str:
     cleaned = text
     patterns = [
         r"\b(?:in|after)\s+(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*(?:days?|weeks?|months?|hours?|hrs?|minutes?|mins?)\b",
+        r"\b(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*(?:days?|weeks?|months?|hours?|hrs?|minutes?|mins?)\s+(?:after|later|from\s+now)\b",
+        r"\b(?:on\s+)?(?:\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
+        r"\b(?:on\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(?:\d{1,2})(?:st|nd|rd|th)?\b",
         r"\bday after tomorrow\b",
         r"\btomorrow\b",
         r"\btonight\b",
@@ -299,7 +383,7 @@ def _clean_title_heuristic(text: str) -> str:
     ]
     for p in patterns:
         cleaned = re.sub(p, "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\b(?:at|by|on|for|in|due)\s*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(?:at|by|on|for|in|due|and|also|then|plus|so)\s*$", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     if len(cleaned) < 2:
         cleaned = text.strip()

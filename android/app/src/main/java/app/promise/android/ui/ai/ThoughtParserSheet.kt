@@ -99,7 +99,24 @@ fun ThoughtParserSheet(
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             scope.launch {
                 try {
-                    val items = onParseThought(query)
+                    val rawItems = onParseThought(query)
+                    val items = rawItems.map { item ->
+                        if (item.type == "commitment" && item.dueAt.isNullOrBlank()) {
+                            val parsed = app.promise.android.core.util.NaturalLanguageDateParser.parse(item.title)
+                            val fallback = if (parsed.dueAt == null) app.promise.android.core.util.NaturalLanguageDateParser.parse(query) else parsed
+                            if (fallback.dueAt != null) {
+                                item.copy(
+                                    title = parsed.cleanedTitle.takeIf { it.isNotBlank() } ?: item.title,
+                                    dueAt = fallback.dueAt,
+                                    duePrecision = if (fallback.duePrecision == DuePrecision.DATE) "DAY" else "HOUR",
+                                )
+                            } else {
+                                item
+                            }
+                        } else {
+                            item
+                        }
+                    }
                     parsedItems = items
                     selectedIndices.clear()
                     selectedIndices.addAll(items.indices)
@@ -438,8 +455,13 @@ fun ThoughtParserSheet(
                                             color = colors.accent,
                                         )
                                         if (!item.dueAt.isNullOrBlank()) {
+                                            val formattedDue = app.promise.android.ui.commitments.CommitmentTime.formatDue(
+                                                dueAt = item.dueAt,
+                                                precision = if (item.duePrecision?.equals("DAY", ignoreCase = true) == true) DuePrecision.DATE else DuePrecision.DATETIME,
+                                                timeZoneId = "Asia/Kolkata",
+                                            ) ?: item.dueAt
                                             Text(
-                                                text = "• Due ${item.dueAt}",
+                                                text = "• Due $formattedDue",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = colors.textSecondary,
                                             )

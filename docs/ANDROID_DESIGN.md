@@ -755,3 +755,31 @@ Simplified the commitments view from 5 overlapping categories down to 3 focused 
 - On filter switch, `_state` transitions to `LoadState.Loading`, displaying `PromiseListSkeleton` during the network request.
 - Completely eliminates false "No items found" / "Nothing overdue" empty state flashes.
 
+---
+
+## 24. Voice Quick Capture & Glance Widget Ecosystem
+
+### 24.1. Voice Quick Capture Activity & Sheet (`VoiceQuickCaptureActivity.kt`, `VoiceCaptureSheet.kt`)
+- **Translucent Floating UI**: Launches over any Android home screen or lock screen without obscuring launcher context.
+- **Theme & Accent Synchronization**: Automatically syncs dark/light/system theme and custom user accent colors via `ThemeController` and `AccentSession`.
+- **4-Stage Pipeline**:
+  1. `RECORDING`: Live acoustic pulse with real-time waveform normalization (`rmsNormalized`) + single `"Done Speaking"` action.
+  2. `REVIEW`: Displays live transcript with `"Retake"` and `"Continue"` actions. Technical AI copy is completely scrubbed in favor of human outcomes.
+  3. `AI_PROCESSING`: Structures freeform speech into discrete tasks, habits, and deadlines.
+  4. `FINALIZE`: Previews structured items with human-readable localized dates (`• Due Sep 1, 2026, 12:00 PM` or `• Due Tomorrow, 2:00 PM`).
+- **Suspend-and-Await Creation**: Repository writes are awaited in a structured coroutine scope before dismissing the activity, completely eliminating premature teardown and false `"Failed to create promise"` toasts.
+
+### 24.2. On-Device Natural Language Date Parsing (`NaturalLanguageDateParser.kt`)
+- **Client-Side Safety Net**: Provides zero-latency on-device date and time extraction when offline or during local sheet edits.
+- **Comprehensive Timeline Patterns**:
+  - Relative prefix/suffix offsets: `"after 3 days"`, `"3 days after"`, `"in 2 weeks"`, `"2 weeks later"`, `"in 2 hours"`
+  - Named intervals: `"in afternoon"` (14:00), `"morning"` (09:00), `"evening"` (18:00), `"at night"` (21:00), `"noon"` (12:00)
+  - Calendar months: `"1st of September"`, `"Sep 15th"`, `"October 20"`
+  - Day & weekend keywords: `"this weekend"`, `"next Monday"`, `"tomorrow"`, `"day after tomorrow"`
+- **Title Cleaning**: Strips modal verbs (`"I have to..."`, `"and I need to..."`) and redundant temporal suffixes, storing clean action titles (e.g. `"Call Mom"` with `dueAt` set to tomorrow 2:00 PM).
+
+### 24.3. Floating Mic Glance Widget (`VoiceMicGlanceWidget.kt`)
+- **1x1 Floating Aura Disc**: 28dp continuous super-ellipse glass container with a 54dp glowing aura halo (`#064E3B` outer halo + `#10B981` core), a 28dp mic glyph, and `"Speak"` typography.
+- **2x1 Horizontal Pill Mode**: Expanded widget with live promise badge, primary/subtitle editorial copy, and quick capture trigger.
+- **Direct Activity Launch**: Configured with `Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP` to launch `VoiceQuickCaptureActivity` instantly from the home screen.
+
