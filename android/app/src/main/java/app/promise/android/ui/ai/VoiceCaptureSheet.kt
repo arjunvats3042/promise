@@ -86,6 +86,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.promise.android.core.speech.SpeechRecognitionManager
 import app.promise.android.core.speech.SpeechRecognitionState
+import app.promise.android.core.toErrorKind
+import app.promise.android.core.toUserMessage
+import app.promise.android.data.network.ApiException
 import app.promise.android.domain.CreateCommitmentInput
 import app.promise.android.domain.CreateGoalInput
 import app.promise.android.domain.DuePrecision
@@ -232,8 +235,29 @@ fun VoiceCaptureSheet(
             } catch (_: kotlinx.coroutines.CancellationException) {
                 // Ignore cancellation
             } catch (e: Exception) {
-                errorMessage = e.localizedMessage ?: "Could not structure voice input. Please try again."
-                currentStep = VoicePipelineStep.REVIEW
+                // If remote AI fails (e.g. offline/network error), attempt offline natural language fallback
+                val offlineParsed = app.promise.android.core.util.NaturalLanguageDateParser.parse(query)
+                if (offlineParsed.dueAt != null || offlineParsed.cleanedTitle.isNotBlank()) {
+                    val fallbackItem = ParsedThoughtItem(
+                        type = "commitment",
+                        title = offlineParsed.cleanedTitle.takeIf { it.isNotBlank() } ?: query,
+                        description = "",
+                        confidence = if (offlineParsed.dueAt != null) "HIGH" else "MEDIUM",
+                        dueAt = offlineParsed.dueAt,
+                        duePrecision = if (offlineParsed.duePrecision == DuePrecision.DATE) "DAY" else "HOUR",
+                    )
+                    parsedItems = listOf(fallbackItem)
+                    selectedIndices.clear()
+                    selectedIndices.add(0)
+                    currentStep = VoicePipelineStep.FINALIZE
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                } else {
+                    errorMessage = when (e) {
+                        is ApiException -> e.toErrorKind().toUserMessage()
+                        else -> e.localizedMessage ?: "Could not structure voice input. Please try again."
+                    }
+                    currentStep = VoicePipelineStep.REVIEW
+                }
             }
         }
     }
@@ -292,7 +316,10 @@ fun VoiceCaptureSheet(
             } catch (_: kotlinx.coroutines.CancellationException) {
                 // Ignore cancellation
             } catch (e: Exception) {
-                errorMessage = e.localizedMessage ?: "Failed to create items. Please try again."
+                errorMessage = when (e) {
+                    is ApiException -> e.toErrorKind().toUserMessage()
+                    else -> e.localizedMessage ?: "Failed to create items. Please try again."
+                }
             } finally {
                 isSubmitting = false
             }

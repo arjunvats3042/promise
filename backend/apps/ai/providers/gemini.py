@@ -1,6 +1,7 @@
 import enum
 import json
 import logging
+import re
 import socket
 import threading
 import time
@@ -192,12 +193,7 @@ class GeminiProvider(AIProvider):
 
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
-    STABLE_FALLBACK_MODELS = [
-        "gemini-3.7-flash",
-        "gemini-3.5-flash",
-        "gemini-3.5-flash-lite",
-        "gemini-3.6-flash",
-    ]
+    STABLE_FALLBACK_MODELS: List[str] = []
 
     def __init__(
         self,
@@ -449,6 +445,8 @@ class GeminiProvider(AIProvider):
             "maxOutputTokens": self.max_output_tokens,
             "responseMimeType": response_mime_type,
         }
+        if "3.7" in model:
+            generation_config["thinkingConfig"] = {"thinkingBudget": 0}
         if response_schema is not None:
             generation_config["responseSchema"] = response_schema
 
