@@ -472,10 +472,12 @@ fun ThoughtParserSheet(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.lg))
+                var isSubmitting by remember { mutableStateOf(false) }
 
                 Button(
                     onClick = {
+                        if (isSubmitting) return@Button
+                        isSubmitting = true
                         val chosen = items.filterIndexed { index, _ -> selectedIndices.contains(index) }
                         chosen.forEach { item ->
                             if (item.type == "commitment") {
@@ -519,7 +521,7 @@ fun ThoughtParserSheet(
                         }
                         onDismiss()
                     },
-                    enabled = selectedIndices.isNotEmpty(),
+                    enabled = selectedIndices.isNotEmpty() && !isSubmitting,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(TouchTarget.min),
@@ -529,12 +531,20 @@ fun ThoughtParserSheet(
                     ),
                     shape = RoundedCornerShape(Radius.sm),
                 ) {
-                    Icon(imageVector = Icons.Outlined.Check, contentDescription = null)
-                    Spacer(modifier = Modifier.width(Spacing.xs))
-                    Text(
-                        text = "Create ${selectedIndices.size} Item(s)",
-                        style = MaterialTheme.typography.labelLarge,
-                    )
+                    if (isSubmitting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = colors.surfaceMuted,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Icon(imageVector = Icons.Outlined.Check, contentDescription = null)
+                        Spacer(modifier = Modifier.width(Spacing.xs))
+                        Text(
+                            text = "Create ${selectedIndices.size} Item(s)",
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(Spacing.sm))

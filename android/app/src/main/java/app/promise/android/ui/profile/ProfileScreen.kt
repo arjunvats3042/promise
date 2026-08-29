@@ -291,36 +291,24 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.section))
 
-                // Home Screen Widgets Section
+                // Home Screen Widgets Dropdown Section
                 val context = LocalContext.current
-                Text(
-                    text = "Home Screen Widgets",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.textPrimary,
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                Text(
-                    text = "Glance widgets for instant glanceable momentum & check-ins",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary,
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
+                var showWidgetsDropdown by remember { mutableStateOf(true) }
 
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.xl))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.65f), RoundedCornerShape(Radius.xl))
+                        .animateContentSize(),
+                    color = colors.surfaceRaised,
                 ) {
-                    // Widget 1: Daily Goals & Habits
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Radius.lg))
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.lg)),
-                        color = colors.surfaceRaised,
-                    ) {
+                    Column(modifier = Modifier.padding(Spacing.cardPadding)) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(Spacing.cardPadding),
+                                .clickable { showWidgetsDropdown = !showWidgetsDropdown }
+                                .padding(vertical = Spacing.xs),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
@@ -330,9 +318,9 @@ fun ProfileScreen(
                                     horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                                 ) {
                                     Text(
-                                        text = "🎯 Daily Goals & Habits",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
+                                        text = "Home Screen Widgets",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
                                         color = colors.textPrimary,
                                     )
                                     Box(
@@ -342,7 +330,7 @@ fun ProfileScreen(
                                             .padding(horizontal = 6.dp, vertical = 2.dp),
                                     ) {
                                         Text(
-                                            text = "Goals",
+                                            text = "3 available",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = colors.accent,
                                             fontWeight = FontWeight.Bold,
@@ -351,73 +339,190 @@ fun ProfileScreen(
                                 }
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "Habit streaks, completion ring & 1-tap check-in",
+                                    text = "Tap to expand and pin Glance widgets to your home screen",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.textSecondary,
                                 )
                             }
-                            if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
-                                TextButton(
-                                    onClick = { PromiseGlanceWidgetPinHelper.requestPinGoalsWidget(context) },
-                                ) {
-                                    Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
+                            Icon(
+                                imageVector = if (showWidgetsDropdown) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                                contentDescription = if (showWidgetsDropdown) "Collapse widgets" else "Expand widgets",
+                                tint = colors.textSecondary,
+                            )
                         }
-                    }
 
-                    // Widget 2: Commitments & Schedule
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(Radius.lg))
-                            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.lg)),
-                        color = colors.surfaceRaised,
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.cardPadding),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        if (showWidgetsDropdown) {
+                            Spacer(modifier = Modifier.height(Spacing.md))
+                            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                                // Widget 1: Quick Voice
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(Radius.lg))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(Radius.lg)),
+                                    color = colors.surfaceMuted,
                                 ) {
-                                    Text(
-                                        text = "📋 Commitments & Tasks",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = colors.textPrimary,
-                                    )
-                                    Box(
+                                    Row(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(Radius.pill))
-                                            .background(colors.surfaceMuted)
-                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                            .fillMaxWidth()
+                                            .padding(Spacing.cardPadding),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Text(
-                                            text = "Tasks",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = colors.textSecondary,
-                                            fontWeight = FontWeight.Bold,
-                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                            ) {
+                                                Text(
+                                                    text = "🎙️ Quick Voice",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = colors.textPrimary,
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(Radius.pill))
+                                                        .background(colors.accent.copy(alpha = 0.15f))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                ) {
+                                                    Text(
+                                                        text = "1x1 · Voice",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = colors.accent,
+                                                        fontWeight = FontWeight.Bold,
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "Floating on-screen mic capture straight into AI",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = colors.textSecondary,
+                                            )
+                                        }
+                                        if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
+                                            TextButton(
+                                                onClick = { PromiseGlanceWidgetPinHelper.requestPinVoiceWidget(context) },
+                                            ) {
+                                                Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
+                                            }
+                                        }
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Due dates, overdue alerts & quick completion",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.textSecondary,
-                                )
-                            }
-                            if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
-                                TextButton(
-                                    onClick = { PromiseGlanceWidgetPinHelper.requestPinCommitmentsWidget(context) },
+
+                                // Widget 2: Commitments & Schedule
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(Radius.lg))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(Radius.lg)),
+                                    color = colors.surfaceMuted,
                                 ) {
-                                    Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(Spacing.cardPadding),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                            ) {
+                                                Text(
+                                                    text = "📋 Commitments & Tasks",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = colors.textPrimary,
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(Radius.pill))
+                                                        .background(colors.surfaceRaised)
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                ) {
+                                                    Text(
+                                                        text = "2x2 · Tasks",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = colors.textSecondary,
+                                                        fontWeight = FontWeight.Bold,
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "Due dates, overdue alerts & quick completion",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = colors.textSecondary,
+                                            )
+                                        }
+                                        if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
+                                            TextButton(
+                                                onClick = { PromiseGlanceWidgetPinHelper.requestPinCommitmentsWidget(context) },
+                                            ) {
+                                                Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Widget 3: Daily Goals & Habits
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(Radius.lg))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(Radius.lg)),
+                                    color = colors.surfaceMuted,
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(Spacing.cardPadding),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                            ) {
+                                                Text(
+                                                    text = "🎯 Daily Goals & Habits",
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = colors.textPrimary,
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(Radius.pill))
+                                                        .background(colors.accent.copy(alpha = 0.12f))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                ) {
+                                                    Text(
+                                                        text = "2x2 · Goals",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = colors.accent,
+                                                        fontWeight = FontWeight.Bold,
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "Habit streaks, completion ring & 1-tap check-in",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = colors.textSecondary,
+                                            )
+                                        }
+                                        if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
+                                            TextButton(
+                                                onClick = { PromiseGlanceWidgetPinHelper.requestPinGoalsWidget(context) },
+                                            ) {
+                                                Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

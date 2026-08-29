@@ -122,18 +122,34 @@ class HomeViewModel @Inject constructor(
         _initialVoiceThought.value = null
     }
 
+    private val recentCreations = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    private fun isDuplicateCreation(key: String): Boolean {
+        val now = System.currentTimeMillis()
+        val last = recentCreations[key]
+        if (last != null && now - last < 3000L) {
+            return true
+        }
+        recentCreations[key] = now
+        if (recentCreations.size > 50) {
+            recentCreations.entries.removeIf { now - it.value > 10000L }
+        }
+        return false
+    }
+
     suspend fun parseThought(thought: String, timezone: String = "Asia/Kolkata"): List<ParsedThoughtItem> {
         return aiRepository.parseThought(thought, timezone)
     }
 
     fun createCommitmentFromThought(input: CreateCommitmentInput) {
+        val key = "commitment:${input.title.trim()}:${input.dueAt}:${input.description.trim()}"
+        if (isDuplicateCreation(key)) return
         viewModelScope.launch {
             try {
                 val created = commitmentRepository.create(input)
                 haptics.confirm()
                 homeFreshness.markDirty()
                 appEventBus.emit(AppMutationEvent.CommitmentCreated(created.id))
-                refresh(force = true)
             } catch (t: Throwable) {
                 android.util.Log.e("HomeViewModel", "Failed to create commitment from thought", t)
                 haptics.error()
@@ -142,13 +158,14 @@ class HomeViewModel @Inject constructor(
     }
 
     fun createGoalFromThought(input: CreateGoalInput) {
+        val key = "goal:${input.title.trim()}:${input.recurrenceKind}:${input.description.trim()}"
+        if (isDuplicateCreation(key)) return
         viewModelScope.launch {
             try {
                 val created = goalRepository.create(input)
                 haptics.confirm()
                 homeFreshness.markDirty()
                 appEventBus.emit(AppMutationEvent.GoalCreated(created.id))
-                refresh(force = true)
             } catch (t: Throwable) {
                 android.util.Log.e("HomeViewModel", "Failed to create goal from thought", t)
                 haptics.error()

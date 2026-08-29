@@ -59,8 +59,7 @@ class VoiceMicGlanceWidget : GlanceAppWidget() {
         val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val theme = if (isDark) VoiceThemeTokens.Dark else VoiceThemeTokens.Light
 
-        val voiceIntent = Intent(Intent.ACTION_VIEW, Uri.parse("promise://voice")).apply {
-            setPackage(context.packageName)
+        val voiceIntent = Intent(context, app.promise.android.ui.ai.VoiceQuickCaptureActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
 

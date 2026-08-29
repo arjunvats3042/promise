@@ -1,0 +1,108 @@
+package app.promise.android.ui.ai
+
+import android.os.Bundle
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+import app.promise.android.core.speech.SpeechRecognitionManager
+import app.promise.android.data.network.AuthSession
+import app.promise.android.domain.AiRepository
+import app.promise.android.domain.CommitmentRepository
+import app.promise.android.domain.GoalRepository
+import app.promise.android.domain.CreateCommitmentInput
+import app.promise.android.domain.CreateGoalInput
+import app.promise.android.domain.ParsedThoughtItem
+import app.promise.android.ui.haptics.PromiseHaptics
+import app.promise.android.ui.theme.PromiseTheme
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@AndroidEntryPoint
+class VoiceQuickCaptureActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var speechManager: SpeechRecognitionManager
+
+    @Inject
+    lateinit var aiRepository: AiRepository
+
+    @Inject
+    lateinit var commitmentRepository: CommitmentRepository
+
+    @Inject
+    lateinit var goalRepository: GoalRepository
+
+    @Inject
+    lateinit var appEventBus: AppEventBus
+
+    @Inject
+    lateinit var haptics: PromiseHaptics
+
+    @Inject
+    lateinit var authSession: AuthSession
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        setContent {
+            PromiseTheme {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    VoiceCaptureSheet(
+                        speechManager = speechManager,
+                        onDismiss = { finish() },
+                        onParseThought = { thought -> parseThought(thought) },
+                        onCreateCommitment = { input -> createCommitment(input) },
+                        onCreateGoal = { input -> createGoal(input) },
+                        titleText = "Quick Voice Promise",
+                        subtitleText = "Speak your task, deadline, or habit to add it instantly.",
+                    )
+                }
+            }
+        }
+    }
+
+    private suspend fun parseThought(thought: String): List<ParsedThoughtItem> {
+        val timezone = authSession.user.value?.timezone?.takeIf { it.isNotBlank() } ?: "Asia/Kolkata"
+        return aiRepository.parseThought(thought, timezone)
+    }
+
+    private fun createCommitment(input: CreateCommitmentInput) {
+        lifecycleScope.launch {
+            try {
+                val created = commitmentRepository.create(input)
+                haptics.confirm()
+                appEventBus.emit(AppMutationEvent.CommitmentCreated(created.id))
+                Toast.makeText(this@VoiceQuickCaptureActivity, "Promise created: ${input.title}", Toast.LENGTH_SHORT).show()
+                finish()
+            } catch (t: Throwable) {
+                haptics.error()
+                Toast.makeText(this@VoiceQuickCaptureActivity, "Failed to create promise", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        }
+    }
+
+    private fun createGoal(input: CreateGoalInput) {
+        lifecycleScope.launch {
+            try {
+                val created = goalRepository.create(input)
+                haptics.confirm()
+                appEventBus.emit(AppMutationEvent.GoalCreated(created.id))
+                Toast.makeText(this@VoiceQuickCaptureActivity, "Goal created: ${input.title}", Toast.LENGTH_SHORT).show()
+                finish()
+            } catch (t: Throwable) {
+                haptics.error()
+                Toast.makeText(this@VoiceQuickCaptureActivity, "Failed to create goal", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        }
+    }
+}

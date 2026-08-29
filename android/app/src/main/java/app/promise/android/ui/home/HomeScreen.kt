@@ -228,10 +228,9 @@ fun HomeScreen(
         VoiceCaptureSheet(
             speechManager = viewModel.speechManager,
             onDismiss = { viewModel.closeVoiceCapture() },
-            onTranscriptReady = { transcript ->
-                viewModel.onVoiceTranscriptReady(transcript)
-                showThoughtParser = true
-            },
+            onParseThought = { thought -> viewModel.parseThought(thought) },
+            onCreateCommitment = { input -> viewModel.createCommitmentFromThought(input) },
+            onCreateGoal = { input -> viewModel.createGoalFromThought(input) },
         )
     }
 
