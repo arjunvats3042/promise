@@ -29,6 +29,7 @@ class CommitmentRepositoryImpl @Inject constructor(
     private val syncManager: SyncManager,
     private val networkMonitor: app.promise.android.core.NetworkMonitor,
     private val authSession: app.promise.android.data.network.AuthSession,
+    private val localReminderScheduler: app.promise.android.notifications.LocalReminderScheduler,
 ) : CommitmentRepository {
 
     override suspend fun list(
@@ -150,6 +151,7 @@ class CommitmentRepositoryImpl @Inject constructor(
                     ),
                 ).toDomain()
                 commitmentDao.upsert(remote.toEntity(isSynced = true))
+                localReminderScheduler.scheduleCommitmentReminder(remote)
                 return remote
             } catch (t: Throwable) {
                 if (t is app.promise.android.data.network.ApiException && t.status in 400..499) {
@@ -180,6 +182,7 @@ class CommitmentRepositoryImpl @Inject constructor(
 
         // Save optimistic record locally
         commitmentDao.upsert(optimisticCommitment.toEntity(isSynced = false))
+        localReminderScheduler.scheduleCommitmentReminder(optimisticCommitment)
 
         val payload = buildJsonObject {
             put("title", effectiveInput.title.trim())
@@ -207,6 +210,7 @@ class CommitmentRepositoryImpl @Inject constructor(
         val nowIso = Instant.now().toString()
 
         commitmentDao.markCompleted(id, completedAt = nowIso)
+        localReminderScheduler.cancelCommitmentReminder(id)
 
         outboxDao.enqueue(
             OutboxEntity(
@@ -284,6 +288,11 @@ class CommitmentRepositoryImpl @Inject constructor(
         return try {
             val res = block().toDomain()
             commitmentDao.upsert(res.toEntity(isSynced = true))
+            if (res.status == CommitmentStatus.COMPLETED || res.status == CommitmentStatus.CANCELLED) {
+                localReminderScheduler.cancelCommitmentReminder(res.id)
+            } else {
+                localReminderScheduler.scheduleCommitmentReminder(res)
+            }
             res
         } catch (t: Throwable) {
             throw t.toApiException()
@@ -298,6 +307,8 @@ class CommitmentRepositoryImpl @Inject constructor(
         val merged = (pending.results + waiting.results + snoozed.results)
             .map { it.toDomain() }
             .distinctBy { it.id }
+
+        localReminderScheduler.rescheduleAll(merged)
 
         val sorted = CommitmentListBucketing.sortOpen(merged)
         val next = if (pending.next != null || waiting.next != null || snoozed.next != null) page + 1 else null

@@ -20,6 +20,9 @@ interface CommitmentDao {
     @Query("SELECT * FROM commitments WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): CommitmentEntity?
 
+    @Query("SELECT * FROM commitments WHERE status IN ('PENDING', 'WAITING', 'SNOOZED', 'OPEN') AND dueAt IS NOT NULL")
+    suspend fun getOpenWithDueDate(): List<CommitmentEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: CommitmentEntity)
 

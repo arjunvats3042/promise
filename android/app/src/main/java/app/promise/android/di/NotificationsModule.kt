@@ -29,6 +29,12 @@ abstract class NotificationsModule {
 
     @Binds
     @Singleton
+    abstract fun bindLocalReminderScheduler(
+        impl: app.promise.android.notifications.LocalReminderSchedulerImpl,
+    ): app.promise.android.notifications.LocalReminderScheduler
+
+    @Binds
+    @Singleton
     abstract fun bindNotificationPreferencesRepository(
         impl: app.promise.android.data.network.NotificationPreferencesRepositoryImpl,
     ): app.promise.android.domain.NotificationPreferencesRepository
