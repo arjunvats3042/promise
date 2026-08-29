@@ -51,6 +51,8 @@ object RoadmapWallpaperManager {
     fun generateWallpaperBitmap(
         context: Context,
         info: YearProgressInfo = YearProgressCalculator.calculate(),
+        accentColorInt: Int? = null,
+        isDarkTheme: Boolean = true,
     ): Bitmap {
         val displayMetrics = context.resources.displayMetrics
         val screenWidth = maxOf(displayMetrics.widthPixels, 1080)
@@ -59,27 +61,36 @@ object RoadmapWallpaperManager {
         val bitmap = Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
-        // 1. Deep Obsidian Background
-        val bgPaint = Paint().apply { color = android.graphics.Color.parseColor("#0B0F19") }
+        val accentColor = accentColorInt ?: android.graphics.Color.parseColor("#6366F1")
+        val bgHex = if (isDarkTheme) "#0B0F19" else "#F8FAFC"
+        val cardHex = if (isDarkTheme) "#131B2E" else "#FFFFFF"
+        val cardBorderHex = if (isDarkTheme) "#1E293B" else "#E2E8F0"
+        val textPrimaryHex = if (isDarkTheme) "#FFFFFF" else "#0F172A"
+        val textSecondaryHex = if (isDarkTheme) "#94A3B8" else "#64748B"
+        val pastDotHex = if (isDarkTheme) "#E2E8F0" else "#0F172A"
+        val futureDotHex = if (isDarkTheme) "#334155" else "#CBD5E1"
+
+        // 1. Screen Background
+        val bgPaint = Paint().apply { color = android.graphics.Color.parseColor(bgHex) }
         canvas.drawRect(0f, 0f, screenWidth.toFloat(), screenHeight.toFloat(), bgPaint)
 
         // 2. Card Container (centered)
         val cardWidth = minOf(screenWidth * 0.88f, 920f)
-        val cardHeight = minOf(screenHeight * 0.72f, 1400f)
+        val cardHeight = minOf(screenHeight * 0.76f, 1500f)
         val cardLeft = (screenWidth - cardWidth) / 2f
         val cardTop = (screenHeight - cardHeight) / 2f
         val cardRight = cardLeft + cardWidth
         val cardBottom = cardTop + cardHeight
 
         val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#131B2E")
+            color = android.graphics.Color.parseColor(cardHex)
         }
         val cardRect = RectF(cardLeft, cardTop, cardRight, cardBottom)
         canvas.drawRoundRect(cardRect, 48f, 48f, cardPaint)
 
         // Subtle Card Border
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#1E293B")
+            color = android.graphics.Color.parseColor(cardBorderHex)
             style = Paint.Style.STROKE
             strokeWidth = 3f
         }
@@ -89,109 +100,131 @@ object RoadmapWallpaperManager {
 
         // 3. Header Text
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#94A3B8")
-            textSize = cardWidth * 0.042f
+            color = android.graphics.Color.parseColor(textSecondaryHex)
+            textSize = cardWidth * 0.040f
             letterSpacing = 0.18f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("${info.year} LIFE ROADMAP", centerX, cardTop + cardHeight * 0.10f, titlePaint)
+        canvas.drawText("${info.year} LIFE ROADMAP", centerX, cardTop + cardHeight * 0.08f, titlePaint)
 
         // 4. Hero Metric
         val statPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#FFFFFF")
-            textSize = cardWidth * 0.135f
+            color = android.graphics.Color.parseColor(textPrimaryHex)
+            textSize = cardWidth * 0.125f
             isFakeBoldText = true
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("${info.percentElapsed}%", centerX, cardTop + cardHeight * 0.21f, statPaint)
+        canvas.drawText("${info.percentElapsed}%", centerX, cardTop + cardHeight * 0.16f, statPaint)
 
         // 5. Subtitle
         val subStatPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#6366F1")
-            textSize = cardWidth * 0.046f
+            color = accentColor
+            textSize = cardWidth * 0.044f
             isFakeBoldText = true
             textAlign = Paint.Align.CENTER
         }
         canvas.drawText(
             "Day ${info.currentDayOfYear} of ${info.totalDays} · ${info.daysRemaining} days left",
             centerX,
-            cardTop + cardHeight * 0.27f,
+            cardTop + cardHeight * 0.22f,
             subStatPaint,
         )
 
-        // 6. 365 Dots Grid
-        val rows = 7
-        val cols = (info.totalDays + rows - 1) / rows
-        val gridWidth = cardWidth * 0.85f
-        val gridHeight = cardHeight * 0.44f
-        val gridStartX = cardLeft + (cardWidth - gridWidth) / 2f
-        val gridStartY = cardTop + cardHeight * 0.33f
+        // 6. 365 Dots Grid (14-column symmetric grid with equal margins)
+        val cols = 14
+        val rows = (info.totalDays + cols - 1) / cols
+        val gridAvailableW = cardWidth * 0.85f
+        val gridAvailableH = cardHeight * 0.58f
 
-        val cellW = gridWidth / cols
-        val cellH = gridHeight / rows
-        val dotRadius = minOf(cellW, cellH) * 0.33f
+        val cellSide = minOf(gridAvailableW / cols, gridAvailableH / rows)
+        val totalGridW = cellSide * cols
+        val totalGridH = cellSide * rows
+
+        val gridStartX = cardLeft + (cardWidth - totalGridW) / 2f
+        val gridStartY = cardTop + cardHeight * 0.27f
+        val dotRadius = cellSide * 0.36f
 
         val pastDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#E2E8F0")
+            color = android.graphics.Color.parseColor(pastDotHex)
         }
         val todayDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#6366F1")
+            color = accentColor
         }
         val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#4338CA")
+            color = accentColor
+            alpha = 80
         }
         val futureDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#334155")
+            color = android.graphics.Color.parseColor(futureDotHex)
             style = Paint.Style.STROKE
             strokeWidth = 3f
         }
 
         for (day in 1..info.totalDays) {
             val dayZero = day - 1
-            val col = dayZero / rows
-            val row = dayZero % rows
+            val row = dayZero / cols
+            val col = dayZero % cols
 
-            val cx = gridStartX + col * cellW + cellW / 2f
-            val cy = gridStartY + row * cellH + cellH / 2f
+            val cx = gridStartX + col * cellSide + cellSide / 2f
+            val cy = gridStartY + row * cellSide + cellSide / 2f
 
             when {
                 day < info.currentDayOfYear -> canvas.drawCircle(cx, cy, dotRadius, pastDotPaint)
                 day == info.currentDayOfYear -> {
                     canvas.drawCircle(cx, cy, dotRadius * 1.8f, haloPaint)
-                    canvas.drawCircle(cx, cy, dotRadius * 1.1f, todayDotPaint)
+                    canvas.drawCircle(cx, cy, dotRadius * 1.15f, todayDotPaint)
                 }
-                else -> canvas.drawCircle(cx, cy, dotRadius * 0.85f, futureDotPaint)
+                else -> canvas.drawCircle(cx, cy, dotRadius * 0.90f, futureDotPaint)
             }
         }
 
         // 7. Quote
         val quotePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#94A3B8")
-            textSize = cardWidth * 0.040f
+            color = android.graphics.Color.parseColor(textSecondaryHex)
+            textSize = cardWidth * 0.038f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("“Every day is a dot. Today is yours to fill.”", centerX, cardTop + cardHeight * 0.85f, quotePaint)
+        canvas.drawText("“Every day is a dot. Today is yours to fill.”", centerX, cardTop + cardHeight * 0.90f, quotePaint)
 
         // 8. Brand Mark
         val brandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor("#6366F1")
-            textSize = cardWidth * 0.038f
+            color = accentColor
+            textSize = cardWidth * 0.036f
             isFakeBoldText = true
             letterSpacing = 0.22f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("P R O M I S E", centerX, cardTop + cardHeight * 0.94f, brandPaint)
+        canvas.drawText("P R O M I S E", centerX, cardTop + cardHeight * 0.96f, brandPaint)
 
         return bitmap
+    }
+
+    private const val KEY_ACCENT_COLOR = "wallpaper_accent_color"
+    private const val KEY_IS_DARK = "wallpaper_is_dark"
+
+    fun getSavedAccentColor(context: Context): Int? {
+        val prefs = getPrefs(context)
+        return if (prefs.contains(KEY_ACCENT_COLOR)) prefs.getInt(KEY_ACCENT_COLOR, 0) else null
+    }
+
+    fun isSavedDarkTheme(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_IS_DARK, true)
     }
 
     suspend fun applyWallpaper(
         context: Context,
         target: WallpaperTarget,
         autoUpdateDaily: Boolean,
+        accentColorInt: Int? = null,
+        isDarkTheme: Boolean = true,
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            val bitmap = generateWallpaperBitmap(context)
+            val savedAccent = accentColorInt ?: getSavedAccentColor(context)
+            val bitmap = generateWallpaperBitmap(
+                context = context,
+                accentColorInt = savedAccent,
+                isDarkTheme = isDarkTheme,
+            )
             val wallpaperManager = WallpaperManager.getInstance(context)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -205,11 +238,16 @@ object RoadmapWallpaperManager {
                 wallpaperManager.setBitmap(bitmap)
             }
 
-            // Persist preference
-            getPrefs(context).edit()
+            // Persist preferences
+            val editor = getPrefs(context).edit()
                 .putBoolean(KEY_AUTO_UPDATE, autoUpdateDaily)
                 .putString(KEY_TARGET, target.name)
-                .apply()
+                .putBoolean(KEY_IS_DARK, isDarkTheme)
+
+            if (accentColorInt != null) {
+                editor.putInt(KEY_ACCENT_COLOR, accentColorInt)
+            }
+            editor.apply()
 
             if (autoUpdateDaily) {
                 scheduleDailyUpdate(context)

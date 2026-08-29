@@ -46,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -69,12 +70,12 @@ fun SetWallpaperSheet(
     var autoUpdateDaily by remember { mutableStateOf(RoadmapWallpaperManager.isAutoUpdateEnabled(context)) }
     var isApplying by remember { mutableStateOf(false) }
 
-    val accentIndigo = Color(0xFF6366F1)
+    val dynamicAccent = colors.accent
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = if (colors.isDark) Color(0xFF131B2E) else Color.White,
+        containerColor = colors.surfaceRaised,
         contentColor = colors.textPrimary,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
@@ -98,13 +99,13 @@ fun SetWallpaperSheet(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(accentIndigo.copy(alpha = 0.15f)),
+                            .background(dynamicAccent.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Wallpaper,
                             contentDescription = null,
-                            tint = accentIndigo,
+                            tint = dynamicAccent,
                             modifier = Modifier.size(20.dp),
                         )
                     }
@@ -173,10 +174,10 @@ fun SetWallpaperSheet(
                     .clip(RoundedCornerShape(Radius.lg))
                     .border(
                         1.dp,
-                        if (colors.isDark) Color(0xFF1E293B) else Color(0xFFE2E8F0),
+                        colors.cardBorder,
                         RoundedCornerShape(Radius.lg),
                     ),
-                color = if (colors.isDark) Color(0xFF0B0F19).copy(alpha = 0.6f) else Color(0xFFF8FAFC),
+                color = colors.surfaceMuted,
             ) {
                 Row(
                     modifier = Modifier
@@ -207,7 +208,7 @@ fun SetWallpaperSheet(
                         onCheckedChange = { autoUpdateDaily = it },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
-                            checkedTrackColor = accentIndigo,
+                            checkedTrackColor = dynamicAccent,
                         ),
                     )
                 }
@@ -225,6 +226,8 @@ fun SetWallpaperSheet(
                             context = context,
                             target = selectedTarget,
                             autoUpdateDaily = autoUpdateDaily,
+                            accentColorInt = dynamicAccent.toArgb(),
+                            isDarkTheme = colors.isDark,
                         )
                         isApplying = false
                         if (success) {
@@ -245,8 +248,8 @@ fun SetWallpaperSheet(
                     .height(52.dp),
                 enabled = !isApplying,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = accentIndigo,
-                    contentColor = Color.White,
+                    containerColor = dynamicAccent,
+                    contentColor = if (colors.isDark) Color.Black else Color.White,
                 ),
                 shape = RoundedCornerShape(16.dp),
             ) {
@@ -290,14 +293,14 @@ private fun WallpaperTargetOption(
     onClick: () -> Unit,
 ) {
     val colors = PromiseThemeColors.current
-    val accentIndigo = Color(0xFF6366F1)
+    val dynamicAccent = colors.accent
 
     val borderColor by animateColorAsState(
-        targetValue = if (isSelected) accentIndigo else if (colors.isDark) Color(0xFF1E293B) else Color(0xFFE2E8F0),
+        targetValue = if (isSelected) dynamicAccent else colors.cardBorder,
         label = "borderColor",
     )
     val bgColor by animateColorAsState(
-        targetValue = if (isSelected) accentIndigo.copy(alpha = 0.08f) else if (colors.isDark) Color(0xFF0B0F19).copy(alpha = 0.4f) else Color(0xFFF8FAFC),
+        targetValue = if (isSelected) dynamicAccent.copy(alpha = 0.08f) else colors.surfaceMuted,
         label = "bgColor",
     )
 
@@ -325,13 +328,13 @@ private fun WallpaperTargetOption(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(if (isSelected) accentIndigo.copy(alpha = 0.2f) else if (colors.isDark) Color(0xFF1E293B) else Color(0xFFE2E8F0)),
+                        .background(if (isSelected) dynamicAccent.copy(alpha = 0.2f) else colors.surfaceRaised),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = if (isSelected) accentIndigo else colors.textSecondary,
+                        tint = if (isSelected) dynamicAccent else colors.textSecondary,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -358,7 +361,7 @@ private fun WallpaperTargetOption(
                     .clip(CircleShape)
                     .border(
                         if (isSelected) 6.dp else 1.5.dp,
-                        if (isSelected) accentIndigo else colors.textSecondary.copy(alpha = 0.4f),
+                        if (isSelected) dynamicAccent else colors.textSecondary.copy(alpha = 0.4f),
                         CircleShape,
                     )
                     .background(Color.Transparent),

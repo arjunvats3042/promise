@@ -194,21 +194,27 @@ fun YearDotMatrix(
         label = "pulseAlpha",
     )
 
-    val rows = 7
-    val cols = (totalDays + rows - 1) / rows
+    val cols = 14
+    val rows = (totalDays + cols - 1) / cols
 
     Canvas(
         modifier = modifier
             .pointerInput(onDaySelected) {
                 if (onDaySelected != null) {
                     detectTapGestures { offset ->
-                        val cellW = size.width / cols
-                        val cellH = size.height / rows
-                        val c = (offset.x / cellW).toInt().coerceIn(0, cols - 1)
-                        val r = (offset.y / cellH).toInt().coerceIn(0, rows - 1)
-                        val dayIndex = c * rows + r + 1
-                        if (dayIndex in 1..totalDays) {
-                            onDaySelected(dayIndex)
+                        val cellSide = minOf(size.width / cols, size.height / rows)
+                        val gridW = cellSide * cols
+                        val gridH = cellSide * rows
+                        val startX = (size.width - gridW) / 2f
+                        val startY = (size.height - gridH) / 2f
+
+                        if (offset.x in startX..(startX + gridW) && offset.y in startY..(startY + gridH)) {
+                            val c = ((offset.x - startX) / cellSide).toInt().coerceIn(0, cols - 1)
+                            val r = ((offset.y - startY) / cellSide).toInt().coerceIn(0, rows - 1)
+                            val dayIndex = r * cols + c + 1
+                            if (dayIndex in 1..totalDays) {
+                                onDaySelected(dayIndex)
+                            }
                         }
                     }
                 }
@@ -217,17 +223,22 @@ fun YearDotMatrix(
         val width = size.width
         val height = size.height
 
-        val cellWidth = width / cols
-        val cellHeight = height / rows
-        val dotRadius = minOf(cellWidth, cellHeight) * 0.28f
+        val cellSide = minOf(width / cols, height / rows)
+        val gridWidth = cellSide * cols
+        val gridHeight = cellSide * rows
+
+        // Center the grid with equal gaps in all 4 directions
+        val startX = (width - gridWidth) / 2f
+        val startY = (height - gridHeight) / 2f
+        val dotRadius = cellSide * 0.36f
 
         for (day in 1..totalDays) {
             val dayZero = day - 1
-            val col = dayZero / rows
-            val row = dayZero % rows
+            val row = dayZero / cols
+            val col = dayZero % cols
 
-            val cx = col * cellWidth + cellWidth / 2f
-            val cy = row * cellHeight + cellHeight / 2f
+            val cx = startX + col * cellSide + cellSide / 2f
+            val cy = startY + row * cellSide + cellSide / 2f
 
             when {
                 day < currentDayOfYear -> {
@@ -242,7 +253,7 @@ fun YearDotMatrix(
                     // Today: Pulsing halo + Accent filled core
                     drawCircle(
                         color = todayGlowColor.copy(alpha = pulseAlpha),
-                        radius = dotRadius * pulseScale * 1.5f,
+                        radius = dotRadius * pulseScale * 1.55f,
                         center = Offset(cx, cy),
                     )
                     drawCircle(
@@ -255,9 +266,9 @@ fun YearDotMatrix(
                     // Future Day: Hollow subtle circle
                     drawCircle(
                         color = futureColor,
-                        radius = dotRadius * 0.85f,
+                        radius = dotRadius * 0.90f,
                         center = Offset(cx, cy),
-                        style = Stroke(width = 1.2.dp.toPx()),
+                        style = Stroke(width = 1.3.dp.toPx()),
                     )
                 }
             }
