@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -109,7 +110,7 @@ fun RoadmapScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 4. The 365-Dot Constellation Canvas (Full Width, 14-Col Symmetric Grid, Visible Empty Dots)
+        // 4. The 365-Dot Constellation Canvas (Balanced 14-Col Grid)
         YearDotMatrix(
             currentDayOfYear = progressInfo.currentDayOfYear,
             totalDays = progressInfo.totalDays,
@@ -118,7 +119,8 @@ fun RoadmapScreen(
             futureColor = futureDotColor,
             todayGlowColor = dynamicGlow,
             modifier = Modifier
-                .fillMaxWidth()
+                .widthIn(max = 255.dp)
+                .fillMaxWidth(0.72f)
                 .aspectRatio(14f / 27f),
         )
 

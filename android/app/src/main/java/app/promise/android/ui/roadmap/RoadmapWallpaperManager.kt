@@ -77,33 +77,33 @@ object RoadmapWallpaperManager {
         // 2. Header Text (matches RoadmapScreen top header)
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(textSecondaryHex)
-            textSize = screenWidth * 0.034f
+            textSize = screenWidth * 0.033f
             letterSpacing = 0.20f
             isFakeBoldText = true
             textAlign = Paint.Align.CENTER
         }
-        val headerY = screenHeight * 0.080f
+        val headerY = screenHeight * 0.095f
         canvas.drawText("${info.year} LIFE ROADMAP", centerX, headerY, titlePaint)
 
-        // 3. Hero Metric (large bold percentage)
+        // 3. Hero Metric (bold percentage)
         val statPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(textPrimaryHex)
-            textSize = screenWidth * 0.125f
+            textSize = screenWidth * 0.110f
             isFakeBoldText = true
             letterSpacing = -0.02f
             textAlign = Paint.Align.CENTER
         }
-        val heroMetricY = screenHeight * 0.145f
+        val heroMetricY = screenHeight * 0.155f
         canvas.drawText("${info.percentElapsed}%", centerX, heroMetricY, statPaint)
 
         // 4. Subtitle (Theme Dynamic Accent)
         val subStatPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
-            textSize = screenWidth * 0.038f
+            textSize = screenWidth * 0.036f
             isFakeBoldText = true
             textAlign = Paint.Align.CENTER
         }
-        val subtitleY = screenHeight * 0.185f
+        val subtitleY = screenHeight * 0.195f
         canvas.drawText(
             "Day ${info.currentDayOfYear} of ${info.totalDays} · ${info.daysRemaining} days left",
             centerX,
@@ -111,14 +111,14 @@ object RoadmapWallpaperManager {
             subStatPaint,
         )
 
-        // 5. 365 Dots Grid (14-column symmetric grid enlarged to screen width)
+        // 5. 365 Dots Grid (Balanced 14-column symmetric grid)
         val cols = 14
         val rows = (info.totalDays + cols - 1) / cols
 
-        val gridStartY = screenHeight * 0.220f
-        val bottomReserved = screenHeight * 0.125f
+        val gridStartY = screenHeight * 0.235f
+        val bottomReserved = screenHeight * 0.170f
         val maxGridH = screenHeight - gridStartY - bottomReserved
-        val maxGridW = screenWidth * 0.88f
+        val maxGridW = screenWidth * 0.72f
 
         val cellSide = minOf(maxGridW / cols, maxGridH / rows)
         val totalGridW = cellSide * cols
@@ -177,22 +177,22 @@ object RoadmapWallpaperManager {
         // 6. Quote (Italic philosophical quote)
         val quotePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(textSecondaryHex)
-            textSize = screenWidth * 0.033f
+            textSize = screenWidth * 0.030f
             textSkewX = -0.20f
             textAlign = Paint.Align.CENTER
         }
-        val quoteY = gridStartY + totalGridH + (screenHeight * 0.038f)
+        val quoteY = gridStartY + totalGridH + (screenHeight * 0.032f)
         canvas.drawText("“Every day is a dot. Today is yours to fill.”", centerX, quoteY, quotePaint)
 
         // 7. Brand Signature (Theme Dynamic Accent)
         val brandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
-            textSize = screenWidth * 0.032f
+            textSize = screenWidth * 0.028f
             isFakeBoldText = true
             letterSpacing = 0.30f
             textAlign = Paint.Align.CENTER
         }
-        val brandY = quoteY + (screenHeight * 0.030f)
+        val brandY = quoteY + (screenHeight * 0.026f)
         canvas.drawText("P R O M I S E", centerX, brandY, brandPaint)
 
         return bitmap
