@@ -167,7 +167,18 @@ fun PromiseTheme(
             controller.isAppearanceLightNavigationBars = lightIcons
         }
     }
-    CompositionLocalProvider(LocalPromiseColors provides extended) {
+    val currentDensity = androidx.compose.ui.platform.LocalDensity.current
+    val clampedDensity = androidx.compose.runtime.remember(currentDensity) {
+        androidx.compose.ui.unit.Density(
+            density = currentDensity.density,
+            fontScale = currentDensity.fontScale.coerceIn(0.85f, 1.25f),
+        )
+    }
+
+    CompositionLocalProvider(
+        LocalPromiseColors provides extended,
+        androidx.compose.ui.platform.LocalDensity provides clampedDensity,
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = PromiseTypography,
