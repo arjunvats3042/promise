@@ -4,12 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.promise.android.core.events.AppEventBus
 import app.promise.android.core.events.AppMutationEvent
-import app.promise.android.data.local.NotificationReadStore
 import app.promise.android.data.local.ProfilePhotoStore
 import app.promise.android.data.network.AuthSession
 import app.promise.android.domain.AuthRepository
 import app.promise.android.domain.DeviceRegistrationRepository
-import app.promise.android.domain.NotificationHistoryItem
 import app.promise.android.domain.NotificationPreferences
 import app.promise.android.domain.NotificationPreferencesPatch
 import app.promise.android.domain.NotificationPreferencesRepository
@@ -22,11 +20,8 @@ import app.promise.android.ui.theme.ThemeController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @HiltViewModel
@@ -38,7 +33,6 @@ class ProfileViewModel @Inject constructor(
     private val deviceRegistrationRepository: DeviceRegistrationRepository,
     private val appEventBus: AppEventBus,
     private val profilePhotoStore: ProfilePhotoStore,
-    private val notificationReadStore: NotificationReadStore,
     val deepLinkRouter: DeepLinkRouter,
     authSession: AuthSession,
 ) : ViewModel() {
@@ -78,17 +72,6 @@ class ProfileViewModel @Inject constructor(
     private val _preferences = MutableStateFlow<NotificationPreferences?>(null)
     val preferences: StateFlow<NotificationPreferences?> = _preferences.asStateFlow()
 
-    private val _notificationHistory = MutableStateFlow<List<NotificationHistoryItem>>(emptyList())
-    val notificationHistory: StateFlow<List<NotificationHistoryItem>> = _notificationHistory.asStateFlow()
-
-    // Unread notification history filtered against local read tracking store
-    val unreadHistory: StateFlow<List<NotificationHistoryItem>> = combine(
-        _notificationHistory,
-        notificationReadStore.readIds,
-    ) { history, readIds ->
-        history.filter { !readIds.contains(it.id) }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     private val _sessions = MutableStateFlow<List<UserSession>>(emptyList())
     val sessions: StateFlow<List<UserSession>> = _sessions.asStateFlow()
 
@@ -97,35 +80,7 @@ class ProfileViewModel @Inject constructor(
 
     init {
         loadPreferences()
-        loadNotificationHistory()
         loadSessions()
-    }
-
-    fun markNotificationRead(item: NotificationHistoryItem) {
-        notificationReadStore.markAsRead(item.id)
-        haptics.light()
-    }
-
-    fun markAllNotificationsRead() {
-        val currentUnread = unreadHistory.value
-        if (currentUnread.isNotEmpty()) {
-            notificationReadStore.markAllAsRead(currentUnread.map { it.id })
-            haptics.confirm()
-        }
-    }
-
-    fun openNotification(item: NotificationHistoryItem) {
-        // 1. Mark as read & remove from unread history
-        markNotificationRead(item)
-
-        // 2. Navigate to destination
-        if (item.deepLink.isNotBlank() && item.deepLink != "promise://home") {
-            deepLinkRouter.routeUri(item.deepLink)
-        } else if (item.entityId.isNotBlank()) {
-            deepLinkRouter.routeEntity(item.entityType, item.entityId, item.eventType)
-        } else {
-            deepLinkRouter.routeUri("promise://home")
-        }
     }
 
     fun loadPreferences() {
@@ -133,15 +88,6 @@ class ProfileViewModel @Inject constructor(
             val result = notificationPreferencesRepository.getPreferences()
             result.onSuccess {
                 _preferences.value = it
-            }
-        }
-    }
-
-    fun loadNotificationHistory() {
-        viewModelScope.launch {
-            val result = notificationPreferencesRepository.getNotificationHistory()
-            result.onSuccess {
-                _notificationHistory.value = it
             }
         }
     }

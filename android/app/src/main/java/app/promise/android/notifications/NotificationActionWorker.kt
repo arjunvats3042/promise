@@ -35,6 +35,12 @@ class NotificationActionWorker @AssistedInject constructor(
         val snoozeMinutes = inputData.getInt(KEY_SNOOZE_MINUTES, 60)
         val replyText = inputData.getString(KEY_REPLY_TEXT)
 
+        if (authRepository.session.value !is SessionState.Authenticated) {
+            try {
+                authRepository.restoreSession()
+            } catch (_: Exception) {}
+        }
+
         val session = authRepository.session.value
         if (session !is SessionState.Authenticated) {
             return Result.failure()

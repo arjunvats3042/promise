@@ -58,13 +58,13 @@ class PromiseNotificationManagerImpl @Inject constructor(
 
         val groupKey = when {
             data.eventType == "goal.chat.message_created" || data.channelId == NotificationChannels.CHANNEL_COMMUNITY -> GROUP_CHAT
-            data.entityType == "GOAL" -> GROUP_GOALS
-            data.entityType == "DIGEST" || data.eventType == "digest.weekly" -> GROUP_DIGEST
-            data.entityType == "SECURITY" || data.entityType == "SYSTEM" -> GROUP_SYSTEM
+            data.entityType.equals("GOAL", ignoreCase = true) -> GROUP_GOALS
+            data.entityType.equals("DIGEST", ignoreCase = true) || data.eventType == "digest.weekly" -> GROUP_DIGEST
+            data.entityType.equals("SECURITY", ignoreCase = true) || data.entityType.equals("SYSTEM", ignoreCase = true) -> GROUP_SYSTEM
             else -> GROUP_COMMITMENTS
         }
 
-        val subText = when (data.entityType) {
+        val subText = when (data.entityType.uppercase()) {
             "GOAL" -> if (data.streakCount > 0) "Daily Practice · 🔥 ${data.streakCount}d streak" else "Daily Habit"
             "COMMITMENT" -> "Zero-Overdue Tracker"
             "DIGEST" -> "Gemini AI Digest"
@@ -94,7 +94,7 @@ class PromiseNotificationManagerImpl @Inject constructor(
                 when {
                     isUrgent -> NotificationCompat.CATEGORY_ALARM
                     data.eventType == "goal.chat.message_created" -> NotificationCompat.CATEGORY_MESSAGE
-                    data.entityType == "GOAL" -> NotificationCompat.CATEGORY_REMINDER
+                    data.entityType.equals("GOAL", ignoreCase = true) -> NotificationCompat.CATEGORY_REMINDER
                     else -> NotificationCompat.CATEGORY_REMINDER
                 }
             )
@@ -102,7 +102,7 @@ class PromiseNotificationManagerImpl @Inject constructor(
         // Enrich with BigTextStyle formatted body
         val bigText = when {
             data.eventType == "goal.chat.message_created" -> data.body
-            data.entityType == "GOAL" && data.streakCount > 0 -> "${data.body}\n🔥 Keep your ${data.streakCount}-day streak alive! Tap Check In below."
+            data.entityType.equals("GOAL", ignoreCase = true) && data.streakCount > 0 -> "${data.body}\n🔥 Keep your ${data.streakCount}-day streak alive! Tap Check In below."
             data.eventType == "commitment.due_now" -> "🚨 Due right now: ${data.body}\nComplete it to maintain your zero-overdue status."
             data.eventType == "commitment.overdue" -> "⚠️ Overdue: ${data.body}\nAction required. Tap Complete or Snooze."
             else -> data.body
@@ -116,7 +116,7 @@ class PromiseNotificationManagerImpl @Inject constructor(
         )
 
         // Attach rich interactive action buttons based on entity and event type
-        when (data.entityType) {
+        when (data.entityType.uppercase()) {
             "COMMITMENT" -> {
                 val completeIntent = PendingIntent.getBroadcast(
                     context,

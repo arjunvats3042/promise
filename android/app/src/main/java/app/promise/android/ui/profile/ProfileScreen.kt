@@ -113,7 +113,6 @@ fun ProfileScreen(
     val user by viewModel.user.collectAsStateWithLifecycle()
     val photoUri by viewModel.photoUri.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
-    val unreadHistory by viewModel.unreadHistory.collectAsStateWithLifecycle()
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
 
     var showPhotoOptionsDialog by remember { mutableStateOf(false) }
@@ -242,10 +241,7 @@ fun ProfileScreen(
                 // Notifications Section
                 NotificationPreferencesSection(
                     preferences = preferences,
-                    unreadHistory = unreadHistory,
                     onUpdate = { patch -> viewModel.updatePreferences(patch) },
-                    onOpenNotification = { item -> viewModel.openNotification(item) },
-                    onMarkAllRead = { viewModel.markAllNotificationsRead() },
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.section))

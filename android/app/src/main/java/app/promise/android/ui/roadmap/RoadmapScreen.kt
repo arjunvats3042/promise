@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -68,7 +69,7 @@ fun RoadmapScreen(
             .background(screenBg)
             .statusBarsPadding()
             .verticalScroll(scrollState)
-            .padding(horizontal = Spacing.screenHorizontal)
+            .padding(horizontal = Spacing.lg)
             .padding(top = Spacing.md, bottom = Spacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top,
@@ -118,7 +119,7 @@ fun RoadmapScreen(
             todayGlowColor = dynamicGlow,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(350.dp),
+                .aspectRatio(14f / 27f),
         )
 
         Spacer(modifier = Modifier.height(24.dp))

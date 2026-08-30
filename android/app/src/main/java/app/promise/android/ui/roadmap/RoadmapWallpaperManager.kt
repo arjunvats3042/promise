@@ -62,102 +62,93 @@ object RoadmapWallpaperManager {
         val canvas = Canvas(bitmap)
 
         val accentColor = accentColorInt ?: android.graphics.Color.parseColor("#6366F1")
-        val bgHex = if (isDarkTheme) "#0B0F19" else "#F8FAFC"
-        val cardHex = if (isDarkTheme) "#131B2E" else "#FFFFFF"
-        val cardBorderHex = if (isDarkTheme) "#1E293B" else "#E2E8F0"
-        val textPrimaryHex = if (isDarkTheme) "#FFFFFF" else "#0F172A"
+        val bgHex = if (isDarkTheme) "#090B0E" else "#F8FAFC"
+        val textPrimaryHex = if (isDarkTheme) "#F8FAFC" else "#0F172A"
         val textSecondaryHex = if (isDarkTheme) "#94A3B8" else "#64748B"
-        val pastDotHex = if (isDarkTheme) "#E2E8F0" else "#0F172A"
-        val futureDotHex = if (isDarkTheme) "#334155" else "#CBD5E1"
+        val pastDotHex = if (isDarkTheme) "#F1F5F9" else "#0F172A"
+        val futureDotHex = if (isDarkTheme) "#475569" else "#CBD5E1"
 
-        // 1. Screen Background
+        // 1. Full Screen Background
         val bgPaint = Paint().apply { color = android.graphics.Color.parseColor(bgHex) }
         canvas.drawRect(0f, 0f, screenWidth.toFloat(), screenHeight.toFloat(), bgPaint)
 
-        // 2. Card Container (centered)
-        val cardWidth = minOf(screenWidth * 0.88f, 920f)
-        val cardHeight = minOf(screenHeight * 0.76f, 1500f)
-        val cardLeft = (screenWidth - cardWidth) / 2f
-        val cardTop = (screenHeight - cardHeight) / 2f
-        val cardRight = cardLeft + cardWidth
-        val cardBottom = cardTop + cardHeight
-
-        val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor(cardHex)
-        }
-        val cardRect = RectF(cardLeft, cardTop, cardRight, cardBottom)
-        canvas.drawRoundRect(cardRect, 48f, 48f, cardPaint)
-
-        // Subtle Card Border
-        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor(cardBorderHex)
-            style = Paint.Style.STROKE
-            strokeWidth = 3f
-        }
-        canvas.drawRoundRect(cardRect, 48f, 48f, borderPaint)
-
         val centerX = screenWidth / 2f
 
-        // 3. Header Text
+        // 2. Header Text (matches RoadmapScreen top header)
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(textSecondaryHex)
-            textSize = cardWidth * 0.040f
-            letterSpacing = 0.18f
+            textSize = screenWidth * 0.034f
+            letterSpacing = 0.20f
+            isFakeBoldText = true
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("${info.year} LIFE ROADMAP", centerX, cardTop + cardHeight * 0.08f, titlePaint)
+        val headerY = screenHeight * 0.080f
+        canvas.drawText("${info.year} LIFE ROADMAP", centerX, headerY, titlePaint)
 
-        // 4. Hero Metric
+        // 3. Hero Metric (large bold percentage)
         val statPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(textPrimaryHex)
-            textSize = cardWidth * 0.125f
+            textSize = screenWidth * 0.125f
             isFakeBoldText = true
+            letterSpacing = -0.02f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("${info.percentElapsed}%", centerX, cardTop + cardHeight * 0.16f, statPaint)
+        val heroMetricY = screenHeight * 0.145f
+        canvas.drawText("${info.percentElapsed}%", centerX, heroMetricY, statPaint)
 
-        // 5. Subtitle
+        // 4. Subtitle (Theme Dynamic Accent)
         val subStatPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
-            textSize = cardWidth * 0.044f
+            textSize = screenWidth * 0.038f
             isFakeBoldText = true
             textAlign = Paint.Align.CENTER
         }
+        val subtitleY = screenHeight * 0.185f
         canvas.drawText(
             "Day ${info.currentDayOfYear} of ${info.totalDays} · ${info.daysRemaining} days left",
             centerX,
-            cardTop + cardHeight * 0.22f,
+            subtitleY,
             subStatPaint,
         )
 
-        // 6. 365 Dots Grid (14-column symmetric grid with equal margins)
+        // 5. 365 Dots Grid (14-column symmetric grid enlarged to screen width)
         val cols = 14
         val rows = (info.totalDays + cols - 1) / cols
-        val gridAvailableW = cardWidth * 0.85f
-        val gridAvailableH = cardHeight * 0.58f
 
-        val cellSide = minOf(gridAvailableW / cols, gridAvailableH / rows)
+        val gridStartY = screenHeight * 0.220f
+        val bottomReserved = screenHeight * 0.125f
+        val maxGridH = screenHeight - gridStartY - bottomReserved
+        val maxGridW = screenWidth * 0.88f
+
+        val cellSide = minOf(maxGridW / cols, maxGridH / rows)
         val totalGridW = cellSide * cols
         val totalGridH = cellSide * rows
 
-        val gridStartX = cardLeft + (cardWidth - totalGridW) / 2f
-        val gridStartY = cardTop + cardHeight * 0.27f
+        val gridStartX = (screenWidth - totalGridW) / 2f
         val dotRadius = cellSide * 0.36f
 
         val pastDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(pastDotHex)
+            style = Paint.Style.FILL
         }
         val todayDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
+            style = Paint.Style.FILL
         }
         val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
-            alpha = 80
+            alpha = 90
+            style = Paint.Style.FILL
         }
-        val futureDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val futureDotFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.parseColor(futureDotHex)
+            alpha = 64 // ~0.25f alpha fill disc
+            style = Paint.Style.FILL
+        }
+        val futureDotStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(futureDotHex)
             style = Paint.Style.STROKE
-            strokeWidth = 3f
+            strokeWidth = maxOf(cellSide * 0.08f, 3f)
         }
 
         for (day in 1..info.totalDays) {
@@ -169,32 +160,40 @@ object RoadmapWallpaperManager {
             val cy = gridStartY + row * cellSide + cellSide / 2f
 
             when {
-                day < info.currentDayOfYear -> canvas.drawCircle(cx, cy, dotRadius, pastDotPaint)
+                day < info.currentDayOfYear -> {
+                    canvas.drawCircle(cx, cy, dotRadius, pastDotPaint)
+                }
                 day == info.currentDayOfYear -> {
-                    canvas.drawCircle(cx, cy, dotRadius * 1.8f, haloPaint)
+                    canvas.drawCircle(cx, cy, dotRadius * 1.65f, haloPaint)
                     canvas.drawCircle(cx, cy, dotRadius * 1.15f, todayDotPaint)
                 }
-                else -> canvas.drawCircle(cx, cy, dotRadius * 0.90f, futureDotPaint)
+                else -> {
+                    canvas.drawCircle(cx, cy, dotRadius * 0.90f, futureDotFillPaint)
+                    canvas.drawCircle(cx, cy, dotRadius * 0.90f, futureDotStrokePaint)
+                }
             }
         }
 
-        // 7. Quote
+        // 6. Quote (Italic philosophical quote)
         val quotePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(textSecondaryHex)
-            textSize = cardWidth * 0.038f
+            textSize = screenWidth * 0.033f
+            textSkewX = -0.20f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("“Every day is a dot. Today is yours to fill.”", centerX, cardTop + cardHeight * 0.90f, quotePaint)
+        val quoteY = gridStartY + totalGridH + (screenHeight * 0.038f)
+        canvas.drawText("“Every day is a dot. Today is yours to fill.”", centerX, quoteY, quotePaint)
 
-        // 8. Brand Mark
+        // 7. Brand Signature (Theme Dynamic Accent)
         val brandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
-            textSize = cardWidth * 0.036f
+            textSize = screenWidth * 0.032f
             isFakeBoldText = true
-            letterSpacing = 0.22f
+            letterSpacing = 0.30f
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("P R O M I S E", centerX, cardTop + cardHeight * 0.96f, brandPaint)
+        val brandY = quoteY + (screenHeight * 0.030f)
+        canvas.drawText("P R O M I S E", centerX, brandY, brandPaint)
 
         return bitmap
     }

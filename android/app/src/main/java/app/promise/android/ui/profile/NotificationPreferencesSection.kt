@@ -43,16 +43,12 @@ import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -68,9 +64,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
-import app.promise.android.domain.NotificationHistoryItem
 import app.promise.android.domain.NotificationPreferences
 import app.promise.android.domain.NotificationPreferencesPatch
 import app.promise.android.ui.components.PromiseHairlineDivider
@@ -79,10 +73,7 @@ import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
-import java.time.Instant
-import java.time.LocalDate
 import java.time.LocalTime
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 enum class NotificationAccordion {
@@ -95,16 +86,12 @@ enum class NotificationAccordion {
 @Composable
 fun NotificationPreferencesSection(
     preferences: NotificationPreferences?,
-    unreadHistory: List<NotificationHistoryItem> = emptyList(),
     onUpdate: (NotificationPreferencesPatch) -> Unit,
-    onOpenNotification: (NotificationHistoryItem) -> Unit = {},
-    onMarkAllRead: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val colors = PromiseThemeColors.current
     val isOsPermissionGranted = remember { NotificationManagerCompat.from(context).areNotificationsEnabled() }
-    var selectedTab by remember { mutableIntStateOf(0) }
     var isParentExpanded by remember { mutableStateOf(false) }
     var expandedSections by remember { mutableStateOf(setOf<NotificationAccordion>()) }
 
@@ -161,54 +148,10 @@ fun NotificationPreferencesSection(
             Spacer(modifier = Modifier.height(Spacing.sm))
         }
 
-        // Sub-tabs: Preferences vs History
-        SecondaryTabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = colors.surfaceMuted,
-            contentColor = colors.textPrimary,
-            indicator = {
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(selectedTab),
-                    color = colors.accent,
-                )
-            },
-            divider = {},
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(Radius.md)),
-        ) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                modifier = Modifier.heightIn(min = TouchTarget.min),
-                text = {
-                    Text(
-                        "Preferences",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (selectedTab == 0) colors.textPrimary else colors.textSecondary,
-                    )
-                },
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                modifier = Modifier.heightIn(min = TouchTarget.min),
-                text = {
-                    Text(
-                        if (unreadHistory.isNotEmpty()) "History (${unreadHistory.size})" else "History",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (selectedTab == 1) colors.textPrimary else colors.textSecondary,
-                    )
-                },
-            )
-        }
-
-        Spacer(modifier = Modifier.height(Spacing.md))
-
         if (preferences == null) {
             NotificationPreferencesSkeleton()
-        } else if (selectedTab == 0) {
-            // Preferences View: Parent Accordion "Notifications"
+        } else {
+            // Parent Accordion "Notifications"
             ParentNotificationAccordionCard(
                 enabled = preferences.enabled,
                 expanded = isParentExpanded,
@@ -379,86 +322,6 @@ fun NotificationPreferencesSection(
                                     },
                                 )
                             }
-                        }
-                    }
-                }
-            }
-        } else {
-            // Notification History View (Unread-first, compact rows, mark-all-read action, calm empty state)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.lg))
-                    .background(colors.surfaceMuted)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(Radius.lg))
-                    .padding(Spacing.cardPadding),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = if (unreadHistory.isNotEmpty()) "UNREAD NOTIFICATIONS (${unreadHistory.size})" else "NOTIFICATIONS",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.textSecondary,
-                        letterSpacing = 1.0.sp,
-                    )
-                    if (unreadHistory.isNotEmpty()) {
-                        TextButton(
-                            onClick = onMarkAllRead,
-                            modifier = Modifier.heightIn(min = 36.dp),
-                        ) {
-                            Text(
-                                text = "Mark all as read",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colors.accent,
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(Spacing.xs))
-
-                if (unreadHistory.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = Spacing.xxl),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Check,
-                                contentDescription = null,
-                                tint = colors.textSecondary,
-                                modifier = Modifier.size(24.dp),
-                            )
-                            Text(
-                                text = "You're all caught up.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = colors.textSecondary,
-                            )
-                        }
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        unreadHistory.forEachIndexed { index, item ->
-                            if (index > 0) {
-                                PromiseHairlineDivider()
-                            }
-                            CompactNotificationHistoryRow(
-                                item = item,
-                                onClick = { onOpenNotification(item) },
-                            )
                         }
                     }
                 }
@@ -941,62 +804,6 @@ private fun showQuietHoursDialogs(
 }
 
 @Composable
-private fun CompactNotificationHistoryRow(
-    item: NotificationHistoryItem,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = PromiseThemeColors.current
-    val formattedTime = formatRelativeOrAbsoluteTime(item.createdAt)
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(Radius.sm))
-            .clickable(onClick = onClick)
-            .semantics {
-                contentDescription = "${item.title}. ${item.body}. $formattedTime. Unread. Double tap to view."
-            }
-            .padding(vertical = Spacing.sm),
-        verticalAlignment = Alignment.Top,
-    ) {
-        // Unread Indicator Dot
-        Box(
-            modifier = Modifier
-                .padding(top = 6.dp, end = Spacing.sm)
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(colors.accent),
-        )
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.textPrimary,
-            )
-            if (item.body.isNotBlank()) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = item.body,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.textSecondary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = formattedTime,
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.textSecondary.copy(alpha = 0.8f),
-            )
-        }
-    }
-}
-
-@Composable
 private fun NotificationPreferencesSkeleton(
     modifier: Modifier = Modifier,
 ) {
@@ -1028,22 +835,4 @@ private fun parseLocalTime(iso: String, defaultHour: Int, defaultMin: Int): Loca
 private fun formatTime(time: LocalTime): String {
     val formatter = DateTimeFormatter.ofPattern("h:mm a")
     return time.format(formatter)
-}
-
-private fun formatRelativeOrAbsoluteTime(isoString: String): String {
-    return try {
-        val instant = Instant.parse(isoString)
-        val zdt = instant.atZone(ZoneId.systemDefault())
-        val date = zdt.toLocalDate()
-        val time = zdt.toLocalTime().format(DateTimeFormatter.ofPattern("h:mm a"))
-        val today = LocalDate.now()
-
-        when (date) {
-            today -> "Today · $time"
-            today.minusDays(1) -> "Yesterday · $time"
-            else -> "${date.format(DateTimeFormatter.ofPattern("MMM d"))} · $time"
-        }
-    } catch (_: Exception) {
-        isoString
-    }
 }

@@ -3,17 +3,17 @@ package app.promise.android.notifications
 object NotificationPayloadParser {
 
     fun parse(data: Map<String, String>): PromiseNotificationData? {
-        val reminderId = data["reminder_id"] ?: ""
-        val identityKey = data["identity_key"] ?: ""
-        val entityType = data["entity_type"] ?: "COMMITMENT"
-        val entityId = data["entity_id"] ?: ""
-        val eventType = data["event_type"] ?: ""
-        val title = data["title"] ?: "Promise"
-        val body = data["body"] ?: ""
-        val deepLink = data["deep_link"] ?: "promise://home"
-        val senderName = data["sender_name"] ?: ""
+        val reminderId = (data["reminder_id"] ?: "").trim()
+        val identityKey = (data["identity_key"] ?: "").trim()
+        val entityType = (data["entity_type"] ?: "COMMITMENT").trim().uppercase()
+        val entityId = (data["entity_id"] ?: "").trim()
+        val eventType = (data["event_type"] ?: "").trim()
+        val title = (data["title"] ?: "Promise").trim()
+        val body = (data["body"] ?: "").trim()
+        val deepLink = (data["deep_link"] ?: "promise://home").trim()
+        val senderName = (data["sender_name"] ?: "").trim()
         val streakCount = data["streak_count"]?.toIntOrNull() ?: 0
-        val subtitle = data["subtitle"] ?: ""
+        val subtitle = (data["subtitle"] ?: "").trim()
 
         if (reminderId.isEmpty() && identityKey.isEmpty() && entityId.isEmpty() && title.isEmpty()) {
             return null

@@ -35,7 +35,7 @@ data class PromiseNotificationData(
                 hash *= 0x01000193
             }
             val positiveHash = hash and 0x7fffffff
-            return if (positiveHash == 0) 1001 else positiveHash
+            return if (positiveHash == 0) 1001 else (positiveHash % 100_000_000) + 1000
         }
     }
 }
