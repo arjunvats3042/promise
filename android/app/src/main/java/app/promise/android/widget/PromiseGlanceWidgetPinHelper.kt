@@ -34,4 +34,13 @@ object PromiseGlanceWidgetPinHelper {
         val provider = ComponentName(context, VoiceMicGlanceWidgetReceiver::class.java)
         return appWidgetManager.requestPinAppWidget(provider, null, null)
     }
+
+    fun requestPinRoadmapWidget(context: Context): Boolean {
+        val appWidgetManager = context.getSystemService(AppWidgetManager::class.java) ?: return false
+        if (!appWidgetManager.isRequestPinAppWidgetSupported) return false
+
+        app.promise.android.ui.roadmap.RoadmapWallpaperManager.scheduleDailyUpdate(context)
+        val provider = ComponentName(context, RoadmapGlanceWidgetReceiver::class.java)
+        return appWidgetManager.requestPinAppWidget(provider, null, null)
+    }
 }

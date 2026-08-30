@@ -74,12 +74,12 @@ class DeepLinkRouter @Inject constructor() {
         if (host == "voice") {
             return DeepLinkDestination.VoiceCapture
         }
-        // promise://commitment/{id}
-        if (host == "commitment" && pathSegments.isNotEmpty()) {
+        // promise://commitment/{id} or promise://commitments/{id}
+        if ((host == "commitment" || host == "commitments") && pathSegments.isNotEmpty()) {
             return DeepLinkDestination.Commitment(pathSegments[0])
         }
-        // promise://goal/{id}/chat or promise://goal/{id}
-        if (host == "goal" && pathSegments.isNotEmpty()) {
+        // promise://goal/{id}/chat or promise://goals/{id}/chat or promise://goal/{id}
+        if ((host == "goal" || host == "goals") && pathSegments.isNotEmpty()) {
             val goalId = pathSegments[0]
             return if (pathSegments.size > 1 && pathSegments[1].equals("chat", ignoreCase = true)) {
                 DeepLinkDestination.GoalChat(goalId)
@@ -107,8 +107,8 @@ class DeepLinkRouter @Inject constructor() {
                 "home" -> return DeepLinkDestination.Home
                 "roadmap" -> return DeepLinkDestination.Roadmap
                 "profile" -> return DeepLinkDestination.Profile
-                "commitment" -> if (pathSegments.size >= 2) return DeepLinkDestination.Commitment(pathSegments[1])
-                "goal" -> {
+                "commitment", "commitments" -> if (pathSegments.size >= 2) return DeepLinkDestination.Commitment(pathSegments[1])
+                "goal", "goals" -> {
                     if (pathSegments.size >= 2) {
                         val goalId = pathSegments[1]
                         return if (pathSegments.size >= 3 && pathSegments[2].equals("chat", ignoreCase = true)) {

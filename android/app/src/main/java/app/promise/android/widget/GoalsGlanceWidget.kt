@@ -21,8 +21,6 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
-import androidx.glance.appwidget.lazy.LazyColumn
-import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.currentState
@@ -31,6 +29,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -57,8 +56,13 @@ class GoalsGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
         appWidgetIds: IntArray,
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
+        val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
-            PromiseWidgetUpdater.fetchAndPushWidgetData(context)
+            try {
+                PromiseWidgetUpdater.fetchAndPushWidgetData(context)
+            } finally {
+                pendingResult.finish()
+            }
         }
     }
 }
@@ -101,7 +105,7 @@ class GoalsGlanceWidget : GlanceAppWidget() {
                         .cornerRadius(20.dp)
                         .padding(12.dp),
                 ) {
-                    if (size.width >= 220.dp) {
+                    if (size.width >= 200.dp) {
                         ExpandedGoalsWidgetContent(
                             items = goalItems,
                             completedCount = completedCount,
@@ -129,15 +133,10 @@ class GoalsGlanceWidget : GlanceAppWidget() {
 
 internal data class GoalsThemeTokens(
     val background: ColorProvider,
-    val surfaceMuted: ColorProvider,
     val surfaceRaised: ColorProvider,
     val accent: ColorProvider,
     val textPrimary: ColorProvider,
     val textSecondary: ColorProvider,
-    val primaryControl: ColorProvider,
-    val onPrimaryControl: ColorProvider,
-    val goalBadgeBg: ColorProvider,
-    val goalBadgeText: ColorProvider,
     val completedBtnBg: ColorProvider,
     val completedBtnText: ColorProvider,
     val pendingBtnBg: ColorProvider,
@@ -146,36 +145,26 @@ internal data class GoalsThemeTokens(
     companion object {
         val Light = GoalsThemeTokens(
             background = ColorProvider(PromiseColor.Background),
-            surfaceMuted = ColorProvider(PromiseColor.SurfaceMuted),
             surfaceRaised = ColorProvider(PromiseColor.SurfaceRaised),
-            accent = ColorProvider(PromiseColor.Accent),
+            accent = ColorProvider(Color(0xFF4F46E5)),
             textPrimary = ColorProvider(PromiseColor.TextPrimary),
             textSecondary = ColorProvider(PromiseColor.TextSecondary),
-            primaryControl = ColorProvider(PromiseColor.PrimaryControl),
-            onPrimaryControl = ColorProvider(PromiseColor.OnPrimaryControl),
-            goalBadgeBg = ColorProvider(Color(0xFF2563EB).copy(alpha = 0.12f)),
-            goalBadgeText = ColorProvider(Color(0xFF1D4ED8)),
-            completedBtnBg = ColorProvider(Color(0xFF10B981).copy(alpha = 0.18f)),
+            completedBtnBg = ColorProvider(Color(0xFF10B981).copy(alpha = 0.16f)),
             completedBtnText = ColorProvider(Color(0xFF047857)),
-            pendingBtnBg = ColorProvider(PromiseColor.PrimaryControl),
-            pendingBtnText = ColorProvider(PromiseColor.OnPrimaryControl),
+            pendingBtnBg = ColorProvider(PromiseColor.SurfaceMuted),
+            pendingBtnText = ColorProvider(PromiseColor.TextSecondary),
         )
 
         val Dark = GoalsThemeTokens(
             background = ColorProvider(PromiseDarkColor.Background),
-            surfaceMuted = ColorProvider(PromiseDarkColor.SurfaceMuted),
             surfaceRaised = ColorProvider(PromiseDarkColor.SurfaceRaised),
-            accent = ColorProvider(PromiseDarkColor.Accent),
+            accent = ColorProvider(Color(0xFF818CF8)),
             textPrimary = ColorProvider(PromiseDarkColor.TextPrimary),
             textSecondary = ColorProvider(PromiseDarkColor.TextSecondary),
-            primaryControl = ColorProvider(PromiseDarkColor.PrimaryControl),
-            onPrimaryControl = ColorProvider(PromiseDarkColor.OnPrimaryControl),
-            goalBadgeBg = ColorProvider(Color(0xFF60A5FA).copy(alpha = 0.18f)),
-            goalBadgeText = ColorProvider(Color(0xFF93C5FD)),
             completedBtnBg = ColorProvider(Color(0xFF059669).copy(alpha = 0.25f)),
             completedBtnText = ColorProvider(Color(0xFF34D399)),
-            pendingBtnBg = ColorProvider(PromiseDarkColor.PrimaryControl),
-            pendingBtnText = ColorProvider(PromiseDarkColor.OnPrimaryControl),
+            pendingBtnBg = ColorProvider(PromiseDarkColor.SurfaceMuted),
+            pendingBtnText = ColorProvider(PromiseDarkColor.TextSecondary),
         )
     }
 }
@@ -187,22 +176,28 @@ private fun CompactGoalsWidgetContent(
     totalCount: Int,
     theme: GoalsThemeTokens,
 ) {
-    val progressPercent = if (totalCount > 0) ((completedCount.toFloat() / totalCount) * 100).toInt() else 0
-
     Column(
         modifier = GlanceModifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Header with open action
+        // Tracked Header
         Row(
             modifier = GlanceModifier
                 .fillMaxWidth()
                 .clickable(openHomeAction()),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = "🎯 GOALS",
+                text = "HABITS",
+                style = TextStyle(
+                    color = theme.textSecondary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+            Spacer(modifier = GlanceModifier.defaultWeight())
+            Text(
+                text = "$completedCount/$totalCount",
                 style = TextStyle(
                     color = theme.accent,
                     fontSize = 11.sp,
@@ -216,81 +211,44 @@ private fun CompactGoalsWidgetContent(
         if (items.isEmpty()) {
             Box(
                 modifier = GlanceModifier
-                    .fillMaxWidth()
-                    .defaultWeight()
-                    .background(theme.surfaceMuted)
-                    .cornerRadius(12.dp)
+                    .fillMaxSize()
                     .clickable(openHomeAction()),
                 contentAlignment = Alignment.Center,
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = GlanceModifier.padding(6.dp),
-                ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "All done! 🎯",
+                        text = "All clear",
                         style = TextStyle(
                             color = theme.textPrimary,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                         ),
                     )
+                    Spacer(modifier = GlanceModifier.height(1.dp))
                     Text(
-                        text = "Tap to open",
+                        text = "+ Add Goal",
                         style = TextStyle(
-                            color = theme.textSecondary,
-                            fontSize = 9.sp,
+                            color = theme.accent,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
                         ),
                     )
                 }
             }
         } else {
-            // Progress Capsule
-            Box(
-                modifier = GlanceModifier
-                    .fillMaxWidth()
-                    .background(theme.surfaceMuted)
-                    .cornerRadius(10.dp)
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .clickable(openHomeAction()),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = "$progressPercent% Done",
-                        style = TextStyle(
-                            color = theme.textPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                        ),
-                    )
-                    Spacer(modifier = GlanceModifier.width(4.dp))
-                    Text(
-                        text = "($completedCount/$totalCount)",
-                        style = TextStyle(
-                            color = theme.textSecondary,
-                            fontSize = 10.sp,
-                        ),
-                    )
-                }
-            }
-
-            Spacer(modifier = GlanceModifier.height(4.dp))
-
-            // Show top actionable items
             val displayItems = items.take(2)
-            Column(modifier = GlanceModifier.fillMaxWidth().defaultWeight()) {
+            Column(
+                modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 displayItems.forEach { item ->
                     Row(
                         modifier = GlanceModifier
                             .fillMaxWidth()
                             .padding(vertical = 2.dp)
                             .background(theme.surfaceRaised)
-                            .cornerRadius(8.dp)
-                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                            .cornerRadius(10.dp)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(
@@ -302,15 +260,28 @@ private fun CompactGoalsWidgetContent(
                                 text = item.title,
                                 style = TextStyle(
                                     color = if (item.isCompleted) theme.textSecondary else theme.textPrimary,
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Medium,
                                 ),
                                 maxLines = 1,
                             )
+                            if (item.streakCount > 0) {
+                                Spacer(modifier = GlanceModifier.height(1.dp))
+                                Text(
+                                    text = "${item.streakCount}d streak",
+                                    style = TextStyle(
+                                        color = if (item.isCompleted) theme.textSecondary else theme.accent,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                )
+                            }
                         }
 
+                        Spacer(modifier = GlanceModifier.width(6.dp))
+
                         Button(
-                            text = if (item.isCompleted) "✓" else "+",
+                            text = if (item.isCompleted) "✓" else "○",
                             onClick = actionRunCallback<ToggleCommitmentActionCallback>(
                                 actionParametersOf(
                                     ToggleCommitmentActionCallback.ITEM_ID_PARAM to item.id,
@@ -322,7 +293,7 @@ private fun CompactGoalsWidgetContent(
                                 contentColor = if (item.isCompleted) theme.completedBtnText else theme.pendingBtnText,
                             ),
                             modifier = GlanceModifier
-                                .width(28.dp)
+                                .width(26.dp)
                                 .height(24.dp)
                                 .cornerRadius(6.dp),
                         )
@@ -342,81 +313,64 @@ private fun ExpandedGoalsWidgetContent(
 ) {
     val progressPercent = if (totalCount > 0) ((completedCount.toFloat() / totalCount) * 100).toInt() else 0
 
-    Column(
+    Row(
         modifier = GlanceModifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Dynamic Header: Brand + Progress + Live Sync
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
+        // Left Column: Stats & Status
+        Column(
+            modifier = GlanceModifier
+                .width(95.dp)
+                .fillMaxHeight()
+                .clickable(openHomeAction()),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = GlanceModifier.clickable(openHomeAction()),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = "🎯 DAILY GOALS",
-                    style = TextStyle(
-                        color = theme.accent,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                )
-            }
-
-            Spacer(modifier = GlanceModifier.defaultWeight())
-
-            // Progress Tag
-            Box(
-                modifier = GlanceModifier
-                    .background(theme.surfaceMuted)
-                    .cornerRadius(8.dp)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                    .clickable(openHomeAction()),
-            ) {
-                Text(
-                    text = "$progressPercent% ($completedCount/$totalCount)",
-                    style = TextStyle(
-                        color = theme.textPrimary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                )
-            }
-
-            Spacer(modifier = GlanceModifier.width(6.dp))
-
-            // Sync Button
-            Button(
-                text = "🔄",
-                onClick = actionRunCallback<RefreshWidgetActionCallback>(),
-                colors = ButtonDefaults.buttonColors(
-                    backgroundColor = theme.surfaceMuted,
-                    contentColor = theme.textPrimary,
+            Text(
+                text = "DAILY HABITS",
+                style = TextStyle(
+                    color = theme.textSecondary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
                 ),
-                modifier = GlanceModifier
-                    .width(30.dp)
-                    .height(24.dp)
-                    .cornerRadius(8.dp),
+            )
+
+            Spacer(modifier = GlanceModifier.height(2.dp))
+
+            Text(
+                text = "$progressPercent%",
+                style = TextStyle(
+                    color = theme.textPrimary,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+
+            Spacer(modifier = GlanceModifier.height(2.dp))
+
+            Text(
+                text = if (progressPercent == 100 && totalCount > 0) "All completed" else "$completedCount of $totalCount done",
+                style = TextStyle(
+                    color = theme.accent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
             )
         }
 
-        Spacer(modifier = GlanceModifier.height(6.dp))
+        Spacer(modifier = GlanceModifier.width(8.dp))
 
+        // Right Column: Habit list
         if (items.isEmpty()) {
             Box(
                 modifier = GlanceModifier
-                    .fillMaxWidth()
                     .defaultWeight()
-                    .background(theme.surfaceMuted)
-                    .cornerRadius(14.dp)
-                    .padding(12.dp)
+                    .fillMaxHeight()
                     .clickable(openHomeAction()),
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "All daily goals completed! 🎯",
+                        text = "All completed",
                         style = TextStyle(
                             color = theme.textPrimary,
                             fontSize = 13.sp,
@@ -425,32 +379,64 @@ private fun ExpandedGoalsWidgetContent(
                     )
                     Spacer(modifier = GlanceModifier.height(2.dp))
                     Text(
-                        text = "Tap to open Promise & manage habits",
+                        text = "+ Add Goal",
                         style = TextStyle(
-                            color = theme.textSecondary,
+                            color = theme.accent,
                             fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
                         ),
                     )
                 }
             }
         } else {
-            // Scrollable LazyColumn containing all goals
-            LazyColumn(
-                modifier = GlanceModifier.fillMaxSize(),
+            val displayItems = items.take(2)
+            Column(
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .fillMaxHeight(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                items(items) { item ->
+                displayItems.forEach { item ->
                     Row(
                         modifier = GlanceModifier
                             .fillMaxWidth()
-                            .padding(vertical = 3.dp)
+                            .padding(vertical = 2.dp)
                             .background(theme.surfaceRaised)
-                            .cornerRadius(12.dp)
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                            .cornerRadius(10.dp)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        // 1-Tap Check-In / Complete Button
+                        Column(
+                            modifier = GlanceModifier
+                                .defaultWeight()
+                                .clickable(openGoalAction(item.id)),
+                        ) {
+                            Text(
+                                text = item.title,
+                                style = TextStyle(
+                                    color = if (item.isCompleted) theme.textSecondary else theme.textPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                ),
+                                maxLines = 1,
+                            )
+                            if (item.streakCount > 0) {
+                                Spacer(modifier = GlanceModifier.height(1.dp))
+                                Text(
+                                    text = "${item.streakCount}d streak",
+                                    style = TextStyle(
+                                        color = if (item.isCompleted) theme.textSecondary else theme.accent,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = GlanceModifier.width(6.dp))
+
                         Button(
-                            text = if (item.isCompleted) "✓ DONE" else "CHECK IN",
+                            text = if (item.isCompleted) "✓" else "○",
                             onClick = actionRunCallback<ToggleCommitmentActionCallback>(
                                 actionParametersOf(
                                     ToggleCommitmentActionCallback.ITEM_ID_PARAM to item.id,
@@ -462,75 +448,13 @@ private fun ExpandedGoalsWidgetContent(
                                 contentColor = if (item.isCompleted) theme.completedBtnText else theme.pendingBtnText,
                             ),
                             modifier = GlanceModifier
-                                .height(28.dp)
-                                .cornerRadius(14.dp),
+                                .width(26.dp)
+                                .height(24.dp)
+                                .cornerRadius(6.dp),
                         )
-
-                        Spacer(modifier = GlanceModifier.width(8.dp))
-
-                        // Goal Content Column: Tapping jumps directly to that Goal Detail in app
-                        Column(
-                            modifier = GlanceModifier
-                                .defaultWeight()
-                                .clickable(openGoalAction(item.id)),
-                        ) {
-                            Text(
-                                text = item.title,
-                                style = TextStyle(
-                                    color = if (item.isCompleted) theme.textSecondary else theme.textPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                                maxLines = 1,
-                            )
-                            if (item.subtitle.isNotBlank() || item.streakCount > 0) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (item.streakCount > 0) {
-                                        Text(
-                                            text = "🔥 ${item.streakCount}d streak",
-                                            style = TextStyle(
-                                                color = theme.accent,
-                                                fontSize = 9.sp,
-                                                fontWeight = FontWeight.Bold,
-                                            ),
-                                        )
-                                        Spacer(modifier = GlanceModifier.width(4.dp))
-                                    }
-                                    if (item.subtitle.isNotBlank()) {
-                                        Text(
-                                            text = "• ${item.subtitle}",
-                                            style = TextStyle(
-                                                color = theme.textSecondary,
-                                                fontSize = 9.sp,
-                                            ),
-                                            maxLines = 1,
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = GlanceModifier.width(4.dp))
-
-                        // Quick Arrow to open in app
-                        Box(
-                            modifier = GlanceModifier
-                                .padding(4.dp)
-                                .clickable(openGoalAction(item.id)),
-                        ) {
-                            Text(
-                                text = "↗",
-                                style = TextStyle(
-                                    color = theme.textSecondary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                            )
-                        }
                     }
                 }
             }
         }
     }
 }
-

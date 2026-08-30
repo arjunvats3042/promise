@@ -61,4 +61,19 @@ class GlanceStateDataTest {
         assertEquals(0, data.completedCount)
         assertEquals(0, data.totalCount)
     }
+
+    @Test
+    fun `test isOverdue serialization roundtrip`() {
+        val item = WidgetCommitmentItem(
+            id = "overdue_1",
+            title = "File Taxes",
+            isCompleted = false,
+            isOverdue = true,
+            dueTimeFormatted = "Overdue",
+        )
+        val data = PromiseWidgetData(items = listOf(item))
+        val json = data.toJson()
+        val decoded = PromiseWidgetData.fromJson(json)
+        assertTrue(decoded.items.first().isOverdue)
+    }
 }

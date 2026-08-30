@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -6,6 +7,8 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, models, transaction
 from django.db.models import Exists, Max, OuterRef, Q
 from django.utils import timezone
+
+logger = logging.getLogger("promise")
 
 from apps.goals.exceptions import (
     GoalAlreadyParticipantError,
@@ -2026,7 +2029,13 @@ _OUTBOX_EVENT_TYPES = {
 def _iso(value):
     if value is None:
         return None
-    return value.isoformat()
+    if hasattr(value, "tzinfo") and value.tzinfo is not None:
+        import datetime
+        value = value.astimezone(datetime.timezone.utc)
+    iso = value.isoformat()
+    if iso.endswith("+00:00"):
+        return iso[:-6] + "Z"
+    return iso
 
 
 def _goal_outbox_payload(goal, domain_event, check_in=None, participant=None):
@@ -2101,7 +2110,7 @@ def _add_event(goal, *, actor, event_type, metadata=None, check_in=None):
         from apps.notifications.services import sync_goal_reminders
         sync_goal_reminders(goal)
     except Exception as notif_exc:
-        logging.getLogger("promise").warning("Failed to sync goal reminders: %s", notif_exc)
+        logger.warning("Failed to sync goal reminders: %s", notif_exc)
 
     # Server-Side Authoritative Analytics Event Emission
     try:
@@ -2146,7 +2155,7 @@ def _add_event(goal, *, actor, event_type, metadata=None, check_in=None):
                 if GoalCheckIn.objects.filter(created_by=actor).count() == 1:
                     record_analytics_event(event_name=EVENT_FIRST_CHECKIN_COMPLETED, user=actor)
     except Exception as exc:  # noqa: BLE001
-        logging.getLogger("promise").warning("Failed to emit analytics event for goal event %s: %s", event_type, exc)
+        logger.warning("Failed to emit analytics event for goal event %s: %s", event_type, exc)
 
     return domain_event
 
@@ -2203,7 +2212,7 @@ def _add_participant_event(goal, *, actor, event_type, participant):
                 if GoalEvent.objects.filter(actor=actor, event_type=GoalEvent.EventType.PARTICIPANT_JOINED).count() == 1:
                     record_analytics_event(event_name=EVENT_FIRST_INVITATION_ACCEPTED, user=actor)
     except Exception as exc:  # noqa: BLE001
-        logging.getLogger("promise").warning("Failed to emit analytics event for participant event %s: %s", event_type, exc)
+        logger.warning("Failed to emit analytics event for participant event %s: %s", event_type, exc)
 
     return domain_event
 
@@ -2265,7 +2274,7 @@ def send_chat_message(*, sender, goal_id, body):
                 "message_id": str(msg.id),
                 "goal_id": str(goal.id),
                 "sender_id": str(sender.id),
-                "created_at": msg.created_at.isoformat(),
+                "created_at": _iso(msg.created_at),
             },
             occurred_at=msg.created_at,
         )
@@ -2277,7 +2286,7 @@ def send_chat_message(*, sender, goal_id, body):
                 "name": sender.name or sender.email.split("@")[0],
             },
             "body": msg.body,
-            "created_at": msg.created_at.isoformat(),
+            "created_at": _iso(msg.created_at),
         }
         goal_id_str = str(goal.id)
 

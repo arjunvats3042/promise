@@ -1,10 +1,12 @@
 package app.promise.android.data.network
 
+import android.content.Context
 import app.promise.android.core.AppLog
 import app.promise.android.data.local.TokenStore
 import app.promise.android.domain.AuthRepository
 import app.promise.android.domain.SessionState
 import app.promise.android.domain.User
+import app.promise.android.widget.PromiseWidgetUpdater
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +16,7 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 
 class AuthRepositoryImpl(
+    private val context: Context,
     private val publicApi: AuthApi,
     private val authedApi: AuthApi,
     private val tokenStore: TokenStore,
@@ -159,6 +162,9 @@ class AuthRepositoryImpl(
             userSessionStore.clear()
             memory.clear()
             _session.value = SessionState.Unauthenticated
+            try {
+                PromiseWidgetUpdater.clearWidgetData(context)
+            } catch (_: Throwable) {}
         }
     }
 
@@ -169,6 +175,9 @@ class AuthRepositoryImpl(
             memory.clear()
             userSessionStore.clear()
             _session.value = SessionState.Unauthenticated
+            try {
+                PromiseWidgetUpdater.clearWidgetData(context)
+            } catch (_: Throwable) {}
             return
         }
         val cachedUser = userSessionStore.readUser()
@@ -184,6 +193,9 @@ class AuthRepositoryImpl(
                 memory.clear()
                 userSessionStore.clear()
                 _session.value = SessionState.Unauthenticated
+                try {
+                    PromiseWidgetUpdater.clearWidgetData(context)
+                } catch (_: Throwable) {}
             } else if (cachedUser != null) {
                 // Offline fallback: keep user logged in using cached profile
                 memory.setUser(cachedUser)
@@ -210,6 +222,9 @@ class AuthRepositoryImpl(
             try {
                 deviceRegistrationRepository?.syncDeviceRegistration()
             } catch (_: Throwable) {}
+            try {
+                PromiseWidgetUpdater.fetchAndPushWidgetData(context)
+            } catch (_: Throwable) {}
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
@@ -219,6 +234,9 @@ class AuthRepositoryImpl(
                 userSessionStore.clear()
                 memory.clear()
                 _session.value = SessionState.Unauthenticated
+                try {
+                    PromiseWidgetUpdater.clearWidgetData(context)
+                } catch (_: Throwable) {}
             } else if (cachedUser != null) {
                 memory.setUser(cachedUser)
                 _session.value = SessionState.Authenticated(cachedUser)
@@ -241,6 +259,9 @@ class AuthRepositoryImpl(
             userSessionStore.clear()
             memory.clear()
             _session.value = SessionState.Unauthenticated
+            try {
+                PromiseWidgetUpdater.clearWidgetData(context)
+            } catch (_: Throwable) {}
         }
     }
 
@@ -255,6 +276,9 @@ class AuthRepositoryImpl(
             tokenStore.clear()
             memory.clear()
             _session.value = SessionState.Unauthenticated
+            try {
+                PromiseWidgetUpdater.clearWidgetData(context)
+            } catch (_: Throwable) {}
         }
     }
 
@@ -394,6 +418,9 @@ class AuthRepositoryImpl(
         AppLog.d(TAG, "session authenticated")
         try {
             deviceRegistrationRepository?.syncDeviceRegistration()
+        } catch (_: Throwable) {}
+        try {
+            PromiseWidgetUpdater.fetchAndPushWidgetData(context)
         } catch (_: Throwable) {}
     }
 

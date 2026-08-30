@@ -33,6 +33,7 @@ object AuthModule {
     @Provides
     @Singleton
     fun provideAuthRepository(
+        @ApplicationContext context: Context,
         @PublicApi publicApi: AuthApi,
         @AuthedApi authedApi: AuthApi,
         tokenStore: TokenStore,
@@ -42,6 +43,7 @@ object AuthModule {
         deviceRegistrationRepository: app.promise.android.domain.DeviceRegistrationRepository,
     ): AuthRepository {
         return AuthRepositoryImpl(
+            context = context,
             publicApi = publicApi,
             authedApi = authedApi,
             tokenStore = tokenStore,

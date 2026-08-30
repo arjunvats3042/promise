@@ -1,15 +1,26 @@
 package app.promise.android.ui.roadmap
 
 import android.content.Context
+import androidx.glance.appwidget.updateAll
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import app.promise.android.widget.RoadmapGlanceWidget
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 
-class DailyWallpaperWorker(
-    private val appContext: Context,
-    workerParams: WorkerParameters,
+@HiltWorker
+class DailyWallpaperWorker @AssistedInject constructor(
+    @Assisted private val appContext: Context,
+    @Assisted workerParams: WorkerParameters,
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
+        // Automatically refresh Roadmap home screen widgets daily
+        runCatching {
+            RoadmapGlanceWidget().updateAll(appContext)
+        }
+
         if (!RoadmapWallpaperManager.isAutoUpdateEnabled(appContext)) {
             return Result.success()
         }

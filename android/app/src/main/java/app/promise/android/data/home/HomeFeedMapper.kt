@@ -25,9 +25,9 @@ object HomeFeedMapper {
         val today = now.atZone(zone).toLocalDate()
         val upcomingEnd = today.plusDays(UPCOMING_DAYS)
         val filtered = open.filter { c ->
-            if (c.dueAt.isNullOrBlank()) return@filter false
+            if (c.dueAt.isNullOrBlank()) return@filter true
             if (c.isOverdue) return@filter true
-            val dueDate = localDate(c.dueAt, zone) ?: return@filter false
+            val dueDate = localDate(c.dueAt, zone) ?: return@filter true
             when {
                 dueDate == today -> true
                 dueDate.isAfter(today) && !dueDate.isAfter(upcomingEnd) -> true
@@ -64,6 +64,7 @@ object HomeFeedMapper {
                 if (formatted != null) "Overdue · $formatted" else "Overdue"
             }
             isDueToday -> "Due today"
+            commitment.dueAt.isNullOrBlank() -> "No due date"
             else -> {
                 val formatted = CommitmentTime.formatDue(
                     commitment.dueAt,

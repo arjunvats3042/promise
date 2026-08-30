@@ -96,6 +96,8 @@ import app.promise.android.ui.theme.rememberReduceMotion
 @Composable
 fun HomeScreen(
     onOpenProfile: () -> Unit,
+    onNavigateToCommitments: () -> Unit = {},
+    onNavigateToGoals: () -> Unit = {},
     onOpenCommitment: (String) -> Unit = {},
     onOpenPractice: (String) -> Unit = {},
     onOpenSearch: () -> Unit = {},
@@ -151,6 +153,8 @@ fun HomeScreen(
                         dailyMotivationState = dailyMotivationState,
                         isOnline = isOnline,
                         onOpenProfile = onOpenProfile,
+                        onNavigateToCommitments = onNavigateToCommitments,
+                        onNavigateToGoals = onNavigateToGoals,
                         onOpenCommitment = onOpenCommitment,
                         onOpenPractice = onOpenPractice,
                         onOpenSearch = onOpenSearch,
@@ -289,6 +293,8 @@ private fun HomeContent(
     dailyMotivationState: DailyMotivationUiState,
     isOnline: Boolean = true,
     onOpenProfile: () -> Unit,
+    onNavigateToCommitments: () -> Unit = {},
+    onNavigateToGoals: () -> Unit = {},
     onOpenCommitment: (String) -> Unit,
     onOpenPractice: (String) -> Unit,
     onOpenSearch: () -> Unit = {},
@@ -302,27 +308,34 @@ private fun HomeContent(
 ) {
     val colors = PromiseThemeColors.current
     val reduceMotion = rememberReduceMotion()
-    var showAllCommitments by remember { mutableStateOf(false) }
 
-    val personalPractices = remember(model.practices) {
-        model.practices.filter { !it.isShared }
-    }
-    val sharedPractices = remember(model.practices) {
-        model.practices.filter { it.isShared }
-    }
-
+    // Smart triage for today's commitments: Overdue first -> Incomplete -> Completed
     val todayCommitments = remember(model.commitments) {
-        model.commitments.filter { it.isDueToday || it.isOverdue }
+        model.commitments
+            .filter { it.isDueToday || it.isOverdue }
+            .sortedWith(
+                compareBy<HomeCommitment> { it.isCompleted }
+                    .thenByDescending { it.isOverdue }
+            )
     }
-    val upcomingCommitments = remember(model.commitments) {
-        model.commitments.filter { !it.isDueToday && !it.isOverdue }
+    val visibleTodayCommitments = remember(todayCommitments) {
+        todayCommitments.take(3)
     }
 
-    val visibleTodayCommitments = if (showAllCommitments || todayCommitments.size <= 4) {
-        todayCommitments
-    } else {
-        todayCommitments.take(4)
+    // Smart triage for daily rituals (both personal & shared): Incomplete first -> Streak -> Completed
+    val allPractices = remember(model.practices) {
+        model.practices.sortedWith(
+            compareBy<HomePractice> { it.checkedInToday }
+                .thenByDescending { it.streakDays }
+        )
     }
+    val visiblePractices = remember(allPractices) {
+        allPractices.take(4)
+    }
+
+    val totalTodayItems = todayCommitments.size + model.practices.size
+    val completedTodayItems = todayCommitments.count { it.isCompleted } + model.practices.count { it.checkedInToday }
+    val momentumProgress = if (totalTodayItems > 0) completedTodayItems.toFloat() / totalTodayItems.toFloat() else 0f
 
     LazyColumn(
         modifier = Modifier
@@ -346,14 +359,64 @@ private fun HomeContent(
                 onOpenVoiceCapture = onOpenVoiceCapture,
                 isOnline = isOnline,
             )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            // Quick Capture Pill Bar (Front & Center)
+            Surface(
+                onClick = onOpenThoughtParser,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.pill))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(Radius.pill))
+                    .semantics { contentDescription = "Capture a promise or thought" },
+                color = colors.surfaceRaised,
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.sm))
+                        Text(
+                            text = "Capture a promise or thought...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    IconButton(
+                        onClick = onOpenVoiceCapture,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(colors.accent),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Mic,
+                            contentDescription = "Voice Capture",
+                            tint = androidx.compose.ui.graphics.Color.White,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(Spacing.md))
         }
 
-        // Daily Momentum / Focus Card (Strictly counts today's commitments + today's practices)
-        val totalTodayItems = todayCommitments.size + model.practices.size
-        val completedTodayItems = todayCommitments.count { it.isCompleted } + model.practices.count { it.checkedInToday }
-        val momentumProgress = if (totalTodayItems > 0) completedTodayItems.toFloat() / totalTodayItems.toFloat() else 0f
-
+        // Daily Momentum / Focus Card
         item {
             DailyMomentumHeroCard(
                 completedCount = completedTodayItems,
@@ -439,17 +502,15 @@ private fun HomeContent(
             }
         }
 
-        // 2. TODAY (Today's Commitments)
+        // 2. TODAY'S FOCUS (Top Priority Commitments)
         item {
             PromiseSectionHeader(
-                title = "Today's Commitments",
+                title = "Today's Focus",
                 subtitle = if (todayCommitments.isNotEmpty()) {
                     "${todayCommitments.count { it.isCompleted }} of ${todayCommitments.size} completed"
                 } else null,
-                actionLabel = if (todayCommitments.size > 4) {
-                    if (showAllCommitments) "Show less" else "View all (${todayCommitments.size})"
-                } else null,
-                onActionClick = { showAllCommitments = !showAllCommitments },
+                actionLabel = if (todayCommitments.size > 3) "View all (${todayCommitments.size}) →" else "Commitments →",
+                onActionClick = onNavigateToCommitments,
             )
             Spacer(modifier = Modifier.height(Spacing.xs))
         }
@@ -472,6 +533,7 @@ private fun HomeContent(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(Radius.lg))
                             .background(colors.surfaceMuted)
+                            .clickable(onClick = onNavigateToCommitments)
                             .padding(Spacing.cardPadding),
                     ) {
                         Text(
@@ -503,31 +565,15 @@ private fun HomeContent(
             }
         }
 
-        // 2b. UPCOMING COMMITMENTS (Shown if future commitments exist in next 7 days)
-        if (upcomingCommitments.isNotEmpty()) {
-            item {
-                PromiseSectionHeader(
-                    title = "Upcoming Promises",
-                    subtitle = "${upcomingCommitments.size} on the horizon",
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-            }
-            items(upcomingCommitments.take(3), key = { it.id }) { commitment ->
-                CommitmentTodayRow(
-                    commitment = commitment,
-                    reduceMotion = reduceMotion,
-                    onOpen = { onOpenCommitment(commitment.id) },
-                    onComplete = { onComplete(commitment.id) },
-                )
-            }
-            item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
-        }
-
-        // 3. YOUR PRACTICE (Personal Practices)
+        // 3. DAILY RITUALS (Unified Habits & Streaks)
         item {
             PromiseSectionHeader(
-                title = "Daily Practice",
-                subtitle = if (personalPractices.isNotEmpty()) "${personalPractices.size} active" else null,
+                title = "Daily Rituals",
+                subtitle = if (allPractices.isNotEmpty()) {
+                    "${allPractices.count { it.checkedInToday }} of ${allPractices.size} completed"
+                } else null,
+                actionLabel = if (allPractices.size > 4) "View all (${allPractices.size}) →" else "Goals →",
+                onActionClick = onNavigateToGoals,
             )
             Spacer(modifier = Modifier.height(Spacing.xs))
         }
@@ -542,7 +588,7 @@ private fun HomeContent(
                     Spacer(modifier = Modifier.height(Spacing.sectionGap))
                 }
             }
-            personalPractices.isEmpty() -> {
+            allPractices.isEmpty() -> {
                 val emptyContent = EmptyStateCopy.Home.EmptyPersonalPractices
                 item {
                     Column(
@@ -550,6 +596,7 @@ private fun HomeContent(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(Radius.lg))
                             .background(colors.surfaceMuted)
+                            .clickable(onClick = onNavigateToGoals)
                             .padding(Spacing.cardPadding),
                     ) {
                         Text(
@@ -569,89 +616,34 @@ private fun HomeContent(
                 }
             }
             else -> {
-                items(personalPractices, key = { it.id }) { practice ->
-                    PersonalPracticeCard(
-                        practice = practice,
-                        onOpen = { onOpenPractice(practice.id) },
-                        onCheckIn = { onCheckIn(practice) },
-                    )
+                items(visiblePractices, key = { it.id }) { practice ->
+                    if (practice.isShared) {
+                        SharedPracticeCard(
+                            practice = practice,
+                            onOpen = { onOpenPractice(practice.id) },
+                            onCheckIn = { onCheckIn(practice) },
+                        )
+                    } else {
+                        PersonalPracticeCard(
+                            practice = practice,
+                            onOpen = { onOpenPractice(practice.id) },
+                            onCheckIn = { onCheckIn(practice) },
+                        )
+                    }
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
                 item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
             }
         }
 
-        // 4. SHARED PRACTICE
-        if (sharedPractices.isNotEmpty()) {
-            item {
-                PromiseSectionHeader(
-                    title = "Shared Practice",
-                    subtitle = "${sharedPractices.size} shared",
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-            }
-            items(sharedPractices, key = { it.id }) { practice ->
-                SharedPracticeCard(
-                    practice = practice,
-                    onOpen = { onOpenPractice(practice.id) },
-                    onCheckIn = { onCheckIn(practice) },
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
-            }
-            item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
-        }
-
-        // 5. AI ASSISTANTS & INSIGHTS
+        // 4. WEEKLY INSIGHTS (Placed cleanly at the bottom)
         item {
-            PromiseSectionHeader(title = "AI Intelligence")
+            PromiseSectionHeader(
+                title = "Weekly Insights",
+                subtitle = "Your 7-day retrospective & momentum",
+            )
             Spacer(modifier = Modifier.height(Spacing.xs))
 
-            Surface(
-                onClick = onOpenThoughtParser,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.lg))
-                    .border(1.dp, colors.accent.copy(alpha = 0.28f), RoundedCornerShape(Radius.lg))
-                    .semantics { contentDescription = "Turn thought into promises" },
-                color = colors.surfaceRaised,
-            ) {
-                Row(
-                    modifier = Modifier.padding(Spacing.cardPadding),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(Radius.md))
-                            .background(colors.accent.copy(alpha = 0.14f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.AutoAwesome,
-                            contentDescription = null,
-                            tint = colors.accent,
-                            modifier = Modifier.size(20.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(Spacing.md))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Thought → Promise",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textPrimary,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xxs))
-                        Text(
-                            text = "Turn a brain dump into commitments & goals with AI",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.textSecondary,
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(Spacing.md))
             WeeklyInsightsCard(state = weeklyInsightsState)
             Spacer(modifier = Modifier.height(Spacing.xxxl))
         }
@@ -956,19 +948,6 @@ fun HomeHeader(
                 animateIn = true,
             )
         }
-        IconButton(
-            onClick = onOpenVoiceCapture,
-            modifier = Modifier
-                .size(TouchTarget.min)
-                .semantics { contentDescription = "Quick voice capture" },
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Mic,
-                contentDescription = null,
-                tint = colors.accent,
-            )
-        }
-        Spacer(modifier = Modifier.width(Spacing.xxs))
         IconButton(
             onClick = onOpenSearch,
             modifier = Modifier

@@ -67,9 +67,9 @@ class VoiceMicGlanceWidget : GlanceAppWidget() {
                     modifier = GlanceModifier
                         .fillMaxSize()
                         .background(theme.background)
-                        .cornerRadius(28.dp)
+                        .cornerRadius(22.dp)
                         .clickable(actionStartActivity(voiceIntent))
-                        .padding(8.dp),
+                        .padding(10.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (size.width >= 150.dp) {
@@ -77,31 +77,22 @@ class VoiceMicGlanceWidget : GlanceAppWidget() {
                         Row(
                             modifier = GlanceModifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // Glowing Outer Aura Container
+                            // Tactile Mic Trigger Disc
                             Box(
                                 modifier = GlanceModifier
-                                    .size(46.dp)
-                                    .background(theme.aura)
-                                    .cornerRadius(23.dp)
-                                    .padding(4.dp),
+                                    .size(42.dp)
+                                    .background(theme.surfaceRaised)
+                                    .cornerRadius(21.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Box(
-                                    modifier = GlanceModifier
-                                        .fillMaxSize()
-                                        .background(theme.accent)
-                                        .cornerRadius(20.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Image(
-                                        provider = ImageProvider(R.drawable.ic_mic),
-                                        contentDescription = "Speak promise",
-                                        modifier = GlanceModifier.size(24.dp),
-                                    )
-                                }
+                                Image(
+                                    provider = ImageProvider(R.drawable.ic_mic),
+                                    contentDescription = "Voice capture",
+                                    modifier = GlanceModifier.size(20.dp),
+                                )
                             }
 
                             Spacer(modifier = GlanceModifier.width(12.dp))
@@ -111,78 +102,59 @@ class VoiceMicGlanceWidget : GlanceAppWidget() {
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    text = "Voice Promise",
+                                    text = "Voice Capture",
                                     style = TextStyle(
                                         color = theme.textPrimary,
-                                        fontSize = 15.sp,
+                                        fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
                                     ),
                                 )
-                                Spacer(modifier = GlanceModifier.height(2.dp))
+                                Spacer(modifier = GlanceModifier.height(1.dp))
                                 Text(
-                                    text = "Tap to speak intentions",
+                                    text = "Tap to speak promise",
                                     style = TextStyle(
                                         color = theme.textSecondary,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Normal,
                                     ),
                                 )
                             }
 
-                            Spacer(modifier = GlanceModifier.width(6.dp))
-
-                            Box(
+                            Spacer(
                                 modifier = GlanceModifier
-                                    .size(28.dp)
-                                    .background(theme.surfaceMuted)
-                                    .cornerRadius(14.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Image(
-                                    provider = ImageProvider(R.drawable.ic_sparkle),
-                                    contentDescription = "AI Powered",
-                                    modifier = GlanceModifier.size(16.dp),
-                                )
-                            }
+                                    .size(8.dp)
+                                    .background(theme.accent)
+                                    .cornerRadius(4.dp),
+                            )
                         }
                     } else {
-                        // Compact Square Mode (1x1) — Floating Tactical Glass Button
+                        // Compact Square Mode (1x1) — Precision Tactile Disc
                         Column(
                             modifier = GlanceModifier.fillMaxSize(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // Floating Glowing Mic Disc
                             Box(
                                 modifier = GlanceModifier
-                                    .size(54.dp)
-                                    .background(theme.aura)
-                                    .cornerRadius(27.dp)
-                                    .padding(4.dp),
+                                    .size(48.dp)
+                                    .background(theme.surfaceRaised)
+                                    .cornerRadius(24.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Box(
-                                    modifier = GlanceModifier
-                                        .fillMaxSize()
-                                        .background(theme.accent)
-                                        .cornerRadius(23.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Image(
-                                        provider = ImageProvider(R.drawable.ic_mic),
-                                        contentDescription = "Quick Voice Capture",
-                                        modifier = GlanceModifier.size(28.dp),
-                                    )
-                                }
+                                Image(
+                                    provider = ImageProvider(R.drawable.ic_mic),
+                                    contentDescription = "Voice Capture",
+                                    modifier = GlanceModifier.size(24.dp),
+                                )
                             }
 
                             Spacer(modifier = GlanceModifier.height(4.dp))
 
                             Text(
-                                text = "Speak",
+                                text = "VOICE",
                                 style = TextStyle(
-                                    color = theme.textPrimary,
-                                    fontSize = 12.sp,
+                                    color = theme.textSecondary,
+                                    fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
                                 ),
                             )
@@ -201,8 +173,7 @@ class VoiceMicGlanceWidget : GlanceAppWidget() {
 
 internal data class VoiceThemeTokens(
     val background: ColorProvider,
-    val surfaceMuted: ColorProvider,
-    val aura: ColorProvider,
+    val surfaceRaised: ColorProvider,
     val accent: ColorProvider,
     val textPrimary: ColorProvider,
     val textSecondary: ColorProvider,
@@ -210,17 +181,15 @@ internal data class VoiceThemeTokens(
     companion object {
         val Light = VoiceThemeTokens(
             background = ColorProvider(Color(0xFFFFFFFF)),
-            surfaceMuted = ColorProvider(Color(0xFFF1F5F9)),
-            aura = ColorProvider(Color(0xFFDCFCE7)),
+            surfaceRaised = ColorProvider(Color(0xFFF1F5F9)),
             accent = ColorProvider(Color(0xFF10B981)),
             textPrimary = ColorProvider(Color(0xFF0F172A)),
             textSecondary = ColorProvider(Color(0xFF64748B)),
         )
 
         val Dark = VoiceThemeTokens(
-            background = ColorProvider(Color(0xFF131720)),
-            surfaceMuted = ColorProvider(Color(0xFF1E2532)),
-            aura = ColorProvider(Color(0xFF064E3B)),
+            background = ColorProvider(Color(0xFF090B0E)),
+            surfaceRaised = ColorProvider(Color(0xFF131720)),
             accent = ColorProvider(Color(0xFF10B981)),
             textPrimary = ColorProvider(Color(0xFFF8FAFC)),
             textSecondary = ColorProvider(Color(0xFF94A3B8)),

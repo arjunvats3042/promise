@@ -16,6 +16,7 @@ data class WidgetCommitmentItem(
     val title: String,
     val subtitle: String = "",
     val isCompleted: Boolean = false,
+    val isOverdue: Boolean = false,
     val dueTimeFormatted: String = "",
     val streakCount: Int = 0,
     val type: WidgetItemType = WidgetItemType.COMMITMENT,

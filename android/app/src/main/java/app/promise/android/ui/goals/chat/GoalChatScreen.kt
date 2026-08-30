@@ -100,6 +100,13 @@ fun GoalChatScreen(
         }
     }
 
+    val newestMessageId = state.messages.firstOrNull()?.id
+    LaunchedEffect(newestMessageId) {
+        if (newestMessageId != null && listState.firstVisibleItemIndex <= 2) {
+            listState.animateScrollToItem(0)
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {

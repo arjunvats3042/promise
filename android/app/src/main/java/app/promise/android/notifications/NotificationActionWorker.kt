@@ -78,6 +78,7 @@ class NotificationActionWorker @AssistedInject constructor(
                     if (!replyText.isNullOrBlank()) {
                         val msg = goalRepository.sendChatMessage(entityId, replyText)
                         appEventBus.emit(AppMutationEvent.ChatMessageCreated(entityId, msg.id))
+                        PromiseWidgetUpdater.fetchAndPushWidgetData(appContext)
                     }
                     Result.success()
                 }

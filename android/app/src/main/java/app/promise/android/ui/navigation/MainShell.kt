@@ -264,6 +264,16 @@ fun MainShell(
                                         if (reduceMotion) pagerState.scrollToPage(4) else pagerState.animateScrollToPage(4, animationSpec = Motion.snappySpring())
                                     }
                                 },
+                                onNavigateToCommitments = {
+                                    coroutineScope.launch {
+                                        if (reduceMotion) pagerState.scrollToPage(1) else pagerState.animateScrollToPage(1, animationSpec = Motion.snappySpring())
+                                    }
+                                },
+                                onNavigateToGoals = {
+                                    coroutineScope.launch {
+                                        if (reduceMotion) pagerState.scrollToPage(3) else pagerState.animateScrollToPage(3, animationSpec = Motion.snappySpring())
+                                    }
+                                },
                                 onOpenCommitment = { id ->
                                     navController.navigate(CommitmentRoute(id))
                                 },

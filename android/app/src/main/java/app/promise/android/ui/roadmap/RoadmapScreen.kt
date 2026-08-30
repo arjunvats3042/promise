@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -108,9 +108,9 @@ fun RoadmapScreen(
             letterSpacing = 0.4.sp,
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
-        // 4. The 365-Dot Constellation Canvas (Balanced 14-Col Grid)
+        // 4. The 365-Dot Constellation Canvas (Refined 14-Col Grid)
         YearDotMatrix(
             currentDayOfYear = progressInfo.currentDayOfYear,
             totalDays = progressInfo.totalDays,
@@ -119,12 +119,11 @@ fun RoadmapScreen(
             futureColor = futureDotColor,
             todayGlowColor = dynamicGlow,
             modifier = Modifier
-                .widthIn(max = 255.dp)
-                .fillMaxWidth(0.72f)
+                .width(236.dp)
                 .aspectRatio(14f / 27f),
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
         // 5. Philosophical Italic Quote
         Text(
@@ -137,7 +136,7 @@ fun RoadmapScreen(
             modifier = Modifier.padding(horizontal = Spacing.sm),
         )
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // 6. Brand Signature (Theme Dynamic Accent)
         Text(
@@ -149,7 +148,7 @@ fun RoadmapScreen(
             fontSize = 12.sp,
         )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
         // 7. Single Action Button: "Set as Wallpaper"
         Button(

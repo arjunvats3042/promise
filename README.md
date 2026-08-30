@@ -19,11 +19,12 @@ Promise is designed around a single idea: **a quiet desk** — paper, ink, and d
 ### Key Capabilities
 
 - **Offline-First Resilience**: Built on local SQLite (Room) with background outbox synchronization (`WorkManager`). Create tasks, check in on habits, and track streaks with zero network latency.
-- **Thought → Promise (AI Engine)**: Drop in raw, messy thoughts or voice transcripts. Gemini decomposes them into structured commitments and recurring habits with timezone-aware due dates.
+- **Thought → Promise (Voice & AI Engine)**: Drop in raw, messy thoughts or voice speech transcripts. Gemini decomposes compound sentences into discrete commitments and habits with natural language temporal parsing.
+- **Dynamic Year Progress Wallpaper**: Generates a 365-day constellation lock screen wallpaper and home widget dynamically scheduled to advance every night at midnight via WorkManager.
+- **Glance Home Screen Widget Suite**: Complete daily tasks, check in on goals, review year progress, and trigger 1-tap floating mic voice capture straight from Android launcher.
 - **Daily Focus & Integrity Streaks**: Clear visual separation between today's immediate priorities and upcoming commitments. Streaks are preserved across midnight rollovers.
-- **Shared Accountability & Rooms**: Form shared habits with friends or teammates via in-app invites, track shared momentum, and message in real-time.
-- **Interactive Home Screen Glance Widgets**: Check in on habits and complete daily commitments directly from Android Home Screen with 1-tap micro-actions.
-- **Quiet, Meaningful Reminders**: Intentional notifications with inline actions, snooze support, and smart streak protection.
+- **Shared Accountability & Real-Time Rooms**: Form shared habits with friends or teammates via in-app invites, track shared momentum, and message in real-time with deterministic epoch timestamp ordering.
+- **Quiet, Meaningful Reminders**: Intentional notifications with 1-tap actions (`✓ Complete`, `⏰ Snooze 1h`, `✓ Check In`), inline direct chat replies, and smart streak protection.
 
 ---
 

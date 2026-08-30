@@ -783,3 +783,28 @@ Simplified the commitments view from 5 overlapping categories down to 3 focused 
 - **2x1 Horizontal Pill Mode**: Expanded widget with live promise badge, primary/subtitle editorial copy, and quick capture trigger.
 - **Direct Activity Launch**: Configured with `Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP` to launch `VoiceQuickCaptureActivity` instantly from the home screen.
 
+---
+
+## 25. Glance Widgets, Dynamic Wallpaper & Full-Stack Synchronization
+
+### 25.1. Glance Widget Suite (`GoalsGlanceWidget`, `CommitmentsGlanceWidget`, `RoadmapGlanceWidget`, `VoiceMicGlanceWidget`)
+- **Interactive Check-In / Completion**: 1-tap completion directly from the home screen launcher via `ToggleCommitmentActionCallback`.
+- **Immediate SharedPreferences Cache**: Cold-boot instant rendering via `PromiseWidgetUpdater` caching layer (`WIDGET_DATA_PREF_KEY`).
+- **Receiver Reliability**: All receivers (`GoalsGlanceWidgetReceiver`, `CommitmentsGlanceWidgetReceiver`, `RoadmapGlanceWidgetReceiver`) wrap asynchronous coroutines in `goAsync()` / `pendingResult.finish()` to prevent premature process termination by Android OS.
+- **Auth Lifecycle Binding**: Widgets are cleared via `clearWidgetData()` on logout/account deletion and populated on login/session restore.
+
+### 25.2. Offline Outbox Fallback
+- Actions initiated from home screen widgets while offline are captured in `ToggleCommitmentActionCallback` and serialized to Room `OutboxDao` (`COMPLETE_COMMITMENT`, `CHECK_IN_GOAL`) with unique UUIDs.
+- `SyncManager.enqueueSync()` automatically pushes queued mutations when network connectivity returns.
+
+### 25.3. Dynamic Roadmap Wallpaper Engine (`RoadmapWallpaperManager.kt`, `DailyWallpaperWorker.kt`)
+- **Year Progress Dot Matrix**: Renders a 365-day constellation bitmap dynamically adapted to screen resolution.
+- **Automated WorkManager Scheduling**: Registers `DailyWallpaperWorker` (`@HiltWorker`) to execute at **12:05 AM daily** with `ExistingPeriodicWorkPolicy.UPDATE`.
+- **System Event Broadcasts**: Intercepts `ACTION_DATE_CHANGED`, `ACTION_TIMEZONE_CHANGED`, `ACTION_TIME_CHANGED`, and `ACTION_BOOT_COMPLETED` for instant date transitions.
+
+### 25.4. Real-Time Chat Synchronization & Epoch Comparator (`ChatDateUtil`)
+- **Deterministic Epoch Sorting**: Replaces fragile ASCII ISO string comparison with parsed epoch millisecond timestamps (`ChatDateUtil.messageComparator`), resolving message ordering inversions caused by mixed `+00:00` vs `Z` representations.
+- **Clock-Skew Defense**: Ensures optimistic outgoing message timestamps satisfy `maxOf(System.currentTimeMillis(), latestEpoch + 1)`.
+- **Auto-Scroll Anchor**: `LaunchedEffect(newestMessageId)` smoothly scrolls `LazyColumn(reverseLayout = true)` to index 0 on new message arrival.
+
+

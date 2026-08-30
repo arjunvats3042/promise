@@ -5,4 +5,6 @@
     <string name="widget_commitments_label">Promise Commitments</string>
     <string name="widget_voice_label">Promise Quick Voice</string>
     <string name="widget_voice_description">Tap to capture promises with your voice</string>
+    <string name="widget_roadmap_label">Promise Roadmap</string>
+    <string name="widget_roadmap_description">365-day constellation progress &amp; roadmap</string>
 </resources>

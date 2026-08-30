@@ -63,6 +63,7 @@ class VoiceQuickCaptureActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        haptics.selection()
 
         setContent {
             val systemDark = isSystemInDarkTheme()

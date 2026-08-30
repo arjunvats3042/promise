@@ -142,9 +142,7 @@ class GoalChatViewModel @Inject constructor(
                     is GoalDetail.Invite -> null
                 }
                 val fetched = repository.listChatMessages(goalId, limit = PAGE_SIZE)
-                val descending = fetched.sortedWith(
-                    compareByDescending<ChatMessage> { it.createdAt }.thenByDescending { it.id },
-                )
+                val descending = fetched.sortedWith(ChatDateUtil.messageComparator)
                 _state.update {
                     it.copy(
                         goal = goal,
@@ -186,21 +184,8 @@ class GoalChatViewModel @Inject constructor(
 
     private fun onRealtimeMessage(msg: ChatMessage) {
         _state.update { current ->
-            if (current.messages.any { it.id == msg.id }) {
-                return@update current
-            }
-            val tempMatch = current.messages.firstOrNull {
-                it.id.startsWith("temp-") && it.body == msg.body && it.sender.id == msg.sender.id
-            }
-            val updatedMessages = if (tempMatch != null) {
-                current.messages.map { if (it.id == tempMatch.id) msg else it }
-            } else {
-                listOf(msg) + current.messages
-            }
-            val sorted = updatedMessages.sortedWith(
-                compareByDescending<ChatMessage> { it.createdAt }.thenByDescending { it.id },
-            )
-            current.copy(messages = sorted)
+            val updated = reconcileMessage(current.messages, msg)
+            current.copy(messages = updated)
         }
         appEventBus.emit(AppMutationEvent.ChatMessageCreated(goalId, msg.id))
         viewModelScope.launch {
@@ -230,9 +215,7 @@ class GoalChatViewModel @Inject constructor(
                 for (msg in fresh) {
                     existingMap[msg.id] = msg
                 }
-                val sorted = existingMap.values.sortedWith(
-                    compareByDescending<ChatMessage> { it.createdAt }.thenByDescending { it.id },
-                )
+                val sorted = existingMap.values.sortedWith(ChatDateUtil.messageComparator)
                 current.copy(messages = sorted)
             }
             fresh.firstOrNull()?.let { newest ->
@@ -255,12 +238,10 @@ class GoalChatViewModel @Inject constructor(
                     beforeCreatedAt = oldest.createdAt,
                     beforeId = oldest.id,
                 )
-                val olderDescending = older.sortedWith(
-                    compareByDescending<ChatMessage> { it.createdAt }.thenByDescending { it.id },
-                )
+                val olderDescending = older.sortedWith(ChatDateUtil.messageComparator)
                 _state.update {
                     it.copy(
-                        messages = it.messages + olderDescending,
+                        messages = (it.messages + olderDescending).distinctBy { msg -> msg.id }.sortedWith(ChatDateUtil.messageComparator),
                         isPaginating = false,
                         hasMore = older.size >= PAGE_SIZE,
                     )
@@ -269,6 +250,39 @@ class GoalChatViewModel @Inject constructor(
                 _state.update { it.copy(isPaginating = false) }
             }
         }
+    }
+
+    private fun reconcileMessage(
+        currentMessages: List<ChatMessage>,
+        incomingMessage: ChatMessage,
+        preferredTempId: String? = null,
+    ): List<ChatMessage> {
+        // 1. If incoming permanent ID is already in list, update it
+        val existingIndex = currentMessages.indexOfFirst { it.id == incomingMessage.id }
+        if (existingIndex >= 0) {
+            return currentMessages.map { if (it.id == incomingMessage.id) incomingMessage else it }
+                .sortedWith(ChatDateUtil.messageComparator)
+        }
+
+        // 2. Find matching optimistic temp message
+        val tempMatch = currentMessages.firstOrNull { msg ->
+            if (!msg.id.startsWith("temp-")) return@firstOrNull false
+            if (preferredTempId != null && msg.id == preferredTempId) return@firstOrNull true
+            msg.body == incomingMessage.body && (
+                msg.sender.id == incomingMessage.sender.id ||
+                msg.sender.id.isBlank() ||
+                incomingMessage.sender.id.isBlank() ||
+                msg.sender.name == incomingMessage.sender.name
+            )
+        }
+
+        val updated = if (tempMatch != null) {
+            currentMessages.map { if (it.id == tempMatch.id) incomingMessage else it }
+        } else {
+            listOf(incomingMessage) + currentMessages
+        }
+
+        return updated.distinctBy { it.id }.sortedWith(ChatDateUtil.messageComparator)
     }
 
     fun sendMessage(body: String) {
@@ -281,7 +295,11 @@ class GoalChatViewModel @Inject constructor(
 
         val currentUser = authSession.user.value
         val tempId = "temp-${UUID.randomUUID()}"
-        val nowIso = Instant.now().toString()
+        
+        // Prevent local clock skew from sorting optimistic message above existing messages
+        val latestEpoch = _state.value.messages.firstOrNull()?.let { ChatDateUtil.parseIsoToEpochMillis(it.createdAt) } ?: 0L
+        val nowEpoch = maxOf(System.currentTimeMillis(), latestEpoch + 1)
+        val nowIso = Instant.ofEpochMilli(nowEpoch).toString()
 
         val optimisticMessage = ChatMessage(
             id = tempId,
@@ -294,9 +312,9 @@ class GoalChatViewModel @Inject constructor(
             deliveryStatus = ChatMessageDeliveryStatus.SENDING,
         )
 
-        _state.update {
-            it.copy(
-                messages = listOf(optimisticMessage) + it.messages,
+        _state.update { current ->
+            current.copy(
+                messages = (listOf(optimisticMessage) + current.messages).sortedWith(ChatDateUtil.messageComparator),
                 sendAction = ActionState.InFlight,
             )
         }
@@ -305,10 +323,11 @@ class GoalChatViewModel @Inject constructor(
             try {
                 val serverMessage = repository.sendChatMessage(goalId, trimmed)
                 _state.update { current ->
-                    val reconciled = current.messages.map { msg ->
-                        if (msg.id == tempId) serverMessage.copy(deliveryStatus = ChatMessageDeliveryStatus.SENT)
-                        else msg
-                    }
+                    val reconciled = reconcileMessage(
+                        currentMessages = current.messages,
+                        incomingMessage = serverMessage.copy(deliveryStatus = ChatMessageDeliveryStatus.SENT),
+                        preferredTempId = tempId,
+                    )
                     current.copy(
                         messages = reconciled,
                         sendAction = ActionState.Idle,
@@ -350,5 +369,34 @@ class GoalChatViewModel @Inject constructor(
     companion object {
         const val PAGE_SIZE = 50
         const val MAX_MESSAGE_LENGTH = 2000
+    }
+}
+
+internal object ChatDateUtil {
+    fun parseIsoToEpochMillis(isoString: String): Long {
+        if (isoString.isBlank()) return 0L
+        return try {
+            Instant.parse(isoString).toEpochMilli()
+        } catch (_: Throwable) {
+            try {
+                java.time.OffsetDateTime.parse(isoString).toInstant().toEpochMilli()
+            } catch (_: Throwable) {
+                try {
+                    java.time.ZonedDateTime.parse(isoString).toInstant().toEpochMilli()
+                } catch (_: Throwable) {
+                    0L
+                }
+            }
+        }
+    }
+
+    val messageComparator = Comparator<ChatMessage> { a, b ->
+        val timeA = parseIsoToEpochMillis(a.createdAt)
+        val timeB = parseIsoToEpochMillis(b.createdAt)
+        if (timeA != timeB) {
+            timeB.compareTo(timeA) // Descending: newest first (index 0 at bottom)
+        } else {
+            b.id.compareTo(a.id)
+        }
     }
 }

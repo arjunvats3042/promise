@@ -13,6 +13,9 @@ import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.state.PreferencesGlanceStateDefinition
 import app.promise.android.core.events.AppEventBus
 import app.promise.android.core.events.AppMutationEvent
+import app.promise.android.data.local.db.OutboxDao
+import app.promise.android.data.local.db.OutboxEntity
+import app.promise.android.data.sync.SyncManager
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.CommitmentRepository
 import app.promise.android.domain.GoalCheckInStatus
@@ -23,6 +26,8 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.util.UUID
 
 val WIDGET_DATA_PREF_KEY = stringPreferencesKey("promise_widget_data_json")
 
@@ -64,6 +69,8 @@ class ToggleCommitmentActionCallback : ActionCallback {
         fun commitmentRepository(): CommitmentRepository
         fun homeRepository(): HomeRepository
         fun appEventBus(): AppEventBus
+        fun outboxDao(): OutboxDao
+        fun syncManager(): SyncManager
     }
 
     override suspend fun onAction(
@@ -98,17 +105,48 @@ class ToggleCommitmentActionCallback : ActionCallback {
 
                 if (targetItem != null) {
                     if (targetItem.type == WidgetItemType.GOAL) {
-                        runCatching {
+                        val apiResult = runCatching {
                             val status = if (newCompletedState) GoalCheckInStatus.COMPLETED else GoalCheckInStatus.SKIPPED
                             entryPoint.homeRepository().checkInPractice(
                                 id = itemId,
                                 input = CheckInInput(status = status),
                             )
                         }
+                        // Offline fallback: queue to outbox if API call failed
+                        if (apiResult.isFailure) {
+                            runCatching {
+                                val statusStr = if (newCompletedState) "COMPLETED" else "SKIPPED"
+                                entryPoint.outboxDao().enqueue(
+                                    OutboxEntity(
+                                        actionId = UUID.randomUUID().toString(),
+                                        actionType = "CHECK_IN_GOAL",
+                                        entityId = itemId,
+                                        payloadJson = """{"status":"$statusStr"}""",
+                                        clientTimestampIso = Instant.now().toString(),
+                                    ),
+                                )
+                                entryPoint.syncManager().enqueueSync()
+                            }
+                        }
                         entryPoint.appEventBus().emit(AppMutationEvent.GoalCheckedIn(itemId))
                     } else {
-                        runCatching {
+                        val apiResult = runCatching {
                             entryPoint.commitmentRepository().complete(itemId)
+                        }
+                        // Offline fallback: queue to outbox if API call failed
+                        if (apiResult.isFailure) {
+                            runCatching {
+                                entryPoint.outboxDao().enqueue(
+                                    OutboxEntity(
+                                        actionId = UUID.randomUUID().toString(),
+                                        actionType = "COMPLETE_COMMITMENT",
+                                        entityId = itemId,
+                                        payloadJson = "{}",
+                                        clientTimestampIso = Instant.now().toString(),
+                                    ),
+                                )
+                                entryPoint.syncManager().enqueueSync()
+                            }
                         }
                         entryPoint.appEventBus().emit(AppMutationEvent.CommitmentCompleted(itemId))
                     }
@@ -151,3 +189,4 @@ class ToggleCommitmentActionCallback : ActionCallback {
         val ACTION_TYPE_PARAM = ActionParameters.Key<String>("action_type")
     }
 }
+

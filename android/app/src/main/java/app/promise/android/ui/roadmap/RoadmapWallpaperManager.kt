@@ -68,65 +68,50 @@ object RoadmapWallpaperManager {
         val pastDotHex = if (isDarkTheme) "#F1F5F9" else "#0F172A"
         val futureDotHex = if (isDarkTheme) "#475569" else "#CBD5E1"
 
-        // 1. Full Screen Background
+        // 1. Full Screen Pure Minimalist Canvas
         val bgPaint = Paint().apply { color = android.graphics.Color.parseColor(bgHex) }
         canvas.drawRect(0f, 0f, screenWidth.toFloat(), screenHeight.toFloat(), bgPaint)
 
         val centerX = screenWidth / 2f
 
-        // 2. Header Text (matches RoadmapScreen top header)
-        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor(textSecondaryHex)
-            textSize = screenWidth * 0.033f
-            letterSpacing = 0.20f
-            isFakeBoldText = true
-            textAlign = Paint.Align.CENTER
-        }
-        val headerY = screenHeight * 0.095f
-        canvas.drawText("${info.year} LIFE ROADMAP", centerX, headerY, titlePaint)
-
-        // 3. Hero Metric (bold percentage)
-        val statPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor(textPrimaryHex)
-            textSize = screenWidth * 0.110f
-            isFakeBoldText = true
-            letterSpacing = -0.02f
-            textAlign = Paint.Align.CENTER
-        }
-        val heroMetricY = screenHeight * 0.155f
-        canvas.drawText("${info.percentElapsed}%", centerX, heroMetricY, statPaint)
-
-        // 4. Subtitle (Theme Dynamic Accent)
-        val subStatPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = accentColor
-            textSize = screenWidth * 0.036f
-            isFakeBoldText = true
-            textAlign = Paint.Align.CENTER
-        }
-        val subtitleY = screenHeight * 0.195f
-        canvas.drawText(
-            "Day ${info.currentDayOfYear} of ${info.totalDays} · ${info.daysRemaining} days left",
-            centerX,
-            subtitleY,
-            subStatPaint,
-        )
-
-        // 5. 365 Dots Grid (Balanced 14-column symmetric grid)
+        // 2. Geometry for the 365-Dot Constellation (Centered, Minimal, Balanced)
         val cols = 14
         val rows = (info.totalDays + cols - 1) / cols
 
-        val gridStartY = screenHeight * 0.235f
-        val bottomReserved = screenHeight * 0.170f
-        val maxGridH = screenHeight - gridStartY - bottomReserved
-        val maxGridW = screenWidth * 0.72f
-
-        val cellSide = minOf(maxGridW / cols, maxGridH / rows)
+        // Grid spans ~52% of width (delicate, refined, uncluttered)
+        val targetGridW = screenWidth * 0.52f
+        val cellSide = targetGridW / cols
         val totalGridW = cellSide * cols
         val totalGridH = cellSide * rows
 
+        // Vertically centered in the golden viewport zone (clearing lock screen clock above and dock below)
+        val gridStartY = (screenHeight - totalGridH) * 0.48f
         val gridStartX = (screenWidth - totalGridW) / 2f
-        val dotRadius = cellSide * 0.36f
+        val dotRadius = cellSide * 0.32f
 
+        // 3. Minimal Header (Quiet, elegant typography)
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.parseColor(textSecondaryHex)
+            textSize = screenWidth * 0.026f
+            letterSpacing = 0.22f
+            isFakeBoldText = true
+            textAlign = Paint.Align.CENTER
+        }
+        val headerY = gridStartY - (screenHeight * 0.048f)
+        canvas.drawText("${info.year} LIFE ROADMAP", centerX, headerY, titlePaint)
+
+        // 4. Compact Metric Subtitle
+        val subStatPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accentColor
+            textSize = screenWidth * 0.030f
+            isFakeBoldText = true
+            letterSpacing = 0.06f
+            textAlign = Paint.Align.CENTER
+        }
+        val subtitleY = gridStartY - (screenHeight * 0.020f)
+        canvas.drawText("${info.percentElapsed}%  ·  DAY ${info.currentDayOfYear} OF ${info.totalDays}", centerX, subtitleY, subStatPaint)
+
+        // 5. Dots Paint Styles
         val pastDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(pastDotHex)
             style = Paint.Style.FILL
@@ -137,18 +122,18 @@ object RoadmapWallpaperManager {
         }
         val haloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
-            alpha = 90
+            alpha = 85
             style = Paint.Style.FILL
         }
         val futureDotFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(futureDotHex)
-            alpha = 64 // ~0.25f alpha fill disc
+            alpha = 50
             style = Paint.Style.FILL
         }
         val futureDotStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(futureDotHex)
             style = Paint.Style.STROKE
-            strokeWidth = maxOf(cellSide * 0.08f, 3f)
+            strokeWidth = maxOf(cellSide * 0.09f, 2.5f)
         }
 
         for (day in 1..info.totalDays) {
@@ -164,8 +149,8 @@ object RoadmapWallpaperManager {
                     canvas.drawCircle(cx, cy, dotRadius, pastDotPaint)
                 }
                 day == info.currentDayOfYear -> {
-                    canvas.drawCircle(cx, cy, dotRadius * 1.65f, haloPaint)
-                    canvas.drawCircle(cx, cy, dotRadius * 1.15f, todayDotPaint)
+                    canvas.drawCircle(cx, cy, dotRadius * 1.6f, haloPaint)
+                    canvas.drawCircle(cx, cy, dotRadius * 1.1f, todayDotPaint)
                 }
                 else -> {
                     canvas.drawCircle(cx, cy, dotRadius * 0.90f, futureDotFillPaint)
@@ -174,25 +159,16 @@ object RoadmapWallpaperManager {
             }
         }
 
-        // 6. Quote (Italic philosophical quote)
-        val quotePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.parseColor(textSecondaryHex)
-            textSize = screenWidth * 0.030f
-            textSkewX = -0.20f
-            textAlign = Paint.Align.CENTER
-        }
-        val quoteY = gridStartY + totalGridH + (screenHeight * 0.032f)
-        canvas.drawText("“Every day is a dot. Today is yours to fill.”", centerX, quoteY, quotePaint)
-
-        // 7. Brand Signature (Theme Dynamic Accent)
+        // 6. Minimalist Brand Whisper
         val brandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = accentColor
-            textSize = screenWidth * 0.028f
+            color = android.graphics.Color.parseColor(textSecondaryHex)
+            alpha = 150
+            textSize = screenWidth * 0.024f
             isFakeBoldText = true
-            letterSpacing = 0.30f
+            letterSpacing = 0.35f
             textAlign = Paint.Align.CENTER
         }
-        val brandY = quoteY + (screenHeight * 0.026f)
+        val brandY = gridStartY + totalGridH + (screenHeight * 0.038f)
         canvas.drawText("P R O M I S E", centerX, brandY, brandPaint)
 
         return bitmap

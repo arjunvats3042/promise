@@ -51,7 +51,7 @@ class LocalReminderSchedulerImpl @Inject constructor(
             putExtra(LocalReminderReceiver.EXTRA_EVENT_TYPE, "commitment.due_now")
             putExtra(LocalReminderReceiver.EXTRA_CHANNEL_ID, NotificationChannels.CHANNEL_COMMITMENT_ALERTS)
             putExtra(LocalReminderReceiver.EXTRA_PRIORITY, "high")
-            putExtra(LocalReminderReceiver.EXTRA_DEEP_LINK, "promise://commitments/${commitment.id}")
+            putExtra(LocalReminderReceiver.EXTRA_DEEP_LINK, "promise://commitment/${commitment.id}")
         }
 
         val requestCodeDue = computeRequestCode(commitment.id, 0)
@@ -77,7 +77,7 @@ class LocalReminderSchedulerImpl @Inject constructor(
                 putExtra(LocalReminderReceiver.EXTRA_EVENT_TYPE, "commitment.due_soon")
                 putExtra(LocalReminderReceiver.EXTRA_CHANNEL_ID, NotificationChannels.CHANNEL_COMMITMENT_REMINDERS)
                 putExtra(LocalReminderReceiver.EXTRA_PRIORITY, "normal")
-                putExtra(LocalReminderReceiver.EXTRA_DEEP_LINK, "promise://commitments/${commitment.id}")
+                putExtra(LocalReminderReceiver.EXTRA_DEEP_LINK, "promise://commitment/${commitment.id}")
             }
 
             val requestCodeAdvance = computeRequestCode(commitment.id, 1)
@@ -143,9 +143,9 @@ class LocalReminderSchedulerImpl @Inject constructor(
     }
 
     private fun computeRequestCode(id: String, offset: Int): Int {
-        var hash = id.hashCode()
-        if (hash == Int.MIN_VALUE) hash = 0
-        return kotlin.math.abs(hash) * 10 + offset
+        // Constrain to safe bounds: mask to positive, modulo to prevent overflow on * 10
+        val safeHash = (id.hashCode() and 0x7FFFFFFF) % 100_000_000
+        return safeHash * 10 + offset
     }
 
     private fun parseIsoToEpochMs(isoString: String): Long? {

@@ -289,7 +289,7 @@ fun ProfileScreen(
 
                 // Home Screen Widgets Dropdown Section
                 val context = LocalContext.current
-                var showWidgetsDropdown by remember { mutableStateOf(true) }
+                var showWidgetsDropdown by remember { mutableStateOf(false) }
 
                 Surface(
                     modifier = Modifier
@@ -326,7 +326,7 @@ fun ProfileScreen(
                                             .padding(horizontal = 6.dp, vertical = 2.dp),
                                     ) {
                                         Text(
-                                            text = "3 available",
+                                            text = "4 available",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = colors.accent,
                                             fontWeight = FontWeight.Bold,
@@ -366,33 +366,15 @@ fun ProfileScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                                            ) {
-                                                Text(
-                                                    text = "🎙️ Quick Voice",
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = colors.textPrimary,
-                                                )
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(Radius.pill))
-                                                        .background(colors.accent.copy(alpha = 0.15f))
-                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                                                ) {
-                                                    Text(
-                                                        text = "1x1 · Voice",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = colors.accent,
-                                                        fontWeight = FontWeight.Bold,
-                                                    )
-                                                }
-                                            }
+                                            Text(
+                                                text = "Voice Capture",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = colors.textPrimary,
+                                            )
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
-                                                text = "Floating on-screen mic capture straight into AI",
+                                                text = "Floating mic trigger straight into AI intention capture",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = colors.textSecondary,
                                             )
@@ -423,33 +405,15 @@ fun ProfileScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                                            ) {
-                                                Text(
-                                                    text = "📋 Commitments & Tasks",
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = colors.textPrimary,
-                                                )
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(Radius.pill))
-                                                        .background(colors.surfaceRaised)
-                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                                                ) {
-                                                    Text(
-                                                        text = "2x2 · Tasks",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = colors.textSecondary,
-                                                        fontWeight = FontWeight.Bold,
-                                                    )
-                                                }
-                                            }
+                                            Text(
+                                                text = "Commitments & Tasks",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = colors.textPrimary,
+                                            )
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
-                                                text = "Due dates, overdue alerts & quick completion",
+                                                text = "Due dates, alerts & 1-tap completion",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = colors.textSecondary,
                                             )
@@ -480,33 +444,15 @@ fun ProfileScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Row(
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                                            ) {
-                                                Text(
-                                                    text = "🎯 Daily Goals & Habits",
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = colors.textPrimary,
-                                                )
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(Radius.pill))
-                                                        .background(colors.accent.copy(alpha = 0.12f))
-                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                                                ) {
-                                                    Text(
-                                                        text = "2x2 · Goals",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = colors.accent,
-                                                        fontWeight = FontWeight.Bold,
-                                                    )
-                                                }
-                                            }
+                                            Text(
+                                                text = "Daily Habits & Goals",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = colors.textPrimary,
+                                            )
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
-                                                text = "Habit streaks, completion ring & 1-tap check-in",
+                                                text = "Habit streaks, consistency & 1-tap check-in",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = colors.textSecondary,
                                             )
@@ -514,6 +460,45 @@ fun ProfileScreen(
                                         if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
                                             TextButton(
                                                 onClick = { PromiseGlanceWidgetPinHelper.requestPinGoalsWidget(context) },
+                                            ) {
+                                                Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Widget 4: 365-Day Roadmap
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(Radius.lg))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(Radius.lg)),
+                                    color = colors.surfaceMuted,
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(Spacing.cardPadding),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "365-Day Roadmap",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = colors.textPrimary,
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "Year progress, percentage elapsed & dots constellation",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = colors.textSecondary,
+                                            )
+                                        }
+                                        if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
+                                            TextButton(
+                                                onClick = { PromiseGlanceWidgetPinHelper.requestPinRoadmapWidget(context) },
                                             ) {
                                                 Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
                                             }

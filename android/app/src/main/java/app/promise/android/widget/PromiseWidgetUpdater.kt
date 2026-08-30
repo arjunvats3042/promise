@@ -31,24 +31,39 @@ object PromiseWidgetUpdater {
         commitments: List<HomeCommitment>,
         practices: List<HomePractice>,
     ) {
-        val commitmentItems = commitments.map { commitment ->
+        // Smart Priority Triage: Overdue first -> Due today -> Other pending -> Completed
+        val sortedCommitments = commitments.sortedWith(
+            compareBy<HomeCommitment> { it.isCompleted } // Incomplete first
+                .thenByDescending { it.isOverdue } // Overdue first
+                .thenByDescending { it.isDueToday } // Due today next
+        )
+
+        val commitmentItems = sortedCommitments.map { commitment ->
             WidgetCommitmentItem(
                 id = commitment.id,
                 title = commitment.title,
                 subtitle = if (commitment.isOverdue) "Overdue" else commitment.dueLabel,
                 isCompleted = commitment.isCompleted,
+                isOverdue = commitment.isOverdue,
                 dueTimeFormatted = commitment.dueLabel,
                 streakCount = 0,
                 type = WidgetItemType.COMMITMENT,
             )
         }
 
-        val practiceItems = practices.map { practice ->
+        // Habit Triage: Incomplete habits first (sorted by highest streak), then completed
+        val sortedPractices = practices.sortedWith(
+            compareBy<HomePractice> { it.checkedInToday }
+                .thenByDescending { it.streakDays }
+        )
+
+        val practiceItems = sortedPractices.map { practice ->
             WidgetCommitmentItem(
                 id = practice.id,
                 title = practice.title,
                 subtitle = practice.progressLabel.ifBlank { "Streak ${practice.streakDays}d" },
                 isCompleted = practice.checkedInToday,
+                isOverdue = false,
                 dueTimeFormatted = "${practice.streakDays}d streak",
                 streakCount = practice.streakDays,
                 type = WidgetItemType.GOAL,
@@ -108,6 +123,26 @@ object PromiseWidgetUpdater {
                 }
                 CommitmentsGlanceWidget().update(context, glanceId)
             }
+        }
+
+        // 3. Update Roadmap Widgets
+        val roadmapIds = glanceManager.getGlanceIds(RoadmapGlanceWidget::class.java)
+        for (glanceId in roadmapIds) {
+            runCatching {
+                RoadmapGlanceWidget().update(context, glanceId)
+            }
+        }
+    }
+
+    suspend fun clearWidgetData(context: Context) {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                context.getSharedPreferences(CACHE_PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit()
+                    .remove(CACHED_DATA_KEY)
+                    .apply()
+            }
+            updateGlanceWidgetState(context, PromiseWidgetData.emptyData())
         }
     }
 
