@@ -62,10 +62,10 @@ object RoadmapWallpaperManager {
         val canvas = Canvas(bitmap)
 
         val accentColor = accentColorInt ?: android.graphics.Color.parseColor("#6366F1")
-        val bgHex = if (isDarkTheme) "#090B0E" else "#F8FAFC"
-        val textPrimaryHex = if (isDarkTheme) "#F8FAFC" else "#0F172A"
-        val textSecondaryHex = if (isDarkTheme) "#94A3B8" else "#64748B"
-        val pastDotHex = if (isDarkTheme) "#F1F5F9" else "#0F172A"
+        val bgHex = if (isDarkTheme) "#090B0E" else "#F8F7F4"
+        val textPrimaryHex = if (isDarkTheme) "#F8FAFC" else "#14171A"
+        val textSecondaryHex = if (isDarkTheme) "#94A3B8" else "#5A626C"
+        val pastDotHex = if (isDarkTheme) "#F1F5F9" else "#191C1E"
         val futureDotHex = if (isDarkTheme) "#475569" else "#CBD5E1"
 
         // 1. Full Screen Pure Minimalist Canvas

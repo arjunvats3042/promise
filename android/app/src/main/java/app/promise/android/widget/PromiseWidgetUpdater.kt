@@ -132,6 +132,33 @@ object PromiseWidgetUpdater {
                 RoadmapGlanceWidget().update(context, glanceId)
             }
         }
+
+        // 4. Update Voice Mic Widgets
+        val voiceIds = glanceManager.getGlanceIds(VoiceMicGlanceWidget::class.java)
+        for (glanceId in voiceIds) {
+            runCatching {
+                VoiceMicGlanceWidget().update(context, glanceId)
+            }
+        }
+    }
+
+    suspend fun updateAllWidgetsTheme(context: Context) {
+        withContext(Dispatchers.IO) {
+            val cached = getCachedWidgetData(context)
+            updateGlanceWidgetState(context, cached)
+        }
+    }
+
+    suspend fun saveAndBroadcastWidgetData(context: Context, widgetData: PromiseWidgetData) {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                context.getSharedPreferences(CACHE_PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit()
+                    .putString(CACHED_DATA_KEY, widgetData.toJson())
+                    .apply()
+            }
+            updateGlanceWidgetState(context, widgetData)
+        }
     }
 
     suspend fun clearWidgetData(context: Context) {
@@ -155,7 +182,9 @@ object PromiseWidgetUpdater {
                 )
                 val tz = java.util.TimeZone.getDefault().id.ifBlank { "UTC" }
                 val feed = entryPoint.homeRepository().loadFeed(tz)
-                updateWidget(context, feed.commitments, feed.practices)
+                if (feed.commitmentsError == null || feed.practicesError == null || feed.commitments.isNotEmpty() || feed.practices.isNotEmpty()) {
+                    updateWidget(context, feed.commitments, feed.practices)
+                }
             }
         }
     }

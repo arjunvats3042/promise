@@ -6,19 +6,14 @@ import android.net.Uri
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
-import androidx.glance.action.clickable
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionStartActivity
-import androidx.glance.appwidget.state.updateAppWidgetState
-import androidx.glance.state.PreferencesGlanceStateDefinition
 import app.promise.android.core.events.AppEventBus
 import app.promise.android.core.events.AppMutationEvent
-import app.promise.android.data.local.db.OutboxDao
-import app.promise.android.data.local.db.OutboxEntity
-import app.promise.android.data.sync.SyncManager
 import app.promise.android.domain.CheckInInput
 import app.promise.android.domain.CommitmentRepository
 import app.promise.android.domain.GoalCheckInStatus
+import app.promise.android.domain.GoalRepository
 import app.promise.android.domain.HomeRepository
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -26,8 +21,6 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.time.Instant
-import java.util.UUID
 
 val WIDGET_DATA_PREF_KEY = stringPreferencesKey("promise_widget_data_json")
 
@@ -56,7 +49,9 @@ class RefreshWidgetActionCallback : ActionCallback {
         parameters: ActionParameters,
     ) {
         withContext(Dispatchers.IO) {
-            PromiseWidgetUpdater.fetchAndPushWidgetData(context)
+            runCatching {
+                PromiseWidgetUpdater.fetchAndPushWidgetData(context)
+            }
         }
     }
 }
@@ -67,10 +62,9 @@ class ToggleCommitmentActionCallback : ActionCallback {
     @InstallIn(SingletonComponent::class)
     interface WidgetEntryPoint {
         fun commitmentRepository(): CommitmentRepository
+        fun goalRepository(): GoalRepository
         fun homeRepository(): HomeRepository
         fun appEventBus(): AppEventBus
-        fun outboxDao(): OutboxDao
-        fun syncManager(): SyncManager
     }
 
     override suspend fun onAction(
@@ -82,79 +76,37 @@ class ToggleCommitmentActionCallback : ActionCallback {
         val action = parameters[ACTION_TYPE_PARAM] ?: "TOGGLE_COMPLETE"
 
         withContext(Dispatchers.IO) {
-            val entryPoint = EntryPointAccessors.fromApplication(
-                context.applicationContext,
-                WidgetEntryPoint::class.java,
-            )
+            runCatching {
+                val entryPoint = EntryPointAccessors.fromApplication(
+                    context.applicationContext,
+                    WidgetEntryPoint::class.java,
+                )
 
-            updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
-                val currentJson = prefs[WIDGET_DATA_PREF_KEY]
-                val currentData = PromiseWidgetData.fromJson(currentJson)
-                val targetItem = currentData.items.firstOrNull { it.id == itemId }
+                // 1. Get cached state
+                val cachedData = PromiseWidgetUpdater.getCachedWidgetData(context)
+                val targetItem = cachedData.items.firstOrNull { it.id == itemId }
 
                 if (action == "TOGGLE_EXPAND") {
-                    val nextExpanded = if (currentData.expandedItemId == itemId) null else itemId
-                    val newData = currentData.copy(expandedItemId = nextExpanded)
-                    val mutable = prefs.toMutablePreferences()
-                    mutable[WIDGET_DATA_PREF_KEY] = newData.toJson()
-                    return@updateAppWidgetState mutable
+                    val nextExpanded = if (cachedData.expandedItemId == itemId) null else itemId
+                    val newData = cachedData.copy(expandedItemId = nextExpanded)
+                    PromiseWidgetUpdater.saveAndBroadcastWidgetData(context, newData)
+                    return@withContext
                 }
 
-                val targetCompleted = targetItem?.isCompleted ?: false
-                val newCompletedState = !targetCompleted
-
-                if (targetItem != null) {
-                    if (targetItem.type == WidgetItemType.GOAL) {
-                        val apiResult = runCatching {
-                            val status = if (newCompletedState) GoalCheckInStatus.COMPLETED else GoalCheckInStatus.SKIPPED
-                            entryPoint.homeRepository().checkInPractice(
-                                id = itemId,
-                                input = CheckInInput(status = status),
-                            )
-                        }
-                        // Offline fallback: queue to outbox if API call failed
-                        if (apiResult.isFailure) {
-                            runCatching {
-                                val statusStr = if (newCompletedState) "COMPLETED" else "SKIPPED"
-                                entryPoint.outboxDao().enqueue(
-                                    OutboxEntity(
-                                        actionId = UUID.randomUUID().toString(),
-                                        actionType = "CHECK_IN_GOAL",
-                                        entityId = itemId,
-                                        payloadJson = """{"status":"$statusStr"}""",
-                                        clientTimestampIso = Instant.now().toString(),
-                                    ),
-                                )
-                                entryPoint.syncManager().enqueueSync()
-                            }
-                        }
-                        entryPoint.appEventBus().emit(AppMutationEvent.GoalCheckedIn(itemId))
-                    } else {
-                        val apiResult = runCatching {
-                            entryPoint.commitmentRepository().complete(itemId)
-                        }
-                        // Offline fallback: queue to outbox if API call failed
-                        if (apiResult.isFailure) {
-                            runCatching {
-                                entryPoint.outboxDao().enqueue(
-                                    OutboxEntity(
-                                        actionId = UUID.randomUUID().toString(),
-                                        actionType = "COMPLETE_COMMITMENT",
-                                        entityId = itemId,
-                                        payloadJson = "{}",
-                                        clientTimestampIso = Instant.now().toString(),
-                                    ),
-                                )
-                                entryPoint.syncManager().enqueueSync()
-                            }
-                        }
-                        entryPoint.appEventBus().emit(AppMutationEvent.CommitmentCompleted(itemId))
-                    }
+                // If item is already completed, do nothing to prevent repeated streak increment
+                if (targetItem == null || targetItem.isCompleted) {
+                    return@withContext
                 }
 
-                val updatedItems = currentData.items.map { item ->
+                // 2. Perform optimistic widget update
+                val updatedItems = cachedData.items.map { item ->
                     if (item.id == itemId) {
-                        item.copy(isCompleted = newCompletedState)
+                        val newStreak = if (item.type == WidgetItemType.GOAL) item.streakCount + 1 else item.streakCount
+                        item.copy(
+                            isCompleted = true,
+                            streakCount = newStreak,
+                            subtitle = if (item.type == WidgetItemType.GOAL) "Streak ${newStreak}d" else item.subtitle,
+                        )
                     } else {
                         item
                     }
@@ -162,7 +114,7 @@ class ToggleCommitmentActionCallback : ActionCallback {
 
                 val newCompletedCount = updatedItems.count { it.isCompleted }
                 val newPercent = if (updatedItems.isNotEmpty()) ((newCompletedCount.toFloat() / updatedItems.size) * 100).toInt() else 0
-                val newData = currentData.copy(
+                val newData = cachedData.copy(
                     completedCount = newCompletedCount,
                     totalCount = updatedItems.size,
                     goalCompletionPercent = newPercent,
@@ -170,16 +122,29 @@ class ToggleCommitmentActionCallback : ActionCallback {
                     lastUpdatedTimestamp = System.currentTimeMillis(),
                 )
 
-                val mutable = prefs.toMutablePreferences()
-                mutable[WIDGET_DATA_PREF_KEY] = newData.toJson()
-                mutable
+                // 3. Immediately broadcast to widgets
+                PromiseWidgetUpdater.saveAndBroadcastWidgetData(context, newData)
+
+                // 4. Perform actual repository mutations (Room + Outbox + API)
+                if (targetItem.type == WidgetItemType.GOAL) {
+                    runCatching {
+                        entryPoint.goalRepository().checkIn(
+                            id = itemId,
+                            input = CheckInInput(status = GoalCheckInStatus.COMPLETED),
+                        )
+                    }
+                    runCatching {
+                        entryPoint.appEventBus().emit(AppMutationEvent.GoalCheckedIn(itemId))
+                    }
+                } else {
+                    runCatching {
+                        entryPoint.commitmentRepository().complete(itemId)
+                    }
+                    runCatching {
+                        entryPoint.appEventBus().emit(AppMutationEvent.CommitmentCompleted(itemId))
+                    }
+                }
             }
-
-            runCatching { GoalsGlanceWidget().update(context, glanceId) }
-            runCatching { CommitmentsGlanceWidget().update(context, glanceId) }
-
-            // Sync fresh feed in background
-            runCatching { PromiseWidgetUpdater.fetchAndPushWidgetData(context) }
         }
     }
 
@@ -189,4 +154,5 @@ class ToggleCommitmentActionCallback : ActionCallback {
         val ACTION_TYPE_PARAM = ActionParameters.Key<String>("action_type")
     }
 }
+
 

@@ -37,6 +37,8 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import app.promise.android.R
+import app.promise.android.ui.theme.PromiseColor
+import app.promise.android.ui.theme.PromiseDarkColor
 
 class VoiceMicGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = VoiceMicGlanceWidget()
@@ -52,7 +54,7 @@ class VoiceMicGlanceWidget : GlanceAppWidget() {
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val isDark = WidgetThemeHelper.isDarkTheme(context)
         val theme = if (isDark) VoiceThemeTokens.Dark else VoiceThemeTokens.Light
 
         val voiceIntent = Intent(context, app.promise.android.ui.ai.VoiceQuickCaptureActivity::class.java).apply {
@@ -180,19 +182,19 @@ internal data class VoiceThemeTokens(
 ) {
     companion object {
         val Light = VoiceThemeTokens(
-            background = ColorProvider(Color(0xFFFFFFFF)),
-            surfaceRaised = ColorProvider(Color(0xFFF1F5F9)),
+            background = ColorProvider(PromiseColor.Background),
+            surfaceRaised = ColorProvider(PromiseColor.SurfaceRaised),
             accent = ColorProvider(Color(0xFF10B981)),
-            textPrimary = ColorProvider(Color(0xFF0F172A)),
-            textSecondary = ColorProvider(Color(0xFF64748B)),
+            textPrimary = ColorProvider(PromiseColor.TextPrimary),
+            textSecondary = ColorProvider(PromiseColor.TextSecondary),
         )
 
         val Dark = VoiceThemeTokens(
-            background = ColorProvider(Color(0xFF090B0E)),
-            surfaceRaised = ColorProvider(Color(0xFF131720)),
+            background = ColorProvider(PromiseDarkColor.Background),
+            surfaceRaised = ColorProvider(PromiseDarkColor.SurfaceRaised),
             accent = ColorProvider(Color(0xFF10B981)),
-            textPrimary = ColorProvider(Color(0xFFF8FAFC)),
-            textSecondary = ColorProvider(Color(0xFF94A3B8)),
+            textPrimary = ColorProvider(PromiseDarkColor.TextPrimary),
+            textSecondary = ColorProvider(PromiseDarkColor.TextSecondary),
         )
     }
 }

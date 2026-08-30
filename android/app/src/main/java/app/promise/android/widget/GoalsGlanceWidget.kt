@@ -79,7 +79,7 @@ class GoalsGlanceWidget : GlanceAppWidget() {
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val isDark = WidgetThemeHelper.isDarkTheme(context)
         val theme = if (isDark) GoalsThemeTokens.Dark else GoalsThemeTokens.Light
 
         provideContent {
@@ -282,12 +282,16 @@ private fun CompactGoalsWidgetContent(
 
                         Button(
                             text = if (item.isCompleted) "✓" else "○",
-                            onClick = actionRunCallback<ToggleCommitmentActionCallback>(
-                                actionParametersOf(
-                                    ToggleCommitmentActionCallback.ITEM_ID_PARAM to item.id,
-                                    ToggleCommitmentActionCallback.ACTION_TYPE_PARAM to "TOGGLE_COMPLETE",
-                                ),
-                            ),
+                            onClick = if (item.isCompleted) {
+                                openGoalAction(item.id)
+                            } else {
+                                actionRunCallback<ToggleCommitmentActionCallback>(
+                                    actionParametersOf(
+                                        ToggleCommitmentActionCallback.ITEM_ID_PARAM to item.id,
+                                        ToggleCommitmentActionCallback.ACTION_TYPE_PARAM to "TOGGLE_COMPLETE",
+                                    ),
+                                )
+                            },
                             colors = ButtonDefaults.buttonColors(
                                 backgroundColor = if (item.isCompleted) theme.completedBtnBg else theme.pendingBtnBg,
                                 contentColor = if (item.isCompleted) theme.completedBtnText else theme.pendingBtnText,
@@ -437,12 +441,16 @@ private fun ExpandedGoalsWidgetContent(
 
                         Button(
                             text = if (item.isCompleted) "✓" else "○",
-                            onClick = actionRunCallback<ToggleCommitmentActionCallback>(
-                                actionParametersOf(
-                                    ToggleCommitmentActionCallback.ITEM_ID_PARAM to item.id,
-                                    ToggleCommitmentActionCallback.ACTION_TYPE_PARAM to "TOGGLE_COMPLETE",
-                                ),
-                            ),
+                            onClick = if (item.isCompleted) {
+                                openGoalAction(item.id)
+                            } else {
+                                actionRunCallback<ToggleCommitmentActionCallback>(
+                                    actionParametersOf(
+                                        ToggleCommitmentActionCallback.ITEM_ID_PARAM to item.id,
+                                        ToggleCommitmentActionCallback.ACTION_TYPE_PARAM to "TOGGLE_COMPLETE",
+                                    ),
+                                )
+                            },
                             colors = ButtonDefaults.buttonColors(
                                 backgroundColor = if (item.isCompleted) theme.completedBtnBg else theme.pendingBtnBg,
                                 contentColor = if (item.isCompleted) theme.completedBtnText else theme.pendingBtnText,

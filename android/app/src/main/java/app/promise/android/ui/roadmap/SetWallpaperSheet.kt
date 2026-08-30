@@ -76,8 +76,8 @@ fun SetWallpaperSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = PromiseDarkColor.Surface,
-        contentColor = PromiseDarkColor.TextPrimary,
+        containerColor = colors.surfaceRaised,
+        contentColor = colors.textPrimary,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
         Column(

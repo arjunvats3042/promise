@@ -1,14 +1,13 @@
 package app.promise.android.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.net.Uri
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -24,6 +23,7 @@ import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -40,12 +40,12 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import android.appwidget.AppWidgetManager
-import androidx.glance.appwidget.updateAll
 import app.promise.android.MainActivity
 import app.promise.android.ui.matrix.YearProgressCalculator
 import app.promise.android.ui.matrix.YearProgressInfo
 import app.promise.android.ui.roadmap.RoadmapWallpaperManager
+import app.promise.android.ui.theme.PromiseColor
+import app.promise.android.ui.theme.PromiseDarkColor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -55,7 +55,6 @@ class RoadmapGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        // Ensure daily midnight worker is active
         RoadmapWallpaperManager.scheduleDailyUpdate(context)
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -107,16 +106,11 @@ class RoadmapGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
 
 class RoadmapGlanceWidget : GlanceAppWidget() {
 
-    override val sizeMode: SizeMode = SizeMode.Responsive(
-        setOf(
-            SMALL_SQUARE,
-            HORIZONTAL_RECTANGLE,
-            EXPANDED_RECTANGLE,
-        ),
-    )
+    // Exact size mode lets Glance pass the live, resized dimensions
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val isDark = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val isDark = WidgetThemeHelper.isDarkTheme(context)
         val savedAccentInt = RoadmapWallpaperManager.getSavedAccentColor(context)
         val defaultAccentHex = if (isDark) "#818CF8" else "#4F46E5"
         val activeAccentInt = savedAccentInt ?: android.graphics.Color.parseColor(defaultAccentHex)
@@ -135,27 +129,175 @@ class RoadmapGlanceWidget : GlanceAppWidget() {
         provideContent {
             GlanceTheme {
                 val size = LocalSize.current
+                val density = context.resources.displayMetrics.density
+
+                val totalWPx = maxOf((size.width.value * density).toInt(), 80)
+                val totalHPx = maxOf((size.height.value * density).toInt(), 80)
 
                 Box(
                     modifier = GlanceModifier
                         .fillMaxSize()
                         .background(theme.background)
-                        .cornerRadius(20.dp)
+                        .cornerRadius(22.dp)
                         .clickable(actionStartActivity(roadmapIntent))
-                        .padding(12.dp),
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                 ) {
-                    when {
-                        size.height >= 200.dp -> {
-                            // Expanded Mode (4x3 / 4x4)
-                            ExpandedRoadmapWidgetContent(info = info, theme = theme, isDark = isDark, accentInt = activeAccentInt)
+                    val isWideBanner = size.width >= 200.dp && size.height < 145.dp
+
+                    if (isWideBanner) {
+                        // Wide Split Banner (e.g. 4x1, 4x2)
+                        val leftColWidthDp = 105.dp
+                        val leftColWidthPx = (105 * density).toInt()
+                        val padPx = (24 * density).toInt()
+                        val canvasWPx = maxOf(totalWPx - leftColWidthPx - padPx, 60)
+                        val canvasHPx = maxOf(totalHPx - (20 * density).toInt(), 60)
+
+                        val dotsBitmap = createDotsBitmap(
+                            widthPx = canvasWPx,
+                            heightPx = canvasHPx,
+                            info = info,
+                            isDark = isDark,
+                            accentColor = activeAccentInt,
+                        )
+
+                        Row(
+                            modifier = GlanceModifier.fillMaxSize(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(
+                                modifier = GlanceModifier.width(leftColWidthDp).fillMaxHeight(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "${info.year} ROADMAP",
+                                    style = TextStyle(
+                                        color = theme.textSecondary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                )
+                                Spacer(modifier = GlanceModifier.height(1.dp))
+                                Text(
+                                    text = "${info.percentElapsed}%",
+                                    style = TextStyle(
+                                        color = theme.textPrimary,
+                                        fontSize = 22.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                )
+                                Spacer(modifier = GlanceModifier.height(1.dp))
+                                Text(
+                                    text = "Day ${info.currentDayOfYear} of ${info.totalDays}",
+                                    style = TextStyle(
+                                        color = theme.accent,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                )
+                                Text(
+                                    text = "${info.daysRemaining}d left",
+                                    style = TextStyle(
+                                        color = theme.textSecondary,
+                                        fontSize = 9.sp,
+                                    ),
+                                )
+                            }
+
+                            Spacer(modifier = GlanceModifier.width(6.dp))
+
+                            Box(
+                                modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Image(
+                                    provider = ImageProvider(dotsBitmap),
+                                    contentDescription = "365-day Roadmap Dots",
+                                    modifier = GlanceModifier.fillMaxSize(),
+                                )
+                            }
                         }
-                        size.width >= 200.dp -> {
-                            // Horizontal Rectangle Mode (4x2 / 3x2)
-                            HorizontalRoadmapWidgetContent(info = info, theme = theme, isDark = isDark, accentInt = activeAccentInt)
-                        }
-                        else -> {
-                            // Compact Square Mode (2x2)
-                            CompactRoadmapWidgetContent(info = info, theme = theme, isDark = isDark, accentInt = activeAccentInt)
+                    } else {
+                        // Standard / Expanded / Square / Tall Mode
+                        val headerHeightDp = if (size.height >= 180.dp) 38.dp else 26.dp
+                        val footerHeightDp = if (size.height >= 220.dp) 18.dp else 0.dp
+                        val padHPx = (24 * density).toInt()
+                        val headerHPx = (headerHeightDp.value * density).toInt()
+                        val footerHPx = (footerHeightDp.value * density).toInt()
+
+                        val canvasWPx = maxOf(totalWPx - padHPx, 60)
+                        val canvasHPx = maxOf(totalHPx - headerHPx - footerHPx - (20 * density).toInt(), 60)
+
+                        val dotsBitmap = createDotsBitmap(
+                            widthPx = canvasWPx,
+                            heightPx = canvasHPx,
+                            info = info,
+                            isDark = isDark,
+                            accentColor = activeAccentInt,
+                        )
+
+                        Column(
+                            modifier = GlanceModifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            // Header Row
+                            Row(
+                                modifier = GlanceModifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = GlanceModifier.defaultWeight()) {
+                                    Text(
+                                        text = if (size.width >= 170.dp) "${info.year} LIFE ROADMAP" else "${info.year} ROADMAP",
+                                        style = TextStyle(
+                                            color = theme.textSecondary,
+                                            fontSize = if (size.width >= 170.dp) 11.sp else 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                        ),
+                                    )
+                                    Text(
+                                        text = "Day ${info.currentDayOfYear} of ${info.totalDays} · ${info.daysRemaining}d left",
+                                        style = TextStyle(
+                                            color = theme.accent,
+                                            fontSize = if (size.width >= 170.dp) 11.sp else 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                        ),
+                                    )
+                                }
+
+                                Text(
+                                    text = "${info.percentElapsed}%",
+                                    style = TextStyle(
+                                        color = theme.textPrimary,
+                                        fontSize = if (size.width >= 170.dp) 20.sp else 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                )
+                            }
+
+                            Spacer(modifier = GlanceModifier.height(4.dp))
+
+                            // Dynamic Dots Matrix
+                            Box(
+                                modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Image(
+                                    provider = ImageProvider(dotsBitmap),
+                                    contentDescription = "365-day Roadmap Dots",
+                                    modifier = GlanceModifier.fillMaxSize(),
+                                )
+                            }
+
+                            if (size.height >= 220.dp) {
+                                Spacer(modifier = GlanceModifier.height(2.dp))
+                                Text(
+                                    text = "P R O M I S E",
+                                    style = TextStyle(
+                                        color = theme.textSecondary,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    ),
+                                )
+                            }
                         }
                     }
                 }
@@ -164,10 +306,11 @@ class RoadmapGlanceWidget : GlanceAppWidget() {
     }
 
     companion object {
-        private val SMALL_SQUARE = DpSize(120.dp, 120.dp)
-        private val HORIZONTAL_RECTANGLE = DpSize(220.dp, 120.dp)
-        private val EXPANDED_RECTANGLE = DpSize(220.dp, 220.dp)
 
+        /**
+         * Dynamically generates a dot matrix canvas that adapts its column and row count
+         * to fill the available width and height while maximizing dot size and minimizing dead space.
+         */
         fun createDotsBitmap(
             widthPx: Int,
             heightPx: Int,
@@ -175,22 +318,25 @@ class RoadmapGlanceWidget : GlanceAppWidget() {
             isDark: Boolean,
             accentColor: Int = android.graphics.Color.parseColor("#6366F1"),
         ): Bitmap {
-            val bitmap = Bitmap.createBitmap(maxOf(widthPx, 10), maxOf(heightPx, 10), Bitmap.Config.ARGB_8888)
+            val w = maxOf(widthPx, 20)
+            val h = maxOf(heightPx, 20)
+            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(bitmap)
 
-            val cols = 14
-            val rows = (info.totalDays + cols - 1) / cols
+            val totalDays = info.totalDays
+            val cols = calculateOptimalCols(w, h, totalDays)
+            val rows = (totalDays + cols - 1) / cols
 
-            val cellSide = minOf(widthPx.toFloat() / cols, heightPx.toFloat() / rows)
+            val cellSide = minOf(w.toFloat() / cols, h.toFloat() / rows)
             val gridW = cellSide * cols
             val gridH = cellSide * rows
 
-            val startX = (widthPx - gridW) / 2f
-            val startY = (heightPx - gridH) / 2f
-            val dotRadius = cellSide * 0.33f
+            val startX = (w - gridW) / 2f
+            val startY = (h - gridH) / 2f
+            val dotRadius = cellSide * 0.35f
 
             val pastDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = if (isDark) android.graphics.Color.parseColor("#F8FAFC") else android.graphics.Color.parseColor("#0F172A")
+                color = if (isDark) android.graphics.Color.parseColor("#F1F5F9") else android.graphics.Color.parseColor("#191C1E")
                 style = Paint.Style.FILL
             }
 
@@ -202,7 +348,7 @@ class RoadmapGlanceWidget : GlanceAppWidget() {
             val todayRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = accentColor
                 style = Paint.Style.STROKE
-                strokeWidth = maxOf(cellSide * 0.12f, 2.2f)
+                strokeWidth = maxOf(cellSide * 0.12f, 2.0f)
             }
 
             val todayHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -220,10 +366,10 @@ class RoadmapGlanceWidget : GlanceAppWidget() {
             val futureDotStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = if (isDark) android.graphics.Color.parseColor("#475569") else android.graphics.Color.parseColor("#94A3B8")
                 style = Paint.Style.STROKE
-                strokeWidth = maxOf(cellSide * 0.09f, 1.8f)
+                strokeWidth = maxOf(cellSide * 0.09f, 1.6f)
             }
 
-            for (day in 1..info.totalDays) {
+            for (day in 1..totalDays) {
                 val dayZero = day - 1
                 val row = dayZero / cols
                 val col = dayZero % cols
@@ -249,239 +395,29 @@ class RoadmapGlanceWidget : GlanceAppWidget() {
 
             return bitmap
         }
-    }
-}
 
-@androidx.compose.runtime.Composable
-private fun CompactRoadmapWidgetContent(
-    info: YearProgressInfo,
-    theme: RoadmapThemeTokens,
-    isDark: Boolean,
-    accentInt: Int,
-) {
-    val dotsBitmap = RoadmapGlanceWidget.createDotsBitmap(
-        widthPx = 280,
-        heightPx = 180,
-        info = info,
-        isDark = isDark,
-        accentColor = accentInt,
-    )
+        /**
+         * Calculates the optimal column count between 6 and 40 that maximizes
+         * dot size (cellSide) for any arbitrary canvas aspect ratio.
+         */
+        fun calculateOptimalCols(widthPx: Int, heightPx: Int, totalDays: Int): Int {
+            if (widthPx <= 0 || heightPx <= 0) return 14
+            var bestCols = 14
+            var maxCellSide = 0f
 
-    Column(
-        modifier = GlanceModifier.fillMaxSize(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // Header Row: Year & Percent
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "${info.year} ROADMAP",
-                style = TextStyle(
-                    color = theme.textSecondary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-            Spacer(modifier = GlanceModifier.defaultWeight())
-            Text(
-                text = "${info.percentElapsed}%",
-                style = TextStyle(
-                    color = theme.accent,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-        }
+            val minCols = 6
+            val maxCols = 40
 
-        Spacer(modifier = GlanceModifier.height(4.dp))
-
-        // Dots Chart
-        Box(
-            modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                provider = ImageProvider(dotsBitmap),
-                contentDescription = "365-day Roadmap Dots",
-                modifier = GlanceModifier.fillMaxSize(),
-            )
-        }
-
-        Spacer(modifier = GlanceModifier.height(2.dp))
-
-        // Subtitle Footer
-        Text(
-            text = "Day ${info.currentDayOfYear} / ${info.totalDays}",
-            style = TextStyle(
-                color = theme.textSecondary,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-        )
-    }
-}
-
-@androidx.compose.runtime.Composable
-private fun HorizontalRoadmapWidgetContent(
-    info: YearProgressInfo,
-    theme: RoadmapThemeTokens,
-    isDark: Boolean,
-    accentInt: Int,
-) {
-    val dotsBitmap = RoadmapGlanceWidget.createDotsBitmap(
-        widthPx = 280,
-        heightPx = 220,
-        info = info,
-        isDark = isDark,
-        accentColor = accentInt,
-    )
-
-    Row(
-        modifier = GlanceModifier.fillMaxSize(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Left Column: Stats
-        Column(
-            modifier = GlanceModifier.defaultWeight().fillMaxHeight(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "${info.year} ROADMAP",
-                style = TextStyle(
-                    color = theme.textSecondary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-
-            Spacer(modifier = GlanceModifier.height(2.dp))
-
-            Text(
-                text = "${info.percentElapsed}%",
-                style = TextStyle(
-                    color = theme.textPrimary,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-
-            Spacer(modifier = GlanceModifier.height(2.dp))
-
-            Text(
-                text = "Day ${info.currentDayOfYear} of ${info.totalDays}",
-                style = TextStyle(
-                    color = theme.accent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
-
-            Text(
-                text = "${info.daysRemaining} days left",
-                style = TextStyle(
-                    color = theme.textSecondary,
-                    fontSize = 10.sp,
-                ),
-            )
-        }
-
-        Spacer(modifier = GlanceModifier.width(8.dp))
-
-        // Right Column: 365-Dot Matrix Canvas
-        Box(
-            modifier = GlanceModifier.width(130.dp).fillMaxHeight(),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                provider = ImageProvider(dotsBitmap),
-                contentDescription = "365-day Roadmap Dots",
-                modifier = GlanceModifier.fillMaxSize(),
-            )
-        }
-    }
-}
-
-@androidx.compose.runtime.Composable
-private fun ExpandedRoadmapWidgetContent(
-    info: YearProgressInfo,
-    theme: RoadmapThemeTokens,
-    isDark: Boolean,
-    accentInt: Int,
-) {
-    val dotsBitmap = RoadmapGlanceWidget.createDotsBitmap(
-        widthPx = 360,
-        heightPx = 320,
-        info = info,
-        isDark = isDark,
-        accentColor = accentInt,
-    )
-
-    Column(
-        modifier = GlanceModifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        // Header
-        Row(
-            modifier = GlanceModifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column {
-                Text(
-                    text = "${info.year} LIFE ROADMAP",
-                    style = TextStyle(
-                        color = theme.textSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                )
-                Text(
-                    text = "Day ${info.currentDayOfYear} of ${info.totalDays} · ${info.daysRemaining}d left",
-                    style = TextStyle(
-                        color = theme.accent,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                    ),
-                )
+            for (c in minCols..maxCols) {
+                val r = (totalDays + c - 1) / c
+                val side = minOf(widthPx.toFloat() / c, heightPx.toFloat() / r)
+                if (side > maxCellSide) {
+                    maxCellSide = side
+                    bestCols = c
+                }
             }
-            Spacer(modifier = GlanceModifier.defaultWeight())
-            Text(
-                text = "${info.percentElapsed}%",
-                style = TextStyle(
-                    color = theme.textPrimary,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-            )
+            return bestCols
         }
-
-        Spacer(modifier = GlanceModifier.height(6.dp))
-
-        // 365 Dots Matrix Canvas
-        Box(
-            modifier = GlanceModifier.defaultWeight().fillMaxWidth(),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                provider = ImageProvider(dotsBitmap),
-                contentDescription = "365-day Roadmap Dots",
-                modifier = GlanceModifier.fillMaxSize(),
-            )
-        }
-
-        Spacer(modifier = GlanceModifier.height(4.dp))
-
-        // Footer brandmark
-        Text(
-            text = "P R O M I S E",
-            style = TextStyle(
-                color = theme.textSecondary,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-            ),
-        )
     }
 }
 
@@ -494,19 +430,19 @@ internal data class RoadmapThemeTokens(
 ) {
     companion object {
         val Light = RoadmapThemeTokens(
-            background = ColorProvider(Color(0xFFFFFFFF)),
-            surfaceMuted = ColorProvider(Color(0xFFF1F5F9)),
+            background = ColorProvider(PromiseColor.Background),
+            surfaceMuted = ColorProvider(PromiseColor.SurfaceMuted),
             accent = ColorProvider(Color(0xFF4F46E5)),
-            textPrimary = ColorProvider(Color(0xFF0F172A)),
-            textSecondary = ColorProvider(Color(0xFF64748B)),
+            textPrimary = ColorProvider(PromiseColor.TextPrimary),
+            textSecondary = ColorProvider(PromiseColor.TextSecondary),
         )
 
         val Dark = RoadmapThemeTokens(
-            background = ColorProvider(Color(0xFF090B0E)),
-            surfaceMuted = ColorProvider(Color(0xFF131720)),
+            background = ColorProvider(PromiseDarkColor.Background),
+            surfaceMuted = ColorProvider(PromiseDarkColor.SurfaceMuted),
             accent = ColorProvider(Color(0xFF818CF8)),
-            textPrimary = ColorProvider(Color(0xFFF8FAFC)),
-            textSecondary = ColorProvider(Color(0xFF94A3B8)),
+            textPrimary = ColorProvider(PromiseDarkColor.TextPrimary),
+            textSecondary = ColorProvider(PromiseDarkColor.TextSecondary),
         )
     }
 }

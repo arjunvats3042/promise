@@ -55,12 +55,12 @@ fun RoadmapScreen(
     val progressInfo = remember(timeZoneId) { YearProgressCalculator.calculate(timeZoneId) }
     var showWallpaperSheet by remember { mutableStateOf(false) }
 
-    // Pure App Dark Theme matching PromiseDarkColor
-    val screenBg = PromiseDarkColor.Background // #090B0E
-    val textPrimaryColor = PromiseDarkColor.TextPrimary // #F8FAFC
-    val textSecondaryColor = PromiseDarkColor.TextSecondary // #94A3B8
-    val pastDotColor = Color(0xFFF1F5F9)
-    val futureDotColor = Color(0xFF475569) // Crisp, clearly visible slate
+    // Dynamic Theme matching app mode (Light / Dark)
+    val screenBg = MaterialTheme.colorScheme.background
+    val textPrimaryColor = colors.textPrimary
+    val textSecondaryColor = colors.textSecondary
+    val pastDotColor = if (colors.isDark) Color(0xFFF1F5F9) else Color(0xFF191C1E)
+    val futureDotColor = if (colors.isDark) Color(0xFF475569) else Color(0xFFCBD5E1)
     val dynamicAccent = colors.accent
     val dynamicGlow = colors.glowAccent
 
@@ -161,7 +161,7 @@ fun RoadmapScreen(
                 .height(52.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = dynamicAccent,
-                contentColor = Color.Black,
+                contentColor = colors.onPrimaryControl,
             ),
             shape = RoundedCornerShape(16.dp),
         ) {

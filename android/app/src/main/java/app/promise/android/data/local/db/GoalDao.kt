@@ -23,7 +23,7 @@ interface GoalDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(entities: List<GoalEntity>)
 
-    @Query("UPDATE goals SET checkedInToday = 1, currentStreak = currentStreak + 1, periodValue = periodValue + 1, isSynced = 0, updatedAtEpochMs = :now WHERE id = :id")
+    @Query("UPDATE goals SET currentStreak = CASE WHEN checkedInToday = 0 THEN currentStreak + 1 ELSE currentStreak END, periodValue = CASE WHEN checkedInToday = 0 THEN periodValue + 1 ELSE periodValue END, checkedInToday = 1, isSynced = 0, updatedAtEpochMs = :now WHERE id = :id")
     suspend fun recordCheckIn(id: String, now: Long = System.currentTimeMillis()): Int
 
     @Query("DELETE FROM goals WHERE id = :id")
