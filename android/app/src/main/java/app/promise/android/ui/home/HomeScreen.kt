@@ -367,19 +367,21 @@ private fun HomeContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(Radius.pill))
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(Radius.pill))
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(Radius.pill))
                     .semantics { contentDescription = "Capture a promise or thought" },
                 color = colors.surfaceRaised,
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = Spacing.md, vertical = 6.dp),
+                        .padding(start = Spacing.md, end = 6.dp, top = 5.dp, bottom = 5.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = Spacing.xs),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
@@ -397,18 +399,20 @@ private fun HomeContent(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    IconButton(
-                        onClick = onOpenVoiceCapture,
+                    Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(38.dp)
                             .clip(CircleShape)
-                            .background(colors.accent),
+                            .background(colors.accent)
+                            .clickable(onClick = onOpenVoiceCapture)
+                            .semantics { contentDescription = "Voice Capture" },
+                        contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Mic,
-                            contentDescription = "Voice Capture",
+                            contentDescription = null,
                             tint = androidx.compose.ui.graphics.Color.White,
-                            modifier = Modifier.size(18.dp),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }

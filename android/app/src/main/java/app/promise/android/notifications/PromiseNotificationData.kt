@@ -17,12 +17,11 @@ data class PromiseNotificationData(
 ) {
     val notificationId: Int
         get() = computeNotificationId(
-            if (entityId.isNotBlank() && entityType.isNotBlank()) {
-                "${entityType.uppercase()}:$entityId"
-            } else if (identityKey.isNotBlank()) {
-                identityKey
-            } else {
-                "$eventType:$title"
+            when {
+                identityKey.isNotBlank() -> identityKey
+                reminderId.isNotBlank() -> reminderId
+                entityId.isNotBlank() && entityType.isNotBlank() -> "${entityType.uppercase()}:$entityId:$eventType"
+                else -> "$eventType:$title"
             }
         )
 

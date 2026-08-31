@@ -5,11 +5,39 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.RemoteInput
-import androidx.work.Data
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
+import app.promise.android.core.events.AppEventBus
+import app.promise.android.core.events.AppMutationEvent
+import app.promise.android.domain.AuthRepository
+import app.promise.android.domain.CheckInInput
+import app.promise.android.domain.CommitmentRepository
+import app.promise.android.domain.GoalCheckInStatus
+import app.promise.android.domain.GoalRepository
+import app.promise.android.domain.SessionState
+import app.promise.android.widget.PromiseWidgetUpdater
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 class NotificationActionReceiver : BroadcastReceiver() {
+
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface ActionEntryPoint {
+        fun commitmentRepository(): CommitmentRepository
+        fun goalRepository(): GoalRepository
+        fun authRepository(): AuthRepository
+        fun appEventBus(): AppEventBus
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
@@ -27,23 +55,66 @@ class NotificationActionReceiver : BroadcastReceiver() {
             nm?.cancel(notificationId)
         }
 
-        // 2. Enqueue background work via WorkManager
-        val inputData = Data.Builder()
-            .putString(NotificationActionWorker.KEY_ACTION, action)
-            .putString(NotificationActionWorker.KEY_ENTITY_ID, entityId)
-            .putInt(NotificationActionWorker.KEY_SNOOZE_MINUTES, snoozeMinutes)
-            .apply {
-                if (!replyText.isNullOrBlank()) {
-                    putString(NotificationActionWorker.KEY_REPLY_TEXT, replyText)
+        // 2. Execute action directly via goAsync()
+        val pendingResult = goAsync()
+        scope.launch {
+            try {
+                val entryPoint = EntryPointAccessors.fromApplication(
+                    context.applicationContext,
+                    ActionEntryPoint::class.java,
+                )
+                val commitmentRepository = entryPoint.commitmentRepository()
+                val goalRepository = entryPoint.goalRepository()
+                val authRepository = entryPoint.authRepository()
+                val appEventBus = entryPoint.appEventBus()
+
+                if (authRepository.session.value !is SessionState.Authenticated) {
+                    try {
+                        authRepository.restoreSession()
+                    } catch (_: Throwable) {}
                 }
+
+                when (action) {
+                    ACTION_COMPLETE_COMMITMENT -> {
+                        commitmentRepository.complete(entityId)
+                        appEventBus.emit(AppMutationEvent.CommitmentCompleted(entityId))
+                        PromiseWidgetUpdater.fetchAndPushWidgetData(context.applicationContext)
+                    }
+                    ACTION_SNOOZE_COMMITMENT -> {
+                        val snoozedUntil = Instant.now().plus(snoozeMinutes.toLong(), ChronoUnit.MINUTES).toString()
+                        commitmentRepository.snooze(entityId, snoozedUntil)
+                        appEventBus.emit(AppMutationEvent.CommitmentSnoozed(entityId))
+                        PromiseWidgetUpdater.fetchAndPushWidgetData(context.applicationContext)
+                    }
+                    ACTION_CHECKIN_GOAL -> {
+                        val today = LocalDate.now().toString()
+                        goalRepository.checkIn(
+                            entityId,
+                            CheckInInput(
+                                status = GoalCheckInStatus.COMPLETED,
+                                periodDate = today,
+                            ),
+                        )
+                        appEventBus.emit(AppMutationEvent.GoalCheckedIn(entityId))
+                        PromiseWidgetUpdater.fetchAndPushWidgetData(context.applicationContext)
+                    }
+                    ACTION_REPLY_CHAT -> {
+                        if (!replyText.isNullOrBlank()) {
+                            val msg = goalRepository.sendChatMessage(entityId, replyText)
+                            appEventBus.emit(AppMutationEvent.ChatMessageCreated(entityId, msg.id))
+                            PromiseWidgetUpdater.fetchAndPushWidgetData(context.applicationContext)
+                        }
+                    }
+                }
+            } catch (e: Throwable) {
+                val msg = e.message.orEmpty()
+                if (msg.contains("409") || msg.contains("404") || msg.contains("ALREADY_COMPLETED")) {
+                    PromiseWidgetUpdater.fetchAndPushWidgetData(context.applicationContext)
+                }
+            } finally {
+                pendingResult.finish()
             }
-            .build()
-
-        val workRequest = OneTimeWorkRequestBuilder<NotificationActionWorker>()
-            .setInputData(inputData)
-            .build()
-
-        WorkManager.getInstance(context).enqueue(workRequest)
+        }
     }
 
     companion object {

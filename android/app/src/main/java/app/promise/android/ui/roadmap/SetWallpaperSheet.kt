@@ -210,6 +210,10 @@ fun SetWallpaperSheet(
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = dynamicAccent,
+                            checkedBorderColor = Color.Transparent,
+                            uncheckedThumbColor = colors.textSecondary,
+                            uncheckedTrackColor = colors.surfaceRaised,
+                            uncheckedBorderColor = colors.cardBorder.copy(alpha = 0.5f),
                         ),
                     )
                 }

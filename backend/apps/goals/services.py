@@ -2214,6 +2214,20 @@ def _add_participant_event(goal, *, actor, event_type, participant):
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to emit analytics event for participant event %s: %s", event_type, exc)
 
+    def notify_participant_event():
+        try:
+            from apps.notifications.dispatcher import dispatch_due_reminders
+            from apps.notifications.services import handle_goal_event
+
+            handle_goal_event({
+                "event_type": _OUTBOX_EVENT_TYPES[event_type],
+                "payload": _goal_outbox_payload(goal, domain_event, participant=participant),
+            })
+            dispatch_due_reminders()
+        except Exception as e:
+            logger.warning("Failed to dispatch push notification for participant event %s: %s", event_type, e)
+
+    transaction.on_commit(notify_participant_event)
     return domain_event
 
 
@@ -2290,7 +2304,7 @@ def send_chat_message(*, sender, goal_id, body):
         }
         goal_id_str = str(goal.id)
 
-        def broadcast_message():
+        def notify_and_broadcast_message():
             try:
                 from asgiref.sync import async_to_sync
                 from channels.layers import get_channel_layer
@@ -2307,7 +2321,24 @@ def send_chat_message(*, sender, goal_id, body):
             except Exception as e:
                 logger.warning("Failed to broadcast chat message via channel layer: %s", e)
 
-        transaction.on_commit(broadcast_message)
+            try:
+                from apps.notifications.dispatcher import dispatch_due_reminders
+                from apps.notifications.services import handle_goal_event
+
+                handle_goal_event({
+                    "event_type": "goal.chat.message_created",
+                    "payload": {
+                        "message_id": str(msg.id),
+                        "goal_id": str(goal.id),
+                        "sender_id": str(sender.id),
+                        "created_at": _iso(msg.created_at),
+                    },
+                })
+                dispatch_due_reminders()
+            except Exception as e:
+                logger.warning("Failed to dispatch push notification for chat message: %s", e)
+
+        transaction.on_commit(notify_and_broadcast_message)
         return msg
 
 

@@ -277,11 +277,23 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                     suppressed += 1
                     continue
 
-                msg = (
-                    ChatMessage.objects.filter(id=reminder.target_period, goal=goal)
-                    .select_related("sender")
-                    .first()
-                )
+                msg = None
+                if reminder.target_period:
+                    import uuid as py_uuid
+                    try:
+                        msg_uuid = py_uuid.UUID(str(reminder.target_period))
+                        msg = (
+                            ChatMessage.objects.filter(id=msg_uuid, goal=goal)
+                            .select_related("sender")
+                            .first()
+                        )
+                    except (ValueError, TypeError):
+                        msg = (
+                            ChatMessage.objects.filter(id=reminder.target_period, goal=goal)
+                            .select_related("sender")
+                            .first()
+                        )
+
                 if msg is None:
                     mark_reminder_suppressed(reminder.id, "MESSAGE_NOT_FOUND")
                     suppressed += 1
@@ -296,6 +308,7 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
                     continue
 
                 channel_id = "channel_community"
+                priority = "high"
                 title = f"💬 {goal.title}"
                 body = f"{sender_name}: {msg.body}"
                 deep_link = f"promise://goal/{goal.id}/chat"
@@ -388,6 +401,7 @@ def _dispatch_batch(fcm_client: FcmClientProtocol) -> _BatchResult:
             "deep_link": deep_link,
             "channel_id": channel_id,
             "priority": priority,
+            "sender_name": sender_name if reminder.event_type == "goal.chat.message_created" else "",
         }
 
         # Step 3: Dispatch per-device

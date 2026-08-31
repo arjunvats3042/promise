@@ -42,7 +42,7 @@ object NotificationChannels {
             NotificationChannel(
                 CHANNEL_COMMUNITY,
                 "Shared Goals & Community Chat",
-                NotificationManager.IMPORTANCE_DEFAULT,
+                NotificationManager.IMPORTANCE_HIGH,
             ).apply {
                 description = "Chat messages, participant updates, and group goal activity"
                 enableVibration(true)

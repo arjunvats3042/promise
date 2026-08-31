@@ -166,9 +166,9 @@ def handle_goal_event(envelope: dict) -> None:
             .select_related("user")
         )
 
-        target_hex = uuid.UUID(str(message_id)).hex
+        msg_id_str = str(message_id)
         for participant in active_participants:
-            identity_key = f"{participant.user_id}:GOAL:{goal.id}:goal.chat.message_created:{message_id}"
+            identity_key = f"{participant.user_id}:GOAL:{goal.id}:goal.chat.message_created:{msg_id_str}"
             schedule_reminder(
                 user=participant.user,
                 entity_type=Reminder.EntityType.GOAL,
@@ -176,7 +176,7 @@ def handle_goal_event(envelope: dict) -> None:
                 event_type="goal.chat.message_created",
                 scheduled_for=now,
                 target_timestamp=msg.created_at,
-                target_period=target_hex,
+                target_period=msg_id_str,
                 identity_key=identity_key,
             )
 

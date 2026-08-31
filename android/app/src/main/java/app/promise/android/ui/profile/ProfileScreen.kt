@@ -114,6 +114,8 @@ fun ProfileScreen(
     val photoUri by viewModel.photoUri.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+    val isSendingTest by viewModel.isSendingTestNotification.collectAsStateWithLifecycle()
+    val testFeedback by viewModel.testNotificationFeedback.collectAsStateWithLifecycle()
 
     var showPhotoOptionsDialog by remember { mutableStateOf(false) }
     var showLogoutAllDialog by remember { mutableStateOf(false) }
@@ -242,6 +244,9 @@ fun ProfileScreen(
                 NotificationPreferencesSection(
                     preferences = preferences,
                     onUpdate = { patch -> viewModel.updatePreferences(patch) },
+                    onSendTestNotification = { viewModel.sendTestNotification() },
+                    isSendingTest = isSendingTest,
+                    testFeedback = testFeedback,
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.section))

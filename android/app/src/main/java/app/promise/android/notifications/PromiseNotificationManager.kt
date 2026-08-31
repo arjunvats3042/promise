@@ -44,6 +44,7 @@ class PromiseNotificationManagerImpl @Inject constructor(
             reminderToNotificationId[data.reminderId] = notificationId
         }
         if (data.entityId.isNotEmpty()) {
+            entityToNotificationId["${data.entityType.uppercase()}:${data.entityId}:${data.eventType}"] = notificationId
             entityToNotificationId["${data.entityType.uppercase()}:${data.entityId}"] = notificationId
         }
 

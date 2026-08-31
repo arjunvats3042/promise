@@ -78,6 +78,12 @@ class ProfileViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private val _isSendingTestNotification = MutableStateFlow(false)
+    val isSendingTestNotification: StateFlow<Boolean> = _isSendingTestNotification.asStateFlow()
+
+    private val _testNotificationFeedback = MutableStateFlow<String?>(null)
+    val testNotificationFeedback: StateFlow<String?> = _testNotificationFeedback.asStateFlow()
+
     init {
         loadPreferences()
         loadSessions()
@@ -162,6 +168,35 @@ class ProfileViewModel @Inject constructor(
                 haptics.error()
             }
         }
+    }
+
+    fun sendTestNotification() {
+        if (_isSendingTestNotification.value) return
+        _isSendingTestNotification.value = true
+        _testNotificationFeedback.value = null
+        haptics.light()
+        viewModelScope.launch {
+            try {
+                deviceRegistrationRepository.syncDeviceRegistration()
+                val result = notificationPreferencesRepository.triggerTestNotification()
+                if (result.isSuccess) {
+                    _testNotificationFeedback.value = "Test notification sent! Check your notification tray ✨"
+                    haptics.confirm()
+                } else {
+                    _testNotificationFeedback.value = "Failed to send test notification. Check connection."
+                    haptics.error()
+                }
+            } catch (t: Throwable) {
+                _testNotificationFeedback.value = "Error: ${t.message}"
+                haptics.error()
+            } finally {
+                _isSendingTestNotification.value = false
+            }
+        }
+    }
+
+    fun clearTestNotificationFeedback() {
+        _testNotificationFeedback.value = null
     }
 
     fun clearError() {
