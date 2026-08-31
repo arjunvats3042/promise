@@ -96,6 +96,20 @@ class RoadmapGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
             CoroutineScope(Dispatchers.IO).launch {
                 try {
                     RoadmapGlanceWidget().updateAll(context)
+                    // Also refresh wallpaper on date change so it advances to the new day
+                    if (RoadmapWallpaperManager.isAutoUpdateEnabled(context) &&
+                        RoadmapWallpaperManager.isWallpaperStillOurs(context)
+                    ) {
+                        val target = RoadmapWallpaperManager.getSavedTarget(context)
+                        RoadmapWallpaperManager.applyWallpaper(
+                            context = context,
+                            target = target,
+                            autoUpdateDaily = true,
+                            isDarkTheme = RoadmapWallpaperManager.isSavedDarkTheme(context),
+                        )
+                    } else if (RoadmapWallpaperManager.isAutoUpdateEnabled(context)) {
+                        RoadmapWallpaperManager.disableAutoUpdate(context)
+                    }
                 } finally {
                     pendingResult.finish()
                 }

@@ -25,11 +25,18 @@ class DailyWallpaperWorker @AssistedInject constructor(
             return Result.success()
         }
 
+        // Respect the user: if they changed their wallpaper externally, stop overwriting it
+        if (!RoadmapWallpaperManager.isWallpaperStillOurs(appContext)) {
+            RoadmapWallpaperManager.disableAutoUpdate(appContext)
+            return Result.success()
+        }
+
         val target = RoadmapWallpaperManager.getSavedTarget(appContext)
         val success = RoadmapWallpaperManager.applyWallpaper(
             context = appContext,
             target = target,
             autoUpdateDaily = true,
+            isDarkTheme = RoadmapWallpaperManager.isSavedDarkTheme(appContext),
         )
 
         return if (success) Result.success() else Result.retry()

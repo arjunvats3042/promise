@@ -33,13 +33,45 @@ object RoadmapWallpaperManager {
     private const val KEY_AUTO_UPDATE = "auto_update_enabled"
     private const val KEY_TARGET = "wallpaper_target"
     private const val WORK_NAME = "daily_roadmap_wallpaper_worker"
+    private const val KEY_WP_ID_SYSTEM = "wallpaper_id_system"
+    private const val KEY_WP_ID_LOCK = "wallpaper_id_lock"
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
     fun isAutoUpdateEnabled(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_AUTO_UPDATE, true)
+        return getPrefs(context).getBoolean(KEY_AUTO_UPDATE, false)
+    }
+
+    /**
+     * Returns true if the current device wallpaper still matches the IDs
+     * we saved the last time we applied the roadmap wallpaper.
+     * If the user changed their wallpaper externally, the IDs won't match.
+     */
+    fun isWallpaperStillOurs(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return true // can't check on old APIs
+        val prefs = getPrefs(context)
+        if (!prefs.contains(KEY_WP_ID_SYSTEM) && !prefs.contains(KEY_WP_ID_LOCK)) return true
+        val wm = WallpaperManager.getInstance(context)
+        val target = getSavedTarget(context)
+        return when (target) {
+            WallpaperTarget.HOME_SCREEN -> {
+                wm.getWallpaperId(WallpaperManager.FLAG_SYSTEM) == prefs.getInt(KEY_WP_ID_SYSTEM, -1)
+            }
+            WallpaperTarget.LOCK_SCREEN -> {
+                wm.getWallpaperId(WallpaperManager.FLAG_LOCK) == prefs.getInt(KEY_WP_ID_LOCK, -1)
+            }
+            WallpaperTarget.BOTH -> {
+                wm.getWallpaperId(WallpaperManager.FLAG_SYSTEM) == prefs.getInt(KEY_WP_ID_SYSTEM, -1) &&
+                    wm.getWallpaperId(WallpaperManager.FLAG_LOCK) == prefs.getInt(KEY_WP_ID_LOCK, -1)
+            }
+        }
+    }
+
+    fun disableAutoUpdate(context: Context) {
+        getPrefs(context).edit().putBoolean(KEY_AUTO_UPDATE, false).apply()
+        cancelDailyUpdate(context)
     }
 
     fun getSavedTarget(context: Context): WallpaperTarget {
@@ -213,7 +245,7 @@ object RoadmapWallpaperManager {
                 wallpaperManager.setBitmap(bitmap)
             }
 
-            // Persist preferences
+            // Persist preferences + fingerprint the wallpaper IDs we just set
             val editor = getPrefs(context).edit()
                 .putBoolean(KEY_AUTO_UPDATE, autoUpdateDaily)
                 .putString(KEY_TARGET, target.name)
@@ -221,6 +253,22 @@ object RoadmapWallpaperManager {
 
             if (accentColorInt != null) {
                 editor.putInt(KEY_ACCENT_COLOR, accentColorInt)
+            }
+
+            // Save wallpaper IDs so we can detect external changes later
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                when (target) {
+                    WallpaperTarget.HOME_SCREEN -> {
+                        editor.putInt(KEY_WP_ID_SYSTEM, wallpaperManager.getWallpaperId(WallpaperManager.FLAG_SYSTEM))
+                    }
+                    WallpaperTarget.LOCK_SCREEN -> {
+                        editor.putInt(KEY_WP_ID_LOCK, wallpaperManager.getWallpaperId(WallpaperManager.FLAG_LOCK))
+                    }
+                    WallpaperTarget.BOTH -> {
+                        editor.putInt(KEY_WP_ID_SYSTEM, wallpaperManager.getWallpaperId(WallpaperManager.FLAG_SYSTEM))
+                        editor.putInt(KEY_WP_ID_LOCK, wallpaperManager.getWallpaperId(WallpaperManager.FLAG_LOCK))
+                    }
+                }
             }
             editor.apply()
 
@@ -248,7 +296,7 @@ object RoadmapWallpaperManager {
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            ExistingPeriodicWorkPolicy.KEEP,
             workRequest,
         )
     }
