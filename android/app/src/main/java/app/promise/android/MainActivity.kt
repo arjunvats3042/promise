@@ -117,6 +117,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Log.i(TAG, "MainActivity onResume")
+        app.promise.android.ui.roadmap.RoadmapWallpaperManager.ensureWallpaperUpToDate(this)
 
         // Delay the first check to let the Activity fully settle and the Firebase
         // App Distribution SDK register this Activity via ActivityLifecycleCallbacks.

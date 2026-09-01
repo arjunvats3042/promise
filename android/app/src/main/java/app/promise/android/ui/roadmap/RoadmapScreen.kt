@@ -37,20 +37,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import app.promise.android.ui.matrix.YearDotMatrix
 import app.promise.android.ui.matrix.YearProgressCalculator
 import app.promise.android.ui.theme.PromiseDarkColor
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Spacing
+import java.time.ZoneId
 
 @Composable
 fun RoadmapScreen(
-    timeZoneId: String = "Asia/Kolkata",
+    timeZoneId: String = ZoneId.systemDefault().id,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val view = LocalView.current
     val colors = PromiseThemeColors.current
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(Unit) {
+        RoadmapWallpaperManager.ensureWallpaperUpToDate(context)
+    }
 
     val progressInfo = remember(timeZoneId) { YearProgressCalculator.calculate(timeZoneId) }
     var showWallpaperSheet by remember { mutableStateOf(false) }

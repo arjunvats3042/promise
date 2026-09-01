@@ -35,6 +35,7 @@ class PromiseApp : Application(), Configuration.Provider {
         // Initial widget refresh and mutation listener
         applicationScope.launch {
             runCatching { PromiseWidgetUpdater.fetchAndPushWidgetData(this@PromiseApp) }
+            runCatching { app.promise.android.ui.roadmap.RoadmapWallpaperManager.ensureWallpaperUpToDate(this@PromiseApp) }
             appEventBus.events.collect {
                 runCatching { PromiseWidgetUpdater.fetchAndPushWidgetData(this@PromiseApp) }
             }

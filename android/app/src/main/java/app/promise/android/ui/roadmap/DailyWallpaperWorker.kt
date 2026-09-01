@@ -16,18 +16,15 @@ class DailyWallpaperWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
-        // Automatically refresh Roadmap home screen widgets daily
+        // 1. Automatically refresh Roadmap home screen widgets daily
         runCatching {
             RoadmapGlanceWidget().updateAll(appContext)
         }
 
-        if (!RoadmapWallpaperManager.isAutoUpdateEnabled(appContext)) {
-            return Result.success()
-        }
+        // 2. Reschedule next midnight alarm for double redundancy
+        RoadmapWallpaperManager.scheduleMidnightAlarm(appContext)
 
-        // Respect the user: if they changed their wallpaper externally, stop overwriting it
-        if (!RoadmapWallpaperManager.isWallpaperStillOurs(appContext)) {
-            RoadmapWallpaperManager.disableAutoUpdate(appContext)
+        if (!RoadmapWallpaperManager.isAutoUpdateEnabled(appContext)) {
             return Result.success()
         }
 
@@ -36,6 +33,7 @@ class DailyWallpaperWorker @AssistedInject constructor(
             context = appContext,
             target = target,
             autoUpdateDaily = true,
+            accentColorInt = RoadmapWallpaperManager.getSavedAccentColor(appContext),
             isDarkTheme = RoadmapWallpaperManager.isSavedDarkTheme(appContext),
         )
 

@@ -25,7 +25,7 @@ data class DayDotInfo(
 
 object YearProgressCalculator {
 
-    fun calculate(timeZoneId: String = "Asia/Kolkata"): YearProgressInfo {
+    fun calculate(timeZoneId: String = ZoneId.systemDefault().id): YearProgressInfo {
         val zone = runCatching { ZoneId.of(timeZoneId) }.getOrDefault(ZoneId.systemDefault())
         val today = LocalDate.now(zone)
         val year = today.year
@@ -48,7 +48,7 @@ object YearProgressCalculator {
         )
     }
 
-    fun getAllDayDots(year: Int = LocalDate.now().year, timeZoneId: String = "Asia/Kolkata"): List<DayDotInfo> {
+    fun getAllDayDots(year: Int = LocalDate.now().year, timeZoneId: String = ZoneId.systemDefault().id): List<DayDotInfo> {
         val zone = runCatching { ZoneId.of(timeZoneId) }.getOrDefault(ZoneId.systemDefault())
         val today = LocalDate.now(zone)
         val isLeap = LocalDate.of(year, 1, 1).isLeapYear

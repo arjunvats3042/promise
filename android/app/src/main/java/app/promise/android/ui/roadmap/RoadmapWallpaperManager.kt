@@ -1,13 +1,17 @@
 package app.promise.android.ui.roadmap
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.app.WallpaperManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.RectF
 import android.os.Build
+import android.util.Log
+import android.view.WindowManager
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -15,10 +19,13 @@ import androidx.work.WorkManager
 import app.promise.android.ui.matrix.YearProgressCalculator
 import app.promise.android.ui.matrix.YearProgressInfo
 import java.time.Duration
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class WallpaperTarget(val label: String) {
@@ -29,12 +36,16 @@ enum class WallpaperTarget(val label: String) {
 
 object RoadmapWallpaperManager {
 
+    private const val TAG = "RoadmapWallpaper"
     private const val PREFS_NAME = "promise_wallpaper_prefs"
     private const val KEY_AUTO_UPDATE = "auto_update_enabled"
     private const val KEY_TARGET = "wallpaper_target"
+    private const val KEY_ACCENT_COLOR = "wallpaper_accent_color"
+    private const val KEY_IS_DARK = "wallpaper_is_dark"
+    private const val KEY_LAST_APPLIED_DAY_OF_YEAR = "wallpaper_last_day_of_year"
+    private const val KEY_LAST_APPLIED_YEAR = "wallpaper_last_year"
     private const val WORK_NAME = "daily_roadmap_wallpaper_worker"
-    private const val KEY_WP_ID_SYSTEM = "wallpaper_id_system"
-    private const val KEY_WP_ID_LOCK = "wallpaper_id_lock"
+    private const val WALLPAPER_ALARM_REQUEST_CODE = 998811
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -42,31 +53,6 @@ object RoadmapWallpaperManager {
 
     fun isAutoUpdateEnabled(context: Context): Boolean {
         return getPrefs(context).getBoolean(KEY_AUTO_UPDATE, false)
-    }
-
-    /**
-     * Returns true if the current device wallpaper still matches the IDs
-     * we saved the last time we applied the roadmap wallpaper.
-     * If the user changed their wallpaper externally, the IDs won't match.
-     */
-    fun isWallpaperStillOurs(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return true // can't check on old APIs
-        val prefs = getPrefs(context)
-        if (!prefs.contains(KEY_WP_ID_SYSTEM) && !prefs.contains(KEY_WP_ID_LOCK)) return true
-        val wm = WallpaperManager.getInstance(context)
-        val target = getSavedTarget(context)
-        return when (target) {
-            WallpaperTarget.HOME_SCREEN -> {
-                wm.getWallpaperId(WallpaperManager.FLAG_SYSTEM) == prefs.getInt(KEY_WP_ID_SYSTEM, -1)
-            }
-            WallpaperTarget.LOCK_SCREEN -> {
-                wm.getWallpaperId(WallpaperManager.FLAG_LOCK) == prefs.getInt(KEY_WP_ID_LOCK, -1)
-            }
-            WallpaperTarget.BOTH -> {
-                wm.getWallpaperId(WallpaperManager.FLAG_SYSTEM) == prefs.getInt(KEY_WP_ID_SYSTEM, -1) &&
-                    wm.getWallpaperId(WallpaperManager.FLAG_LOCK) == prefs.getInt(KEY_WP_ID_LOCK, -1)
-            }
-        }
     }
 
     fun disableAutoUpdate(context: Context) {
@@ -80,27 +66,47 @@ object RoadmapWallpaperManager {
             .getOrDefault(WallpaperTarget.BOTH)
     }
 
+    fun getSavedAccentColor(context: Context): Int? {
+        val prefs = getPrefs(context)
+        return if (prefs.contains(KEY_ACCENT_COLOR)) prefs.getInt(KEY_ACCENT_COLOR, 0) else null
+    }
+
+    fun isSavedDarkTheme(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_IS_DARK, true)
+    }
+
+    fun getScreenDimensions(context: Context): Pair<Int, Int> {
+        val wm = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && wm != null) {
+            val bounds = wm.maximumWindowMetrics.bounds
+            val w = bounds.width()
+            val h = bounds.height()
+            if (w > 0 && h > 0) {
+                return Pair(maxOf(w, 1080), maxOf(h, 1920))
+            }
+        }
+        val dm = context.resources.displayMetrics
+        return Pair(maxOf(dm.widthPixels, 1080), maxOf(dm.heightPixels, 1920))
+    }
+
     fun generateWallpaperBitmap(
         context: Context,
         info: YearProgressInfo = YearProgressCalculator.calculate(),
         accentColorInt: Int? = null,
         isDarkTheme: Boolean = true,
     ): Bitmap {
-        val displayMetrics = context.resources.displayMetrics
-        val screenWidth = maxOf(displayMetrics.widthPixels, 1080)
-        val screenHeight = maxOf(displayMetrics.heightPixels, 1920)
+        val (screenWidth, screenHeight) = getScreenDimensions(context)
 
         val bitmap = Bitmap.createBitmap(screenWidth, screenHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
         val accentColor = accentColorInt ?: android.graphics.Color.parseColor("#6366F1")
         val bgHex = if (isDarkTheme) "#090B0E" else "#F8F7F4"
-        val textPrimaryHex = if (isDarkTheme) "#F8FAFC" else "#14171A"
         val textSecondaryHex = if (isDarkTheme) "#94A3B8" else "#5A626C"
         val pastDotHex = if (isDarkTheme) "#F1F5F9" else "#191C1E"
         val futureDotHex = if (isDarkTheme) "#475569" else "#CBD5E1"
 
-        // 1. Full Screen Pure Minimalist Canvas
+        // 1. Full Screen Minimalist Background
         val bgPaint = Paint().apply { color = android.graphics.Color.parseColor(bgHex) }
         canvas.drawRect(0f, 0f, screenWidth.toFloat(), screenHeight.toFloat(), bgPaint)
 
@@ -110,18 +116,16 @@ object RoadmapWallpaperManager {
         val cols = 14
         val rows = (info.totalDays + cols - 1) / cols
 
-        // Grid spans ~52% of width (delicate, refined, uncluttered)
         val targetGridW = screenWidth * 0.52f
         val cellSide = targetGridW / cols
         val totalGridW = cellSide * cols
         val totalGridH = cellSide * rows
 
-        // Vertically centered in the golden viewport zone (clearing lock screen clock above and dock below)
         val gridStartY = (screenHeight - totalGridH) * 0.48f
         val gridStartX = (screenWidth - totalGridW) / 2f
         val dotRadius = cellSide * 0.32f
 
-        // 3. Minimal Header (Quiet, elegant typography)
+        // 3. Minimal Header
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.parseColor(textSecondaryHex)
             textSize = screenWidth * 0.026f
@@ -206,18 +210,6 @@ object RoadmapWallpaperManager {
         return bitmap
     }
 
-    private const val KEY_ACCENT_COLOR = "wallpaper_accent_color"
-    private const val KEY_IS_DARK = "wallpaper_is_dark"
-
-    fun getSavedAccentColor(context: Context): Int? {
-        val prefs = getPrefs(context)
-        return if (prefs.contains(KEY_ACCENT_COLOR)) prefs.getInt(KEY_ACCENT_COLOR, 0) else null
-    }
-
-    fun isSavedDarkTheme(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_IS_DARK, true)
-    }
-
     suspend fun applyWallpaper(
         context: Context,
         target: WallpaperTarget,
@@ -226,49 +218,75 @@ object RoadmapWallpaperManager {
         isDarkTheme: Boolean = true,
     ): Boolean = withContext(Dispatchers.IO) {
         try {
+            val wallpaperManager = WallpaperManager.getInstance(context)
+
+            // Validate device wallpaper capability
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (!wallpaperManager.isWallpaperSupported) {
+                    Log.w(TAG, "Wallpaper is not supported on this device")
+                    return@withContext false
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                if (!wallpaperManager.isSetWallpaperAllowed) {
+                    Log.w(TAG, "Setting wallpaper is not allowed on this device")
+                    return@withContext false
+                }
+            }
+
             val savedAccent = accentColorInt ?: getSavedAccentColor(context)
+            val info = YearProgressCalculator.calculate()
             val bitmap = generateWallpaperBitmap(
                 context = context,
+                info = info,
                 accentColorInt = savedAccent,
                 isDarkTheme = isDarkTheme,
             )
-            val wallpaperManager = WallpaperManager.getInstance(context)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                val flag = when (target) {
-                    WallpaperTarget.LOCK_SCREEN -> WallpaperManager.FLAG_LOCK
-                    WallpaperTarget.HOME_SCREEN -> WallpaperManager.FLAG_SYSTEM
-                    WallpaperTarget.BOTH -> WallpaperManager.FLAG_LOCK or WallpaperManager.FLAG_SYSTEM
+                when (target) {
+                    WallpaperTarget.LOCK_SCREEN -> {
+                        wallpaperManager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_LOCK)
+                    }
+                    WallpaperTarget.HOME_SCREEN -> {
+                        wallpaperManager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM)
+                    }
+                    WallpaperTarget.BOTH -> {
+                        var applied = false
+                        try {
+                            wallpaperManager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM)
+                            applied = true
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed setting system wallpaper individually", e)
+                        }
+                        try {
+                            wallpaperManager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_LOCK)
+                            applied = true
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed setting lock wallpaper individually", e)
+                        }
+                        if (!applied) {
+                            // Fallback to combined flags if individual calls failed
+                            wallpaperManager.setBitmap(bitmap, null, true, WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK)
+                        }
+                    }
                 }
-                wallpaperManager.setBitmap(bitmap, null, true, flag)
             } else {
                 wallpaperManager.setBitmap(bitmap)
             }
 
-            // Persist preferences + fingerprint the wallpaper IDs we just set
+            val today = LocalDate.now(ZoneId.systemDefault())
+
+            // Persist preferences and track last applied date
             val editor = getPrefs(context).edit()
                 .putBoolean(KEY_AUTO_UPDATE, autoUpdateDaily)
                 .putString(KEY_TARGET, target.name)
                 .putBoolean(KEY_IS_DARK, isDarkTheme)
+                .putInt(KEY_LAST_APPLIED_DAY_OF_YEAR, today.dayOfYear)
+                .putInt(KEY_LAST_APPLIED_YEAR, today.year)
 
             if (accentColorInt != null) {
                 editor.putInt(KEY_ACCENT_COLOR, accentColorInt)
-            }
-
-            // Save wallpaper IDs so we can detect external changes later
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                when (target) {
-                    WallpaperTarget.HOME_SCREEN -> {
-                        editor.putInt(KEY_WP_ID_SYSTEM, wallpaperManager.getWallpaperId(WallpaperManager.FLAG_SYSTEM))
-                    }
-                    WallpaperTarget.LOCK_SCREEN -> {
-                        editor.putInt(KEY_WP_ID_LOCK, wallpaperManager.getWallpaperId(WallpaperManager.FLAG_LOCK))
-                    }
-                    WallpaperTarget.BOTH -> {
-                        editor.putInt(KEY_WP_ID_SYSTEM, wallpaperManager.getWallpaperId(WallpaperManager.FLAG_SYSTEM))
-                        editor.putInt(KEY_WP_ID_LOCK, wallpaperManager.getWallpaperId(WallpaperManager.FLAG_LOCK))
-                    }
-                }
             }
             editor.apply()
 
@@ -279,12 +297,93 @@ object RoadmapWallpaperManager {
             }
 
             true
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to apply wallpaper", e)
             false
         }
     }
 
+    /**
+     * Checks if auto-update is enabled and the wallpaper is showing an outdated day.
+     * If so, immediately triggers a background update to the current day.
+     */
+    fun ensureWallpaperUpToDate(context: Context) {
+        if (!isAutoUpdateEnabled(context)) return
+        val today = LocalDate.now(ZoneId.systemDefault())
+        val prefs = getPrefs(context)
+        val lastDay = prefs.getInt(KEY_LAST_APPLIED_DAY_OF_YEAR, -1)
+        val lastYear = prefs.getInt(KEY_LAST_APPLIED_YEAR, -1)
+
+        if (lastDay != today.dayOfYear || lastYear != today.year) {
+            Log.i(TAG, "Wallpaper is outdated (last: day $lastDay of $lastYear, today: day ${today.dayOfYear} of ${today.year}). Refreshing...")
+            val target = getSavedTarget(context)
+            val isDark = isSavedDarkTheme(context)
+            val accent = getSavedAccentColor(context)
+            CoroutineScope(Dispatchers.IO).launch {
+                applyWallpaper(
+                    context = context,
+                    target = target,
+                    autoUpdateDaily = true,
+                    accentColorInt = accent,
+                    isDarkTheme = isDark,
+                )
+            }
+        }
+    }
+
+    fun scheduleMidnightAlarm(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val now = LocalDateTime.now(ZoneId.systemDefault())
+        val nextMidnight = now.toLocalDate().plusDays(1).atTime(0, 0, 5) // 12:00:05 AM tomorrow
+        val triggerAtMillis = nextMidnight.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        val intent = Intent(context, WallpaperDateReceiver::class.java).apply {
+            action = WallpaperDateReceiver.ACTION_MIDNIGHT_ALARM
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            WALLPAPER_ALARM_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+                } else {
+                    alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+                }
+            } else {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+            }
+        } catch (_: SecurityException) {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+        }
+    }
+
+    fun cancelMidnightAlarm(context: Context) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+        val intent = Intent(context, WallpaperDateReceiver::class.java).apply {
+            action = WallpaperDateReceiver.ACTION_MIDNIGHT_ALARM
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            WALLPAPER_ALARM_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+        )
+        if (pendingIntent != null) {
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
+        }
+    }
+
     fun scheduleDailyUpdate(context: Context) {
+        // 1. Precise midnight alarm for instant RTC date crossover
+        scheduleMidnightAlarm(context)
+
+        // 2. Resilient WorkManager periodic backup
         val now = LocalDateTime.now(ZoneId.systemDefault())
         val nextMidnight = now.toLocalDate().plusDays(1).atTime(0, 5) // 12:05 AM
         val initialDelay = Duration.between(now, nextMidnight).toMinutes().coerceAtLeast(1)
@@ -296,12 +395,13 @@ object RoadmapWallpaperManager {
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.UPDATE,
             workRequest,
         )
     }
 
     fun cancelDailyUpdate(context: Context) {
+        cancelMidnightAlarm(context)
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
     }
 }
