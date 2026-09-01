@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -154,8 +155,6 @@ fun ProfileScreen(
     val photoUri by viewModel.photoUri.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
-    val isSendingTest by viewModel.isSendingTestNotification.collectAsStateWithLifecycle()
-    val testFeedback by viewModel.testNotificationFeedback.collectAsStateWithLifecycle()
 
     var showPhotoOptionsDialog by remember { mutableStateOf(false) }
     var showLogoutAllDialog by remember { mutableStateOf(false) }
@@ -269,9 +268,6 @@ fun ProfileScreen(
                 NotificationPreferencesSection(
                     preferences = preferences,
                     onUpdate = { patch -> viewModel.updatePreferences(patch) },
-                    onSendTestNotification = { viewModel.sendTestNotification() },
-                    isSendingTest = isSendingTest,
-                    testFeedback = testFeedback,
                 )
 
                 Spacer(modifier = Modifier.height(Spacing.sectionGap))
@@ -1020,7 +1016,7 @@ private fun PromiseThemeSelector(
                 // Smooth sliding indicator pill
                 Box(
                     modifier = Modifier
-                        .padding(start = indicatorOffset)
+                        .offset(x = indicatorOffset)
                         .width(segmentWidth)
                         .height(40.dp)
                         .clip(RoundedCornerShape(Radius.pill))
@@ -1184,210 +1180,6 @@ private fun GlanceWidgetCatalogItem(
     }
 }
 
-@Composable
-private fun NotificationPreferencesSection(
-    preferences: app.promise.android.domain.NotificationPreferences?,
-    onUpdate: (app.promise.android.domain.NotificationPreferencesPatch) -> Unit,
-    onSendTestNotification: () -> Unit,
-    isSendingTest: Boolean,
-    testFeedback: String?,
-) {
-    val colors = PromiseThemeColors.current
-
-    PromiseSectionHeader(
-        title = "Notifications",
-        subtitle = "Quiet, intentional reminders for your promises",
-    )
-    Spacer(modifier = Modifier.height(Spacing.xs))
-
-    PromiseCardSurface {
-        Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
-            if (preferences != null && preferences.quietHoursEnabled) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(Radius.sm))
-                        .background(colors.accent.copy(alpha = 0.12f)),
-                    color = colors.accent.copy(alpha = 0.12f),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(Spacing.sm),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.DarkMode,
-                            contentDescription = null,
-                            tint = colors.accent,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Text(
-                            text = "Quiet hours active (${preferences.quietHoursStart} – ${preferences.quietHoursEnd})",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.accent,
-                        )
-                    }
-                }
-            }
-
-            NotificationToggleRow(
-                title = "Morning brief",
-                subtitle = "Summary of today's focus and scheduled practices",
-                checked = preferences?.goalsTodayPractice ?: true,
-                onCheckedChange = { checked ->
-                    onUpdate(app.promise.android.domain.NotificationPreferencesPatch(goalsTodayPractice = checked))
-                },
-            )
-
-            PromiseHairlineDivider()
-
-            NotificationToggleRow(
-                title = "Commitment due alerts",
-                subtitle = "Timely heads-up when high-priority tasks approach deadline",
-                checked = preferences?.commitmentsDueSoon ?: true,
-                onCheckedChange = { checked ->
-                    onUpdate(app.promise.android.domain.NotificationPreferencesPatch(commitmentsDueSoon = checked))
-                },
-            )
-
-            PromiseHairlineDivider()
-
-            NotificationToggleRow(
-                title = "Evening streak protection",
-                subtitle = "Gentle reminder if any daily goals remain pending",
-                checked = preferences?.goalsStreakProtection ?: true,
-                onCheckedChange = { checked ->
-                    onUpdate(app.promise.android.domain.NotificationPreferencesPatch(goalsStreakProtection = checked))
-                },
-            )
-
-            PromiseHairlineDivider()
-
-            NotificationToggleRow(
-                title = "Shared goal room messages",
-                subtitle = "Incoming chat notes and check-in celebrations from teammates",
-                checked = preferences?.sharedGoalsChat ?: true,
-                onCheckedChange = { checked ->
-                    onUpdate(app.promise.android.domain.NotificationPreferencesPatch(sharedGoalsChat = checked))
-                },
-            )
-
-            PromiseHairlineDivider()
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Device notification test",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = colors.textPrimary,
-                    )
-                    testFeedback?.let { feedback ->
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = feedback,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (feedback.contains("sent", ignoreCase = true)) colors.success else colors.accent,
-                        )
-                    }
-                }
-                TextButton(
-                    onClick = onSendTestNotification,
-                    enabled = !isSendingTest,
-                    modifier = Modifier.heightIn(min = TouchTarget.min),
-                ) {
-                    Text(
-                        text = if (isSendingTest) "Sending…" else "Send test",
-                        color = colors.accent,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun NotificationToggleRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    val colors = PromiseThemeColors.current
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(vertical = Spacing.xxs)
-            .semantics(mergeDescendants = true) {
-                contentDescription = "$title, ${if (checked) "enabled" else "disabled"}"
-                role = Role.Switch
-                selected = checked
-            },
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                color = colors.textPrimary,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
-            )
-        }
-
-        Spacer(modifier = Modifier.width(Spacing.md))
-
-        // Tactile custom switch pill
-        val switchTrackBg by animateColorAsState(
-            targetValue = if (checked) colors.accent else colors.surfaceMuted,
-            animationSpec = Motion.standardTween(Motion.FilterChangeMs),
-            label = "switch-track-bg",
-        )
-        val switchThumbOffset by animateDpAsState(
-            targetValue = if (checked) 20.dp else 2.dp,
-            animationSpec = Motion.fluidSpring(),
-            label = "switch-thumb-offset",
-        )
-
-        Box(
-            modifier = Modifier
-                .width(44.dp)
-                .height(26.dp)
-                .clip(RoundedCornerShape(13.dp))
-                .background(switchTrackBg)
-                .border(
-                    1.dp,
-                    if (checked) colors.accent else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                    RoundedCornerShape(13.dp),
-                )
-                .padding(horizontal = 1.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Box(
-                modifier = Modifier
-                    .padding(start = switchThumbOffset)
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(Color.White)
-                    .border(0.5.dp, Color.Black.copy(alpha = 0.1f), CircleShape),
-            )
-        }
-    }
-}
 
 @Composable
 private fun FaqAccordionRow(

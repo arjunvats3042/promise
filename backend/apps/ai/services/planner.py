@@ -32,6 +32,26 @@ PLANNER_SCHEMA = {
 }
 
 
+def _heuristic_planner(commitments: list) -> Dict[str, Any]:
+    """Deterministic scheduling heuristic when AI is unavailable."""
+    planned = []
+    slots = ["Morning", "Afternoon", "Evening"]
+    for idx, c in enumerate(commitments):
+        slot = slots[min(idx % 3, 2)]
+        planned.append({
+            "commitment_id": str(c.id),
+            "suggested_time_slot": slot,
+            "priority_rank": idx + 1,
+            "is_fixed_deadline": c.due_at is not None,
+            "note": "Scheduled based on due date urgency.",
+        })
+    return {
+        "planned_order": planned,
+        "conflict_notes": None,
+        "summary_advice": "Focus on the morning tasks first, then transition smoothly into afternoon obligations.",
+    }
+
+
 def plan_commitments(
     user,
     commitment_ids: Optional[List[str]] = None,
@@ -85,7 +105,7 @@ def plan_commitments(
         return result
     except Exception as e:
         failure_category = e.__class__.__name__
-        raise
+        return _heuristic_planner(commitments)
     finally:
         latency_ms = int((time.time() - start_time) * 1000)
         record_ai_metric(

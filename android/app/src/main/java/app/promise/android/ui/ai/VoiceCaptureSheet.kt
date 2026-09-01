@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -249,19 +250,11 @@ fun VoiceCaptureSheet(
             } catch (_: kotlinx.coroutines.CancellationException) {
                 // Ignore cancellation
             } catch (e: Exception) {
-                val offlineParsed = app.promise.android.core.util.NaturalLanguageDateParser.parse(query)
-                if (offlineParsed.dueAt != null || offlineParsed.cleanedTitle.isNotBlank()) {
-                    val fallbackItem = ParsedThoughtItem(
-                        type = "commitment",
-                        title = offlineParsed.cleanedTitle.takeIf { it.isNotBlank() } ?: query,
-                        description = "",
-                        confidence = if (offlineParsed.dueAt != null) "HIGH" else "MEDIUM",
-                        dueAt = offlineParsed.dueAt,
-                        duePrecision = if (offlineParsed.duePrecision == DuePrecision.DATE) "DAY" else "HOUR",
-                    )
-                    parsedItems = listOf(fallbackItem)
+                val fallbackItems = app.promise.android.core.util.NaturalLanguageDateParser.decomposeAndParse(query)
+                if (fallbackItems.isNotEmpty()) {
+                    parsedItems = fallbackItems
                     selectedIndices.clear()
-                    selectedIndices.add(0)
+                    selectedIndices.addAll(fallbackItems.indices)
                     currentStep = VoicePipelineStep.FINALIZE
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 } else {
@@ -447,7 +440,7 @@ fun VoiceCaptureSheet(
 
                                 Spacer(modifier = Modifier.height(Spacing.sm))
 
-                                // Luminous Aura Microphone visualizer
+                                // Luminous Aura Microphone visualizer (100% symmetrically centered)
                                 LuminousAcousticAura(
                                     isListening = isListening,
                                     rmsNormalized = (speechState as? SpeechRecognitionState.Listening)?.rmsNormalized ?: 0f,
@@ -464,7 +457,16 @@ fun VoiceCaptureSheet(
                                     },
                                 )
 
-                                Spacer(modifier = Modifier.height(Spacing.md))
+                                Spacer(modifier = Modifier.height(Spacing.xs))
+
+                                // Sleek 9-bar reactive audio equalizer pill below the aura
+                                ReactiveAudioWaveform(
+                                    isListening = isListening,
+                                    rmsNormalized = (speechState as? SpeechRecognitionState.Listening)?.rmsNormalized ?: 0f,
+                                    reduceMotion = reduceMotion,
+                                )
+
+                                Spacer(modifier = Modifier.height(Spacing.xs))
 
                                 Text(
                                     text = if (isListening) "Listening… Speak your intentions" else "Tap microphone to speak",
@@ -958,110 +960,159 @@ private fun LuminousAcousticAura(
 
     val smoothRms by animateFloatAsState(
         targetValue = if (isListening) rmsNormalized else 0f,
-        animationSpec = spring(stiffness = 250f, dampingRatio = 0.65f),
+        animationSpec = spring(stiffness = 220f, dampingRatio = 0.60f),
         label = "rmsAnimation",
     )
 
     val infiniteTransition = rememberInfiniteTransition(label = "pulseLoop")
     val idlePulse by infiniteTransition.animateFloat(
-        initialValue = 0.95f,
-        targetValue = 1.05f,
+        initialValue = 0.97f,
+        targetValue = 1.03f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = FastOutSlowInEasing),
+            animation = tween(1500, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "idlePulse",
     )
+    val rippleExpansion by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "rippleExpansion",
+    )
 
-    val baseScale = if (reduceMotion) 1f else if (isListening) (1f + smoothRms * 0.35f) else idlePulse
+    val orbScale = if (reduceMotion) 1f else if (isListening) (1f + smoothRms * 0.16f) else idlePulse
 
     Box(
         modifier = Modifier
-            .size(180.dp)
+            .size(190.dp)
             .semantics { contentDescription = if (isListening) "Microphone active" else "Microphone idle" },
         contentAlignment = Alignment.Center,
     ) {
-        // Luminous Canvas Ripples & Pulsing Rings
-        if (!reduceMotion && isListening) {
-            Canvas(modifier = Modifier.size(180.dp)) {
-                val center = Offset(size.width / 2, size.height / 2)
-                val baseRadius = 42.dp.toPx()
+        // Concentric Symmetrical Acoustic Rings (100% centered around the mic)
+        if (!reduceMotion) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val baseRadius = 38.dp.toPx()
 
-                // Outer Glowing Ring 2
-                drawCircle(
-                    color = colors.accent.copy(alpha = (0.12f + smoothRms * 0.28f).coerceIn(0f, 0.45f)),
-                    radius = baseRadius + 38.dp.toPx() * (0.6f + smoothRms * 0.7f),
-                    center = center,
-                    style = Stroke(width = 1.5.dp.toPx()),
-                )
+                if (isListening) {
+                    // Outer Ripple Ring 3 (Breathing propagation)
+                    val r3 = baseRadius + 44.dp.toPx() + (smoothRms * 20.dp.toPx()) + (rippleExpansion * 12.dp.toPx())
+                    val a3 = ((1f - rippleExpansion) * (0.12f + smoothRms * 0.28f)).coerceIn(0.04f, 0.40f)
+                    drawCircle(
+                        color = colors.accent.copy(alpha = a3),
+                        radius = r3,
+                        center = center,
+                        style = Stroke(width = 1.5.dp.toPx()),
+                    )
 
-                // Outer Glowing Ring 1
-                drawCircle(
-                    color = colors.accent.copy(alpha = (0.22f + smoothRms * 0.40f).coerceIn(0f, 0.65f)),
-                    radius = baseRadius + 18.dp.toPx() * (0.4f + smoothRms * 0.7f),
-                    center = center,
-                    style = Stroke(width = 2.dp.toPx()),
-                )
+                    // Mid Acoustic Ring 2
+                    val r2 = baseRadius + 26.dp.toPx() + (smoothRms * 14.dp.toPx())
+                    val a2 = (0.20f + smoothRms * 0.40f).coerceIn(0.12f, 0.65f)
+                    drawCircle(
+                        color = colors.accent.copy(alpha = a2),
+                        radius = r2,
+                        center = center,
+                        style = Stroke(width = 2.dp.toPx()),
+                    )
+
+                    // Inner Halo Ring 1
+                    val r1 = baseRadius + 12.dp.toPx() + (smoothRms * 8.dp.toPx())
+                    val a1 = (0.30f + smoothRms * 0.45f).coerceIn(0.20f, 0.85f)
+                    drawCircle(
+                        color = colors.accent.copy(alpha = a1),
+                        radius = r1,
+                        center = center,
+                        style = Stroke(width = 2.5.dp.toPx()),
+                    )
+
+                    // Soft ambient glowing aura behind the mic orb
+                    drawCircle(
+                        color = colors.accent.copy(alpha = (0.08f + smoothRms * 0.15f).coerceIn(0.05f, 0.25f)),
+                        radius = baseRadius + 16.dp.toPx(),
+                        center = center,
+                    )
+                } else {
+                    // Idle gentle resting ring
+                    drawCircle(
+                        color = colors.accent.copy(alpha = 0.18f),
+                        radius = baseRadius + 8.dp.toPx(),
+                        center = center,
+                        style = Stroke(width = 1.5.dp.toPx()),
+                    )
+                }
             }
         }
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+        // Floating Microphone Orb (Centered precisely on the canvas center)
+        Surface(
+            onClick = onToggleListening,
+            modifier = Modifier
+                .size(76.dp)
+                .scale(orbScale)
+                .clip(CircleShape)
+                .border(
+                    2.dp,
+                    if (isListening) colors.accent else colors.surfaceRaised,
+                    CircleShape,
+                )
+                .pressScale(0.92f),
+            shape = CircleShape,
+            color = if (isListening) colors.accent else colors.surfaceRaised,
+            shadowElevation = if (isListening) 10.dp else 2.dp,
         ) {
-            // Floating Microphone Orb
-            Surface(
-                onClick = onToggleListening,
-                modifier = Modifier
-                    .size((76 * baseScale).dp)
-                    .clip(CircleShape)
-                    .border(
-                        2.dp,
-                        if (isListening) colors.accent else colors.surfaceRaised,
-                        CircleShape,
-                    )
-                    .pressScale(0.94f),
-                shape = CircleShape,
-                color = if (isListening) colors.accent else colors.surfaceRaised,
-                shadowElevation = if (isListening) 8.dp else 2.dp,
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize(),
             ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(
-                        imageVector = if (isListening) Icons.Outlined.Mic else Icons.Outlined.MicOff,
-                        contentDescription = if (isListening) "Tap to stop" else "Tap to speak",
-                        tint = if (isListening) Color.Black else colors.textPrimary,
-                        modifier = Modifier.size(34.dp),
-                    )
-                }
+                Icon(
+                    imageVector = if (isListening) Icons.Outlined.Mic else Icons.Outlined.MicOff,
+                    contentDescription = if (isListening) "Tap to stop" else "Tap to speak",
+                    tint = if (isListening) Color.Black else colors.textPrimary,
+                    modifier = Modifier.size(34.dp),
+                )
             }
+        }
+    }
+}
 
-            // High-precision 7-bar reactive audio equalizer
-            if (!reduceMotion && isListening) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val barMultipliers = listOf(0.5f, 0.9f, 1.3f, 1.7f, 1.2f, 0.8f, 0.4f)
-                    barMultipliers.forEachIndexed { i, mult ->
-                        val barHeight by animateFloatAsState(
-                            targetValue = (5f + smoothRms * 24f * mult).coerceIn(4f, 30f),
-                            animationSpec = spring(stiffness = 380f + i * 40f, dampingRatio = 0.65f),
-                            label = "bar-$i",
-                        )
-                        Box(
-                            modifier = Modifier
-                                .width(3.5.dp)
-                                .height(barHeight.dp)
-                                .clip(RoundedCornerShape(Radius.pill))
-                                .background(colors.accent.copy(alpha = (0.55f + smoothRms * 0.45f).coerceIn(0.5f, 1f))),
-                        )
-                    }
-                }
-            }
+@Composable
+private fun ReactiveAudioWaveform(
+    isListening: Boolean,
+    rmsNormalized: Float,
+    reduceMotion: Boolean,
+) {
+    val colors = PromiseThemeColors.current
+    if (reduceMotion || !isListening) return
+
+    val smoothRms by animateFloatAsState(
+        targetValue = if (isListening) rmsNormalized else 0f,
+        animationSpec = spring(stiffness = 300f, dampingRatio = 0.65f),
+        label = "waveformRms",
+    )
+
+    val barMultipliers = listOf(0.4f, 0.7f, 1.1f, 1.6f, 2.0f, 1.6f, 1.1f, 0.7f, 0.4f)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.height(28.dp),
+    ) {
+        barMultipliers.forEachIndexed { i, mult ->
+            val barHeight by animateFloatAsState(
+                targetValue = (4f + smoothRms * 20f * mult).coerceIn(4f, 26f),
+                animationSpec = spring(stiffness = 350f + (i % 5) * 40f, dampingRatio = 0.65f),
+                label = "waveBar-$i",
+            )
+            Box(
+                modifier = Modifier
+                    .width(3.5.dp)
+                    .height(barHeight.dp)
+                    .clip(RoundedCornerShape(Radius.pill))
+                    .background(colors.accent.copy(alpha = (0.50f + smoothRms * 0.50f).coerceIn(0.4f, 1f))),
+            )
         }
     }
 }

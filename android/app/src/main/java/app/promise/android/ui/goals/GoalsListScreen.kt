@@ -766,7 +766,6 @@ fun GoalCard(
                                 onClick = onCheckIn,
                             )
                             .padding(horizontal = Spacing.md, vertical = 6.dp)
-                            .heightIn(min = TouchTarget.min)
                             .semantics { contentDescription = "Check in to ${goal.title}" },
                         contentAlignment = Alignment.Center,
                     ) {
@@ -778,11 +777,11 @@ fun GoalCard(
                                 imageVector = Icons.Outlined.Check,
                                 contentDescription = null,
                                 tint = Color.White,
-                                modifier = Modifier.size(14.dp),
+                                modifier = Modifier.size(13.dp),
                             )
                             Text(
                                 text = if (goal.trackingKind == GoalTrackingKind.COUNT) "Log Progress" else "Check In",
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                             )

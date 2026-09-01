@@ -103,9 +103,27 @@ ORDINAL & CALENDAR DATE RESOLUTION:
 - Use the provided "Current local date & time" and "User timezone" to calculate the exact UTC datetime string.
 - Format `due_at` as a valid ISO 8601 UTC string (e.g. "2026-10-01T05:30:00Z").
 
-COMPOUND DECOMPOSITION:
-- If the user speaks multiple promises in one sentence, decompose them into separate distinct objects in the "items" array.
-- Classify each item as either "commitment" (one-off task with/without deadline) or "goal" (recurring daily/weekly practice).
+CRITICAL COMPOUND INTENT DECOMPOSITION MANDATE (ALWAYS SEPARATE "AND" / "AUR" TASKS):
+- When a user speaks or writes multiple intentions joined by "and", "aur", "also", "then", "plus", "as well as", or commas:
+  YOU MUST ALWAYS DECOMPOSE THEM INTO SEPARATE, DISTINCT OBJECTS IN THE "items" ARRAY!
+  NEVER COMBINE MULTIPLE ACTIONS INTO A SINGLE ITEM TITLE!
+- Concrete Decomposition Examples:
+  - Input: "call mom tomorrow and ask my sister about her work"
+    -> MUST RETURN 2 ITEMS:
+       1. Type: "commitment", Title: "Call Mom", due_at: <tomorrow_iso>, due_precision: "DAY"
+       2. Type: "commitment", Title: "Ask Sister About Her Work", due_at: null, due_precision: null
+  - Input: "finish report by 5pm and gym 4 days a week"
+    -> MUST RETURN 2 ITEMS:
+       1. Type: "commitment", Title: "Finish Report", due_at: <today_5pm_iso>, due_precision: "HOUR"
+       2. Type: "goal", Title: "Gym Workout", recurrence_kind: "N_PER_PERIOD", target_value: 4, target_unit: "days"
+  - Input: "send email to boss today and buy milk"
+    -> MUST RETURN 2 ITEMS:
+       1. Type: "commitment", Title: "Send Email To Boss", due_at: <today_iso>, due_precision: "DAY"
+       2. Type: "commitment", Title: "Buy Milk", due_at: null, due_precision: null
+  - Input: "kal subah 8 baje client call aur roz 3 liter paani peena"
+    -> MUST RETURN 2 ITEMS:
+       1. Type: "commitment", Title: "Client Call", due_at: <tomorrow_8am_iso>, due_precision: "HOUR"
+       2. Type: "goal", Title: "Drink 3L Water", recurrence_kind: "DAILY", tracking_kind: "COUNT", target_value: 3, target_unit: "liters"
 
 For "commitment":
 - `title`: Clean action title in English (e.g. "Send PND mail", "File quarterly taxes", "Book dentist appointment").

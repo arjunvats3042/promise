@@ -37,7 +37,116 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
     """Offline heuristic FAQ knowledge base fallback when AI service is unreachable."""
     lower = question.lower().strip()
 
-    # 1. Goal Creation Guide ("Can you create a goal", "How to create a goal")
+    # 1. Teammate Privacy ("Can teammates see my private commitments?", "Are commitments private from friends?")
+    if "private commitment" in lower or "see my private" in lower or "teammate see" in lower or "friends see" in lower or "visible to friends" in lower or "visible to teammates" in lower or "privacy with friends" in lower or ("teammate" in lower and "private" in lower) or ("friend" in lower and "private" in lower) or ("can teammates see" in lower):
+        return {
+            "answer": "**Strict Privacy Guarantee:**\n\n**No, teammates can NEVER see your private commitments or personal goals.**\n\n- **What Teammates See**: Only check-in completions, group streaks, and messages inside that specific **Shared Goal** room.\n- **What Stays 100% Private**: All your one-time commitments, personal habit practices, private notes, and AI thought captures are visible strictly to you alone.",
+            "suggested_followups": [
+                "What is the difference between a Personal Goal and a Shared Goal?",
+                "How do Shared Goals work?",
+                "What data is shared with AI?",
+            ],
+            "action_chips": [
+                {"label": "👥 Shared Goals", "action_type": "OPEN_SHARED_GOALS"},
+                {"label": "👤 Profile Settings", "action_type": "OPEN_PROFILE"},
+            ],
+            "is_off_topic": False,
+        }
+
+    # 2. Goal vs Shared Goal ("goal vs shared goal", "difference between personal and shared")
+    if ("goal" in lower and "shared" in lower and ("vs" in lower or "difference" in lower or "kya antar" in lower or "farak" in lower)) or "personal vs shared" in lower or "goal vs shared goal" in lower:
+        return {
+            "answer": "**Personal Goals vs. Shared Goals:**\n\n- **Personal Goal**: A private, individual habit tracked exclusively by you (e.g., *'Morning meditation 10 min'*, *'Read 20 pages'*). Nobody else has access to your progress.\n- **Shared Goal**: A collaborative group habit where you invite friends or teammates by email. Everyone checks in together, maintains a shared group streak, and discusses progress in a private room.\n\n*Note: Even in a Shared Goal, your personal commitments and other goals remain completely private.*",
+            "suggested_followups": [
+                "Can teammates see my private commitments?",
+                "How do I invite teammates to a Shared Goal?",
+                "How does the group chat summary work?",
+            ],
+            "action_chips": [
+                {"label": "👥 Shared Goals", "action_type": "OPEN_SHARED_GOALS"},
+                {"label": "＋ Create Goal", "action_type": "CREATE_GOAL"},
+            ],
+            "is_off_topic": False,
+        }
+
+    # 3. What is Promise / App Overview ("what is promise", "about promise", "what does this app do")
+    if "what is promise" in lower or "about promise" in lower or "what is this app" in lower or "how does promise work" in lower or "overview" in lower or "what can promise do" in lower or lower == "promise":
+        return {
+            "answer": "**Welcome to Promise!**\n\nPromise is a calm, intentional, local-first productivity system designed to turn your daily intentions into reality:\n\n- **Commitments**: One-time tasks with precision deadlines (Minute/Hour/Day) and zero-overdue tracking.\n- **Goals**: Recurring daily/weekly practices (habits) with streak tracking and interactive monthly history calendars.\n- **Shared Goals**: Group habits with teammates, shared streak accountability, and private room chat.\n- **Voice AI Thought Capture**: Speak or type freely in English, Hindi, or Hinglish to parse ideas into tasks in 1 tap.\n- **100% Offline-First**: Instant Room database storage with automatic background cloud sync.",
+            "suggested_followups": [
+                "What is the difference between a Goal and a Commitment?",
+                "How do Shared Goals work?",
+                "How does Voice Quick Capture work?",
+            ],
+            "action_chips": [
+                {"label": "＋ Create Commitment", "action_type": "CREATE_COMMITMENT"},
+                {"label": "＋ Create Goal", "action_type": "CREATE_GOAL"},
+                {"label": "🎙️ Voice Capture", "action_type": "OPEN_VOICE_CAPTURE"},
+            ],
+            "is_off_topic": False,
+        }
+
+    # 4. Uninstall / Remove App
+    if "uninstall" in lower or "remove app" in lower or "delete app" in lower or "wipe promise" in lower or "remove promise" in lower:
+        return {
+            "answer": "**How to uninstall Promise and clear your data:**\n\n1. **Wipe Cloud & Local Data (Recommended)**: Open **Profile** → scroll down to **Account Management** → tap **Delete account** (red button). This permanently anonymizes your account, cancels all active promises, and clears local/cloud data.\n2. **Uninstall App**: Return to your Android home screen or app drawer, long-press the **Promise** icon, and tap **Uninstall**.",
+            "suggested_followups": [
+                "How do I delete my account?",
+                "Is my data private from AI?",
+                "What is the difference between a Goal and a Commitment?",
+            ],
+            "action_chips": [
+                {"label": "👤 Account Management", "action_type": "OPEN_PROFILE"},
+            ],
+            "is_off_topic": False,
+        }
+
+    # 5. Quit / Pause / Delete / Archive Goal ("quit goal", "pause goal", "archive goal", "stop habit", "delete a habit")
+    if "quit" in lower or "pause goal" in lower or "stop goal" in lower or "stop habit" in lower or "delete goal" in lower or "leave goal" in lower or "archive goal" in lower or "remove goal" in lower or "delete habit" in lower or "delete a habit" in lower or "remove habit" in lower:
+        return {
+            "answer": "**Managing, Pausing, or Quitting a Goal:**\n\n1. Open the **Goals** tab from the bottom navigation bar.\n2. Tap on the goal you want to modify to open its details.\n3. Tap the **Settings (⚙️)** or options menu in the top right.\n4. You have two options:\n   - **Pause Goal**: Keeps your past streak and check-in history intact while pausing daily reminders.\n   - **Delete Goal / Leave Room**: Permanently removes the goal (or leaves the group if it's a Shared Goal).",
+            "suggested_followups": [
+                "How do Shared Goals work?",
+                "How do check-in streaks work?",
+                "What is the difference between a Goal and a Commitment?",
+            ],
+            "action_chips": [
+                {"label": "🎯 View Goals", "action_type": "OPEN_SHARED_GOALS"},
+            ],
+            "is_off_topic": False,
+        }
+
+    # 6. Group Chat AI Summary
+    if "chat summary" in lower or "group chat summary" in lower or "ai summary in chat" in lower or "summarize chat" in lower or "summary work" in lower:
+        return {
+            "answer": "**How Shared Goal AI Chat Summary Works:**\n\n1. Open any **Shared Goal** from your Goals tab.\n2. Tap into the **Room Chat**.\n3. Tap the **✨ AI Summary** chip at the top.\n4. Promise AI analyzes recent member check-ins, updates, and messages to give you a 2-sentence recap of team discussions, key milestones, and open questions without needing to scroll through hundreds of messages.",
+            "suggested_followups": [
+                "How do Shared Goals work?",
+                "Can teammates see my private commitments?",
+                "What data is shared with AI?",
+            ],
+            "action_chips": [
+                {"label": "👥 Shared Goals", "action_type": "OPEN_SHARED_GOALS"},
+            ],
+            "is_off_topic": False,
+        }
+
+    # 7. AI Privacy & Data Sharing ("What data is shared with AI?", "Is my data private?")
+    if "shared with ai" in lower or "data shared with ai" in lower or "is my data private from ai" in lower or "ai model training" in lower or "ai privacy" in lower or ("data" in lower and "ai" in lower):
+        return {
+            "answer": "**AI Privacy & Zero Model Training:**\n\n- **Zero Training**: Your thoughts, commitments, and account details are **never** used to train public or proprietary AI models.\n- **Ephemeral Processing**: When you use Voice Quick Capture or AI Goal Builder, text is sent securely to Google Gemini solely to return structured suggestions in that moment, and is never retained for training.\n- **Local-First Fallback**: If offline, Promise utilizes on-device deterministic heuristics without sending any data over the network.",
+            "suggested_followups": [
+                "How does Voice Quick Capture work?",
+                "How does offline sync work?",
+                "How do I delete my account?",
+            ],
+            "action_chips": [
+                {"label": "👤 Account Management", "action_type": "OPEN_PROFILE"},
+            ],
+            "is_off_topic": False,
+        }
+
+    # 8. Goal Creation Guide ("Can you create a goal", "How to create a goal")
     if (("goal" in lower or "habit" in lower) and any(w in lower for w in ["create", "make", "add", "build", "set up", "setup", "banaye", "karein", "karna"])) or "create goal" in lower or "make goal" in lower:
         return {
             "answer": "I'm your Promise concierge guide! While I cannot directly create goals inside your account from this chat window, you can easily create goals in two quick ways:\n\n**Method 1: Manual Create (+ button)**\n1. Tap the **+** (Create) button on the bottom bar or Home tab.\n2. Select **Goal** (for recurring daily or weekly practices).\n3. Choose your frequency (**Daily**, **Specific Weekdays**, or **X times per period**).\n4. Set your target (yes/no check-in or count like pages/minutes) and tap **Save**.\n\n**Method 2: Voice Quick Capture (AI Thought Dump)**\n1. Tap the **Mic / Voice** button on your Home screen or widget.\n2. Speak or type freely in English, Hindi, or Hinglish (e.g., *'Roz subah 6 baje yoga karna hai'*).\n3. Promise AI parses your thought into a structured goal card for you to confirm in 1 tap!",
@@ -53,7 +162,7 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
             "is_off_topic": False,
         }
 
-    # 2. Commitment Creation Guide ("Can you create a commitment", "How to create commitment")
+    # 9. Commitment Creation Guide ("Can you create a commitment", "How to create commitment")
     if (("commitment" in lower or "task" in lower) and any(w in lower for w in ["create", "make", "add", "set up", "setup", "schedule", "new", "banaye", "karein"])) or "create commitment" in lower:
         return {
             "answer": "I'm your Promise concierge guide! While I cannot directly add tasks to your account from this chat, you can create commitments in two easy ways:\n\n**Method 1: Manual Create (+ button)**\n1. Tap the **+** (Create) button on the bottom bar.\n2. Select **Commitment** (for one-time tasks with deadlines).\n3. Enter the title, set an optional deadline, and choose your alert timing.\n4. Tap **Save**.\n\n**Method 2: Voice Quick Capture (AI Thought Dump)**\n1. Tap the **Mic / Voice** button.\n2. Speak or type in English, Hindi, or Hinglish (e.g., *'Kal dopahar 3 baje presentation bhejna hai'*).\n3. Promise AI automatically parses the deadline and creates a commitment card for your confirmation.",
@@ -69,7 +178,7 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
             "is_off_topic": False,
         }
 
-    # 3. Check-ins & Habit Streaks
+    # 10. Check-ins & Habit Streaks
     if "check-in" in lower or "check in" in lower or "streak" in lower or "streaks" in lower or "complete goal" in lower or "mark done" in lower or "checkin" in lower:
         return {
             "answer": "**How to check in and build streaks:**\n\n- **From Home Feed**: Tap the check-in circle next to the goal on your today's feed.\n- **From Goals Tab**: Tap the goal card, enter your progress (if count-based), and submit.\n- **From Home Screen Widget**: Tap the check-in circle directly on your Android Glance widget without opening the app!\n- **Streak Progression**: Each on-time check-in maintains your active streak and logs proof on your monthly calendar.",
@@ -84,8 +193,8 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
             "is_off_topic": False,
         }
 
-    # 4. Account Deletion (Direct, Step-by-Step)
-    if "delete" in lower or "account delete" in lower or "khatam" in lower or "remove account" in lower or "wipe" in lower:
+    # 11. Account Deletion (Direct, Step-by-Step)
+    if ("account" in lower and ("delete" in lower or "remove" in lower or "wipe" in lower or "close" in lower)) or "account delete" in lower or "khatam" in lower or "remove account" in lower or (("delete" in lower or "wipe" in lower) and "goal" not in lower and "habit" not in lower and "task" not in lower and "commitment" not in lower):
         return {
             "answer": "**How to permanently delete your account:**\n\n1. Open the **Profile** tab in the bottom navigation bar.\n2. Scroll down to the **Account Management** section.\n3. Tap **Delete account** (highlighted in red).\n4. Confirm deletion in the popup dialog.\n\n*Note: This immediately anonymizes your profile, cancels all active commitments, and permanently clears your local and cloud data.*",
             "suggested_followups": [
@@ -99,7 +208,7 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
             "is_off_topic": False,
         }
 
-    # 5. Commitment vs Goal
+    # 12. Commitment vs Goal
     if "difference" in lower or ("commitment" in lower and "goal" in lower) or "kya antar" in lower or "farak" in lower or "farq" in lower:
         return {
             "answer": "**Commitments vs. Goals in Promise:**\n\n- **Commitments**: One-time accountable tasks with optional deadlines (e.g., *'Submit project report by Friday 5 PM'*). They have precision timing and urgency badges (**Overdue**, **Imminent**, **Upcoming**).\n- **Goals**: Recurring daily or weekly practices designed to build lasting consistency (e.g., *'Read 20 pages daily'*, *'Gym 4x/week'*). Supports yes/no check-ins or numeric targets with streak tracking.",
@@ -115,7 +224,7 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
             "is_off_topic": False,
         }
 
-    # 6. Shared Goals & Invites
+    # 13. Shared Goals & Invites
     if "shared" in lower or "invite" in lower or "friend" in lower or "teammate" in lower or "partner" in lower:
         return {
             "answer": "**How Shared Goals Work:**\n\n1. **Open or Create a Goal**: Tap on any goal from your Goals list, or create a new one.\n2. **Invite Teammates**: Tap **Invite** and enter your teammate's registered Promise email.\n3. **Group Accountability**: Once accepted, all members check in together, track group streaks, and discuss progress in the private group chat with member avatars.",
@@ -130,7 +239,7 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
             "is_off_topic": False,
         }
 
-    # 7. Offline sync & Local-first
+    # 14. Offline sync & Local-first
     if "offline" in lower or "sync" in lower or "bina internet" in lower or "no internet" in lower:
         return {
             "answer": "**Local-First Architecture & Offline Sync:**\n\n- **100% Offline Capability**: You can create commitments, complete habit check-ins, and use the Home Screen widget without internet connection. Everything is saved instantly to your device's local database.\n- **Automatic Sync**: As soon as internet connectivity returns, Promise silently syncs all pending changes to the cloud in the background.",
@@ -145,7 +254,7 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
             "is_off_topic": False,
         }
 
-    # 8. Home Screen Glance Widgets
+    # 15. Home Screen Glance Widgets
     if "widget" in lower or "home screen" in lower:
         return {
             "answer": "**Adding Promise Home Screen Widgets:**\n\n1. Long-press any empty space on your Android home screen.\n2. Select **Widgets** and scroll to **Promise**.\n3. Choose from:\n   - **Goal Check-Ins**: 1-tap habit check-in directly from your launcher.\n   - **Commitments**: High-priority task list with overdue indicators.\n   - **Voice Capture**: 1-tap floating mic to record speech into structured tasks.",
@@ -160,23 +269,8 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
             "is_off_topic": False,
         }
 
-    # 9. Voice / AI Parsing
-    if "voice" in lower or "thought" in lower or "parse" in lower or "speech" in lower or "mic" in lower or "hindi" in lower or "hinglish" in lower:
-        return {
-            "answer": "**Voice Quick Capture & Intent Engine:**\n\n- **Speak Freely in Any Language**: Speak or type in English, Hindi, or Hinglish (e.g., *'kal subah 8 baje client call aur roz gym'*).\n- **Intelligent Decomposition**: Promise AI cleans scheduling words from titles, parses exact dates and recurrence, and decomposes thoughts into separate commitments and goals.\n- **Always in Your Control**: Nothing is created until you review and confirm the parsed cards.",
-            "suggested_followups": [
-                "What is the difference between a Goal and a Commitment?",
-                "Is my voice data private from AI?",
-                "How do notifications work?",
-            ],
-            "action_chips": [
-                {"label": "🎙️ Voice Capture", "action_type": "OPEN_VOICE_CAPTURE"},
-            ],
-            "is_off_topic": False,
-        }
-
-    # 10. Theme / Appearance
-    if "theme" in lower or "dark mode" in lower or "light mode" in lower or "appearance" in lower or "dark" in lower or "light" in lower:
+    # 16. Theme & Dark Mode
+    if "theme" in lower or "dark mode" in lower or "light mode" in lower or "appearance" in lower:
         return {
             "answer": "**Changing App Theme (Light / Dark Mode):**\n\n1. Go to the **Profile** tab in the bottom navigation bar.\n2. Scroll to the bottom to the **Appearance** section.\n3. Use the sliding segmented controller to toggle between **Light** (warm daytime brightness) and **Dark** (deep night contrast).",
             "suggested_followups": [
@@ -190,25 +284,25 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
             "is_off_topic": False,
         }
 
-    # 11. Calendar History & Check-in Details
-    if "calendar" in lower or "history" in lower or "check-in" in lower or "popover" in lower:
+    # 17. Voice Quick Capture
+    if "voice" in lower or "mic" in lower or "audio" in lower or "bol ke" in lower:
         return {
-            "answer": "**Interactive History Calendar:**\n\n- **Inspect Past Dates**: Open any goal and tap any date between the start date and today to view a detailed popup with check-in timestamps, notes, logged values, and teammate statuses.\n- **Locked Boundaries**: Future dates and dates before the goal's start date are locked to ensure historical data integrity.",
+            "answer": "**How Voice Quick Capture Works:**\n\n1. Tap the floating **Mic** icon on the Home screen or widget.\n2. Speak naturally in English, Hindi, or Hinglish (e.g., *'Send report tomorrow 11am and workout every weekend'*).\n3. Promise AI automatically extracts deadlines and frequencies, letting you create commitments and goals in 1 tap!",
             "suggested_followups": [
-                "How do Shared Goals work?",
-                "How do check-in streaks work?",
                 "What is the difference between a Goal and a Commitment?",
+                "How do Shared Goals work?",
+                "How does offline sync work?",
             ],
             "action_chips": [
-                {"label": "🎯 View Goals", "action_type": "OPEN_SHARED_GOALS"},
+                {"label": "🎙️ Voice Capture", "action_type": "OPEN_VOICE_CAPTURE"},
             ],
             "is_off_topic": False,
         }
 
-    # 12. Notifications & Quiet Hours
-    if "notification" in lower or "reminder" in lower or "quiet hours" in lower or "alert" in lower:
+    # 18. Notifications & Quiet Hours
+    if "notification" in lower or "reminder" in lower or "quiet hours" in lower or "quiet time" in lower or "alert" in lower or "kab bhejta" in lower:
         return {
-            "answer": "**Notifications & Quiet Hours:**\n\n- **Calm Alerts**: Promise sends timely reminders for morning overviews, imminent deadlines, and evening streak protection.\n- **Quiet Hours**: Configure undisturbed quiet hours from **Profile → Notifications** to mute alerts during rest hours.",
+            "answer": "**Notifications & Quiet Hours:**\n\n- **Calm Alerts**: Promise sends timely reminders for morning overviews, imminent deadlines (15m before & due time), and evening streak protection.\n- **Quiet Hours**: Configure undisturbed quiet hours from **Profile → Notifications** to mute alerts during rest hours.",
             "suggested_followups": [
                 "How does offline sync work?",
                 "What is the difference between a Goal and a Commitment?",
@@ -220,22 +314,7 @@ def _heuristic_support_bot(question: str) -> Dict[str, Any]:
             "is_off_topic": False,
         }
 
-    # 13. Privacy & Security
-    if "privacy" in lower or "security" in lower or "data" in lower or "google" in lower:
-        return {
-            "answer": "**Privacy & Data Security at Promise:**\n\n- **Zero AI Training**: Your private commitments, goals, and account details are **never** used to train AI models.\n- **Secure Google Authentication**: Sign in securely with Google OAuth without storing passwords.\n- **Instant Account Deletion**: You can permanently delete and anonymize your account at any time from Profile → Account Management.",
-            "suggested_followups": [
-                "How do I delete my account?",
-                "How does offline sync work?",
-                "What is the difference between a Goal and a Commitment?",
-            ],
-            "action_chips": [
-                {"label": "👤 Account Management", "action_type": "OPEN_PROFILE"},
-            ],
-            "is_off_topic": False,
-        }
-
-    # 14. Off-Topic / Gibberish / Random / Profanity / Non-App Questions (Polite Guardrail)
+    # 19. Off-Topic / Gibberish / Random / Profanity / Non-App Questions (Polite Guardrail)
     return {
         "answer": "I'm here exclusively as your Promise app concierge!\n\nPlease ask me anything related to using the Promise app (such as commitments, daily habits, shared goals, widgets, offline sync, voice capture, or notifications), and I'll be glad to help.",
         "suggested_followups": [

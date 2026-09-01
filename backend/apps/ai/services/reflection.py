@@ -23,6 +23,19 @@ REFLECTION_SCHEMA = {
 }
 
 
+def _heuristic_reflection(item_type: str, user_notes: Optional[str] = None) -> Dict[str, Any]:
+    """Supportive fallback advice when AI provider is unavailable."""
+    return {
+        "reflection_summary": "Progress isn't always linear. Small obstacles are natural signals to recalibrate rather than quit.",
+        "suggested_adjustments": [
+            "Reduce the initial scope (e.g. start with just 5–10 minutes).",
+            "Anchor this practice to an existing daily habit (like right after morning coffee).",
+            "Set a gentle reminder 15 minutes before your focus window.",
+        ],
+        "smaller_next_action": "Complete a single 5-minute micro-session today to restore momentum.",
+    }
+
+
 def reflect_on_stuck_item(
     user,
     item_type: str,
@@ -71,7 +84,7 @@ def reflect_on_stuck_item(
         return result
     except Exception as e:
         failure_category = e.__class__.__name__
-        raise
+        return _heuristic_reflection(item_type, user_notes)
     finally:
         latency_ms = int((time.time() - start_time) * 1000)
         record_ai_metric(

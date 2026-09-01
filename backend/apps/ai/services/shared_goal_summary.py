@@ -20,6 +20,16 @@ SHARED_GOAL_SUMMARY_SCHEMA = {
 }
 
 
+def _heuristic_shared_goal_summary(goal_title: str, total_checkins: int, active_members: int) -> Dict[str, Any]:
+    """Supportive neutral collective weekly summary when AI is unavailable."""
+    rate_str = f"{total_checkins} check-ins logged by {active_members} members" if active_members > 0 else "No active members yet"
+    return {
+        "group_summary": f"The team logged {total_checkins} check-ins this past week for {goal_title}.",
+        "collective_completion_rate": rate_str,
+        "encouragement": "Every check-in builds shared accountability and keeps team momentum strong!",
+    }
+
+
 def generate_shared_goal_weekly_summary(
     goal: Goal,
     provider: Optional[AIProvider] = None,
@@ -69,7 +79,10 @@ def generate_shared_goal_weekly_summary(
         }
     except Exception as e:
         failure_category = e.__class__.__name__
-        raise
+        return {
+            "facts": group_facts,
+            "summary": _heuristic_shared_goal_summary(goal.title, total_checkins_this_week, active_participants_count),
+        }
     finally:
         latency_ms = int((time.time() - start_time) * 1000)
         record_ai_metric(

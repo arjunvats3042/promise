@@ -360,6 +360,90 @@ object NaturalLanguageDateParser {
         }
     }
 
+    private const val ACTION_VERBS = "ask|call|send|email|mail|buy|purchase|pay|meet|submit|write|finish|clean|visit|" +
+            "schedule|pick\\s+up|pickup|order|remind|workout|exercise|meditate|drink|read|" +
+            "tell|talk|check|take|go|bring|prepare|book|complete|start|review|reply|" +
+            "get|fix|plan|organize|help|practice|contact|message|msg|whatsapp|ping|" +
+            "update|discuss|attend|listen|watch|learn|cook|eat|do|make|" +
+            "pucho|batao|baat|dekho|karo|bhejo|padho|jao|aao|karein|khareedo|dena|" +
+            "gym|water|yoga|meditation|walk|running|stretch|habit|routine|roz|daily|everyday"
+
+    fun splitCompoundThoughts(text: String): List<String> {
+        val cleaned = text.trim()
+        if (cleaned.isBlank()) return emptyList()
+
+        val coarseChunks = cleaned.split(Regex("\\r?\\n|•|\\*|(?<=\\d)\\.\\s+"))
+        val fineChunks = mutableListOf<String>()
+
+        val taskSplitPattern = Pattern.compile(
+            "(?:\\s*(?:,\\s*|\\s+)(?:and\\s+also|and\\s+then|plus\\s+also|aur\\s+bhi|aur\\s+phir|aur\\s+fir)\\s+)" +
+                    "|(?:\\s+(?:and|aur|plus|then|also)\\s+(?=(?:$ACTION_VERBS|i\\b|we\\b|mujhe\\b|hume\\b|you\\b|to\\b)))" +
+                    "|(?:\\s*,\\s*(?=(?:and\\s+|aur\\s+)?(?:$ACTION_VERBS|i\\b|we\\b|mujhe\\b|hume\\b)))" +
+                    "|(?:\\s+(?:and|aur)\\s+(?:i\\s+(?:have\\s+to|need\\s+to|must|want\\s+to|will|should|gotta|plan\\s+to))\\s+)",
+            Pattern.CASE_INSENSITIVE
+        )
+
+        val cleanPrefixRegex = Regex("^(?:and\\s+|also\\s+|then\\s+|plus\\s+|so\\s+|aur\\s+|phir\\s+)?(?:i\\s+(?:have\\s+to|need\\s+to|must|want\\s+to|will|should|gotta|plan\\s+to)\\s+)?", RegexOption.IGNORE_CASE)
+
+        for (chunk in coarseChunks) {
+            val strippedChunk = chunk.replace(Regex("^(?:[-*•]|\\d+[.)]\\s+)", RegexOption.IGNORE_CASE), "").trim()
+            if (strippedChunk.isBlank()) continue
+
+            val subTasks = taskSplitPattern.split(strippedChunk)
+            for (sub in subTasks) {
+                val subTrim = sub.trim()
+                if (subTrim.length >= 3) {
+                    val cleanedSub = cleanPrefixRegex.replace(subTrim, "").trim()
+                    if (cleanedSub.length >= 3) {
+                        fineChunks.add(cleanedSub)
+                    } else if (subTrim.isNotBlank()) {
+                        fineChunks.add(subTrim)
+                    }
+                }
+            }
+        }
+
+        return if (fineChunks.isNotEmpty()) fineChunks else listOf(cleaned)
+    }
+
+    fun decomposeAndParse(thought: String, timeZoneId: String = "Asia/Kolkata"): List<app.promise.android.domain.ParsedThoughtItem> {
+        val clauses = splitCompoundThoughts(thought)
+        val goalKeywords = setOf(
+            "daily", "every day", "everyday", "habit", "gym", "workout",
+            "water", "meditat", "read", "exercise", "walk", "stretch",
+            "practice", "routine", "weekly", "roz", "har din", "har roz",
+            "har subah", "har sham", "kasrat", "paani", "kitab", "dhyan",
+            "hafte me", "hafte mein"
+        )
+
+        return clauses.map { clause ->
+            val lower = clause.lowercase(Locale.ROOT)
+            val isGoal = goalKeywords.any { lower.contains(it) }
+            val extracted = parse(clause, timeZoneId)
+            val cleanTitle = extracted.cleanedTitle.takeIf { it.isNotBlank() } ?: clause
+
+            if (isGoal) {
+                app.promise.android.domain.ParsedThoughtItem(
+                    type = "goal",
+                    title = cleanTitle,
+                    description = "",
+                    confidence = "MEDIUM",
+                    recurrenceKind = "DAILY",
+                    trackingKind = "BINARY",
+                )
+            } else {
+                app.promise.android.domain.ParsedThoughtItem(
+                    type = "commitment",
+                    title = cleanTitle,
+                    description = "",
+                    confidence = if (extracted.dueAt != null) "HIGH" else "MEDIUM",
+                    dueAt = extracted.dueAt,
+                    duePrecision = if (extracted.duePrecision == DuePrecision.DATE) "DAY" else if (extracted.duePrecision == DuePrecision.DATETIME) "HOUR" else null,
+                )
+            }
+        }
+    }
+
     private fun findNextDayOfWeek(current: LocalDate, targetDay: DayOfWeek): LocalDate {
         var result = current.plusDays(1)
         while (result.dayOfWeek != targetDay) {

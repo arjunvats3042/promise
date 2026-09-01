@@ -153,7 +153,8 @@ fun GoalAiBuilderSheet(
                                 } catch (_: kotlinx.coroutines.CancellationException) {
                                     // Ignored silently on lifecycle/sheet cancel
                                 } catch (e: Exception) {
-                                    errorMessage = "Could not generate suggestion. Please try again."
+                                    suggestion = buildLocalGoalFallback(query)
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 } finally {
                                     isLoading = false
                                 }
@@ -378,4 +379,56 @@ fun GoalAiBuilderSheet(
             Spacer(modifier = Modifier.height(Spacing.lg))
         }
     }
+}
+
+private fun buildLocalGoalFallback(prompt: String): GoalSuggestion {
+    val lower = prompt.lowercase(java.util.Locale.ROOT)
+    val isWeekend = lower.contains("weekend") || lower.contains("sat-sun") || lower.contains("sat sun")
+    val isWeekday = lower.contains("weekday") || lower.contains("mon-fri")
+
+    val recurrence = when {
+        isWeekend || isWeekday -> "WEEKLY_DAYS"
+        lower.contains("week") -> "N_PER_PERIOD"
+        else -> "DAILY"
+    }
+    val weekdays = when {
+        isWeekend -> listOf(5, 6)
+        isWeekday -> listOf(0, 1, 2, 3, 4)
+        else -> emptyList()
+    }
+
+    val hasMinutes = Regex("(\\d+)\\s*(?:mins?|minutes?)", RegexOption.IGNORE_CASE).find(prompt)
+    val hasHours = Regex("(\\d+)\\s*(?:hrs?|hours?)", RegexOption.IGNORE_CASE).find(prompt)
+    val hasPages = Regex("(\\d+)\\s*(?:pages?)", RegexOption.IGNORE_CASE).find(prompt)
+    val hasLiters = Regex("(\\d+)\\s*(?:liters?|ltrs?)", RegexOption.IGNORE_CASE).find(prompt)
+
+    val (trackingKind, targetVal, targetUnit) = when {
+        hasMinutes != null -> Triple("COUNT", hasMinutes.groupValues[1].toDoubleOrNull(), "minutes")
+        hasHours != null -> Triple("COUNT", hasHours.groupValues[1].toDoubleOrNull(), "hours")
+        hasPages != null -> Triple("COUNT", hasPages.groupValues[1].toDoubleOrNull(), "pages")
+        hasLiters != null -> Triple("COUNT", hasLiters.groupValues[1].toDoubleOrNull(), "liters")
+        else -> Triple("BINARY", null, "")
+    }
+
+    val cleanTitle = prompt
+        .replace(Regex("^(?:wanna|want to|need to|have to|plan to|i will|start|do)\\s+", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\b(?:everyday|every day|daily|every weekday|every weekend|for a month)\\b", RegexOption.IGNORE_CASE), "")
+        .trim()
+        .replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.ROOT) else it.toString() }
+        .take(60)
+        .ifBlank { prompt.take(40) }
+
+    return GoalSuggestion(
+        status = "READY",
+        title = cleanTitle,
+        description = "Practice: $prompt",
+        recurrenceKind = recurrence,
+        weekdays = weekdays,
+        periodUnit = if (recurrence == "N_PER_PERIOD") "WEEK" else null,
+        timesPerPeriod = if (recurrence == "N_PER_PERIOD") 3 else null,
+        trackingKind = trackingKind,
+        targetValue = targetVal,
+        targetUnit = targetUnit,
+        reasoning = "Configured practice schedule from your description.",
+    )
 }

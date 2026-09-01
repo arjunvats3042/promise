@@ -88,9 +88,6 @@ fun NotificationPreferencesSection(
     preferences: NotificationPreferences?,
     onUpdate: (NotificationPreferencesPatch) -> Unit,
     modifier: Modifier = Modifier,
-    onSendTestNotification: (() -> Unit)? = null,
-    isSendingTest: Boolean = false,
-    testFeedback: String? = null,
 ) {
     val context = LocalContext.current
     val colors = PromiseThemeColors.current
@@ -324,65 +321,6 @@ fun NotificationPreferencesSection(
                                         onUpdate(NotificationPreferencesPatch(quietHoursStart = start, quietHoursEnd = end))
                                     },
                                 )
-                            }
-                        }
-
-                        // 5. Test Notification Trigger
-                        if (onSendTestNotification != null) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(Radius.md))
-                                    .background(colors.surfaceRaised)
-                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(Radius.md))
-                                    .padding(horizontal = Spacing.cardPadding, vertical = Spacing.sm),
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f).padding(end = Spacing.sm)) {
-                                            Text(
-                                                text = "Test Notification",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = colors.textPrimary,
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = "Verify alerts, sound, and heads-up banner on this device",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = colors.textSecondary,
-                                            )
-                                        }
-                                        TextButton(
-                                            onClick = onSendTestNotification,
-                                            enabled = !isSendingTest,
-                                            modifier = Modifier.heightIn(min = TouchTarget.min),
-                                        ) {
-                                            Text(
-                                                text = if (isSendingTest) "Sending..." else "Send Test",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = colors.accent,
-                                            )
-                                        }
-                                    }
-                                    if (!testFeedback.isNullOrBlank()) {
-                                        Spacer(modifier = Modifier.height(Spacing.xs))
-                                        Text(
-                                            text = testFeedback,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = if (testFeedback.startsWith("Error") || testFeedback.startsWith("Failed")) {
-                                                MaterialTheme.colorScheme.error
-                                            } else {
-                                                colors.accent
-                                            },
-                                        )
-                                    }
-                                }
                             }
                         }
                     }

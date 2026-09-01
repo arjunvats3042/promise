@@ -317,6 +317,17 @@ def _extract_date_time_from_text(text: str, timezone_str: str) -> Optional[tuple
     return None
 
 
+ACTION_VERBS = (
+    r"ask|call|send|email|mail|buy|purchase|pay|meet|submit|write|finish|clean|visit|"
+    r"schedule|pick\s+up|pickup|order|remind|workout|exercise|meditate|drink|read|"
+    r"tell|talk|check|take|go|bring|prepare|book|complete|start|review|reply|"
+    r"get|fix|plan|organize|help|practice|contact|message|msg|whatsapp|ping|"
+    r"update|discuss|attend|listen|watch|learn|cook|eat|do|make|"
+    r"pucho|batao|baat|dekho|karo|bhejo|padho|jao|aao|karein|khareedo|dena|"
+    r"gym|water|yoga|meditation|walk|running|stretch|habit|routine|roz|daily|everyday"
+)
+
+
 def _split_compound_thoughts(text: str) -> List[str]:
     """Intelligently decomposes continuous speech and run-on sentences into individual task clauses."""
     cleaned = text.strip()
@@ -327,19 +338,19 @@ def _split_compound_thoughts(text: str) -> List[str]:
     coarse_chunks = re.split(r"\r?\n|•|\*|(?<=\d)\.\s+", cleaned)
     fine_chunks = []
 
+    # 2. Lookahead pattern for splitting compound tasks without consuming subsequent action verbs:
+    task_split_pattern = (
+        rf"(?:\s*(?:,\s*|\s+)(?:and\s+also|and\s+then|plus\s+also|aur\s+bhi|aur\s+phir|aur\s+fir)\s+)"
+        rf"|(?:\s+(?:and|aur|plus|then|also)\s+(?=(?:{ACTION_VERBS}|i\b|we\b|mujhe\b|hume\b|you\b|to\b)))"
+        rf"|(?:\s*,\s*(?=(?:and\s+|aur\s+)?(?:{ACTION_VERBS}|i\b|we\b|mujhe\b|hume\b)))"
+        rf"|(?:\s+(?:and|aur)\s+(?:i\s+(?:have\s+to|need\s+to|must|want\s+to|will|should|gotta|plan\s+to))\s+)"
+    )
+
     for chunk in coarse_chunks:
         chunk = re.sub(r"^(?:[-*•]|\d+[.)]\s+)", "", chunk.strip()).strip()
         if not chunk:
             continue
 
-        # 2. Split on modal task boundaries or coordinating conjunctions:
-        # e.g. "and I have to", "also I need to", "and I must", "and call", "and send"
-        task_split_pattern = (
-            r"(?:\s+(?:and\s+)?(?:also\s+)?(?:then\s+)?(?:i\s+(?:have\s+to|need\s+to|must|want\s+to|will|should|gotta|plan\s+to))\s+)"
-            r"|(?:\s+(?:and\s+also|and\s+then|plus\s+i|aur\s+bhi|aur\s+phir|aur\s+fir|aur)\s+)"
-            r"|(?:\s*,\s*(?:and\s+|aur\s+)?(?:call|send|email|buy|pay|meet|submit|write|finish|clean|visit|schedule|pick\s+up|order|remind|workout|exercise|meditate|drink|read)\b)"
-            r"|(?:\s+(?:and|aur)\s+(?:call|send|email|buy|pay|meet|submit|write|finish|clean|visit|schedule|pick\s+up|order|remind|workout|exercise|meditate|drink|read)\b)"
-        )
         sub_tasks = re.split(task_split_pattern, chunk, flags=re.IGNORECASE)
         for sub in sub_tasks:
             if sub and sub.strip() and len(sub.strip()) >= 3:

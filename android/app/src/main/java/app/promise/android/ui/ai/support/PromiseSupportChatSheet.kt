@@ -60,6 +60,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,6 +113,14 @@ fun PromiseSupportChatSheet(
 
     val animProgress = remember { Animatable(0f) }
     var isDismissing by remember { mutableStateOf(false) }
+    var completedTypewriterIds by rememberSaveable { mutableStateOf(setOf<String>()) }
+
+    // Mark initial messages as already animated on sheet open
+    LaunchedEffect(Unit) {
+        if (uiState.messages.isNotEmpty()) {
+            completedTypewriterIds = completedTypewriterIds + uiState.messages.map { it.id }
+        }
+    }
 
     fun dismissWithMacAnimation(postAction: (() -> Unit)? = null) {
         if (isDismissing) return
@@ -232,6 +241,7 @@ fun PromiseSupportChatSheet(
                 SupportHeader(
                     onReset = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        completedTypewriterIds = emptySet()
                         viewModel.clearConversation()
                     },
                     onClose = { dismissWithMacAnimation() },
@@ -263,6 +273,10 @@ fun PromiseSupportChatSheet(
                             } else {
                                 AssistantChatCard(
                                     item = message,
+                                    isAlreadyAnimated = completedTypewriterIds.contains(message.id),
+                                    onAnimationComplete = {
+                                        completedTypewriterIds = completedTypewriterIds + message.id
+                                    },
                                     onFollowupClick = { followupQuery ->
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         viewModel.sendMessage(followupQuery)
@@ -441,21 +455,28 @@ private fun UserChatBubble(text: String) {
 @Composable
 private fun AssistantChatCard(
     item: SupportChatItem,
+    isAlreadyAnimated: Boolean = false,
+    onAnimationComplete: () -> Unit = {},
     onFollowupClick: (String) -> Unit,
     onActionClick: (String) -> Unit,
 ) {
     val colors = PromiseThemeColors.current
     val reduceMotion = rememberReduceMotion()
 
-    // Smooth Typewriter character reveal
-    var revealedChars by remember(item.id, item.text) { mutableIntStateOf(if (reduceMotion) item.text.length else 0) }
+    // Smooth Typewriter character reveal - runs strictly ONCE per new assistant response
+    var revealedChars by remember(item.id, item.text) {
+        mutableIntStateOf(if (reduceMotion || isAlreadyAnimated) item.text.length else 0)
+    }
 
-    LaunchedEffect(item.id, item.text) {
-        if (!reduceMotion && revealedChars < item.text.length) {
+    LaunchedEffect(item.id, item.text, isAlreadyAnimated) {
+        if (!reduceMotion && !isAlreadyAnimated && revealedChars < item.text.length) {
             while (revealedChars < item.text.length) {
                 revealedChars = (revealedChars + 5).coerceAtMost(item.text.length)
                 delay(12)
             }
+            onAnimationComplete()
+        } else if (!isAlreadyAnimated) {
+            onAnimationComplete()
         }
     }
 
@@ -479,7 +500,10 @@ private fun AssistantChatCard(
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = { revealedChars = item.text.length }
+                    onClick = {
+                        revealedChars = item.text.length
+                        onAnimationComplete()
+                    }
                 ),
         ) {
             Column(

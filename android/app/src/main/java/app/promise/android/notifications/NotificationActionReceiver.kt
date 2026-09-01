@@ -4,6 +4,9 @@ import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import androidx.core.app.RemoteInput
 import app.promise.android.core.events.AppEventBus
 import app.promise.android.core.events.AppMutationEvent
@@ -35,9 +38,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
         fun goalRepository(): GoalRepository
         fun authRepository(): AuthRepository
         fun appEventBus(): AppEventBus
+        fun localReminderScheduler(): LocalReminderScheduler
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
@@ -67,6 +72,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 val goalRepository = entryPoint.goalRepository()
                 val authRepository = entryPoint.authRepository()
                 val appEventBus = entryPoint.appEventBus()
+                val localReminderScheduler = entryPoint.localReminderScheduler()
 
                 if (authRepository.session.value !is SessionState.Authenticated) {
                     try {
@@ -77,14 +83,22 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 when (action) {
                     ACTION_COMPLETE_COMMITMENT -> {
                         commitmentRepository.complete(entityId)
+                        localReminderScheduler.cancelCommitmentReminder(entityId)
                         appEventBus.emit(AppMutationEvent.CommitmentCompleted(entityId))
                         PromiseWidgetUpdater.fetchAndPushWidgetData(context.applicationContext)
+                        mainHandler.post {
+                            Toast.makeText(context.applicationContext, "✓ Commitment completed", Toast.LENGTH_SHORT).show()
+                        }
                     }
                     ACTION_SNOOZE_COMMITMENT -> {
                         val snoozedUntil = Instant.now().plus(snoozeMinutes.toLong(), ChronoUnit.MINUTES).toString()
-                        commitmentRepository.snooze(entityId, snoozedUntil)
+                        val updated = commitmentRepository.snooze(entityId, snoozedUntil)
+                        localReminderScheduler.scheduleCommitmentReminder(updated)
                         appEventBus.emit(AppMutationEvent.CommitmentSnoozed(entityId))
                         PromiseWidgetUpdater.fetchAndPushWidgetData(context.applicationContext)
+                        mainHandler.post {
+                            Toast.makeText(context.applicationContext, "⏰ Snoozed for $snoozeMinutes minutes", Toast.LENGTH_SHORT).show()
+                        }
                     }
                     ACTION_CHECKIN_GOAL -> {
                         val today = LocalDate.now().toString()
@@ -97,12 +111,18 @@ class NotificationActionReceiver : BroadcastReceiver() {
                         )
                         appEventBus.emit(AppMutationEvent.GoalCheckedIn(entityId))
                         PromiseWidgetUpdater.fetchAndPushWidgetData(context.applicationContext)
+                        mainHandler.post {
+                            Toast.makeText(context.applicationContext, "🔥 Daily practice checked in!", Toast.LENGTH_SHORT).show()
+                        }
                     }
                     ACTION_REPLY_CHAT -> {
                         if (!replyText.isNullOrBlank()) {
                             val msg = goalRepository.sendChatMessage(entityId, replyText)
                             appEventBus.emit(AppMutationEvent.ChatMessageCreated(entityId, msg.id))
                             PromiseWidgetUpdater.fetchAndPushWidgetData(context.applicationContext)
+                            mainHandler.post {
+                                Toast.makeText(context.applicationContext, "💬 Reply sent", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 }

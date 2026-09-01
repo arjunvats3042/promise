@@ -29,7 +29,10 @@ class SpeechRecognitionManager @Inject constructor(
     private val _state = MutableStateFlow<SpeechRecognitionState>(SpeechRecognitionState.Idle)
     val state: StateFlow<SpeechRecognitionState> = _state.asStateFlow()
 
-    private var latestPartialText: String = ""
+    private var isActivelyListening: Boolean = false
+    private var accumulatedText: String = ""
+    private var currentSegmentPartial: String = ""
+    private var currentLocale: Locale = Locale.getDefault()
 
     fun hasRecordAudioPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
@@ -57,61 +60,98 @@ class SpeechRecognitionManager @Inject constructor(
                 return@post
             }
 
-            destroyRecognizer()
-
-            latestPartialText = ""
+            currentLocale = locale
+            isActivelyListening = true
+            accumulatedText = ""
+            currentSegmentPartial = ""
             _state.value = SpeechRecognitionState.Ready
 
-            try {
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-                    setRecognitionListener(createRecognitionListener())
-                }
+            startListeningInternal()
+        }
+    }
 
-                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                    putExtra(
-                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                    )
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale.toLanguageTag())
-                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                    putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
-                }
+    private fun startListeningInternal() {
+        if (!isActivelyListening) return
 
-                speechRecognizer?.startListening(intent)
-            } catch (e: Exception) {
+        destroyRecognizer()
+
+        try {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+                setRecognitionListener(createRecognitionListener())
+            }
+
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(
+                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+                )
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLocale.toLanguageTag())
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
+
+                // Generous 6-second silence threshold so the mic doesn't abruptly cut off between phrases
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 6000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 5000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 5000L)
+
+                // Fallback OEM compatibility keys
+                putExtra("android.speech.extras.SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS", 6000L)
+                putExtra("android.speech.extras.SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS", 5000L)
+                putExtra("android.speech.extras.SPEECH_INPUT_MINIMUM_LENGTH_MILLIS", 5000L)
+                putExtra("android.speech.extra.DICTATION_MODE", true)
+            }
+
+            speechRecognizer?.startListening(intent)
+        } catch (e: Exception) {
+            if (isActivelyListening) {
                 _state.value = SpeechRecognitionState.Error(
                     errorCode = -2,
                     message = e.localizedMessage ?: "Failed to start speech recognition.",
                 )
+                isActivelyListening = false
             }
         }
     }
 
     fun stopListening() {
         mainHandler.post {
+            isActivelyListening = false
             try {
                 speechRecognizer?.stopListening()
             } catch (_: Exception) {
             }
+
+            val fullTranscript = getFullTranscript().trim()
+            if (fullTranscript.isNotBlank()) {
+                _state.value = SpeechRecognitionState.Finished(fullTranscript)
+            } else {
+                _state.value = SpeechRecognitionState.Idle
+            }
+            destroyRecognizer()
         }
     }
 
     fun cancelListening() {
         mainHandler.post {
+            isActivelyListening = false
             try {
                 speechRecognizer?.cancel()
             } catch (_: Exception) {
             }
             destroyRecognizer()
+            accumulatedText = ""
+            currentSegmentPartial = ""
             _state.value = SpeechRecognitionState.Idle
         }
     }
 
     fun reset() {
         mainHandler.post {
+            isActivelyListening = false
             destroyRecognizer()
-            latestPartialText = ""
+            accumulatedText = ""
+            currentSegmentPartial = ""
             _state.value = SpeechRecognitionState.Idle
         }
     }
@@ -124,104 +164,137 @@ class SpeechRecognitionManager @Inject constructor(
         speechRecognizer = null
     }
 
+    private fun getFullTranscript(): String {
+        return when {
+            accumulatedText.isBlank() -> currentSegmentPartial
+            currentSegmentPartial.isBlank() -> accumulatedText
+            else -> "$accumulatedText $currentSegmentPartial"
+        }.trim()
+    }
+
     private fun createRecognitionListener(): RecognitionListener {
         return object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {
-                _state.value = SpeechRecognitionState.Listening(
-                    rmsNormalized = 0f,
-                    partialText = latestPartialText,
-                )
+                if (isActivelyListening) {
+                    _state.value = SpeechRecognitionState.Listening(
+                        rmsNormalized = 0f,
+                        partialText = getFullTranscript(),
+                    )
+                }
             }
 
             override fun onBeginningOfSpeech() {
-                _state.value = SpeechRecognitionState.Listening(
-                    rmsNormalized = 0.1f,
-                    partialText = latestPartialText,
-                )
+                if (isActivelyListening) {
+                    _state.value = SpeechRecognitionState.Listening(
+                        rmsNormalized = 0.1f,
+                        partialText = getFullTranscript(),
+                    )
+                }
             }
 
             override fun onRmsChanged(rmsdB: Float) {
-                // rmsdB typically ranges from -2dB (silence) to ~10dB (loud speech).
-                // Normalize smoothly to a 0.0f..1.0f range.
-                val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
-                val currentState = _state.value
-                if (currentState is SpeechRecognitionState.Listening) {
-                    _state.value = currentState.copy(rmsNormalized = normalized)
+                if (isActivelyListening) {
+                    val normalized = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+                    val currentState = _state.value
+                    if (currentState is SpeechRecognitionState.Listening) {
+                        _state.value = currentState.copy(rmsNormalized = normalized)
+                    }
                 }
             }
 
             override fun onBufferReceived(buffer: ByteArray?) {}
 
             override fun onEndOfSpeech() {
-                // Speech ended; waiting for final recognition results
+                // Speech pause detected. Recognizer handles silence threshold or restarts for continuous capture.
             }
 
             override fun onError(error: Int) {
+                if (!isActivelyListening) return
+
+                // If it's just silence timeout or temporary pause between phrases, seamlessly restart listening
+                if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                    if (isActivelyListening) {
+                        mainHandler.postDelayed({
+                            if (isActivelyListening) {
+                                startListeningInternal()
+                            }
+                        }, 200)
+                        return
+                    }
+                }
+
+                if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY || error == SpeechRecognizer.ERROR_CLIENT) {
+                    mainHandler.postDelayed({
+                        if (isActivelyListening) {
+                            startListeningInternal()
+                        }
+                    }, 300)
+                    return
+                }
+
                 val message = when (error) {
                     SpeechRecognizer.ERROR_AUDIO -> "Audio recording error. Please check your microphone."
-                    SpeechRecognizer.ERROR_CLIENT -> "Client error occurred."
                     SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission is required."
                     SpeechRecognizer.ERROR_NETWORK -> "Network connection error."
                     SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout. Please try again."
-                    SpeechRecognizer.ERROR_NO_MATCH -> {
-                        if (latestPartialText.isNotBlank()) {
-                            // If we caught partial results before NO_MATCH, treat partial text as final
-                            _state.value = SpeechRecognitionState.Finished(latestPartialText.trim())
-                            destroyRecognizer()
-                            return
-                        } else {
-                            "No speech detected. Tap the mic to try again."
-                        }
-                    }
-                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Speech recognizer is busy. Retrying..."
                     SpeechRecognizer.ERROR_SERVER -> "Server error. Please try again."
-                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
-                        if (latestPartialText.isNotBlank()) {
-                            _state.value = SpeechRecognitionState.Finished(latestPartialText.trim())
-                            destroyRecognizer()
-                            return
-                        } else {
-                            "No speech detected before timeout."
-                        }
-                    }
                     else -> "Speech recognition error ($error)."
                 }
 
-                _state.value = SpeechRecognitionState.Error(
-                    errorCode = error,
-                    message = message,
-                )
+                val currentFull = getFullTranscript()
+                if (currentFull.isNotBlank()) {
+                    _state.value = SpeechRecognitionState.Finished(currentFull)
+                } else {
+                    _state.value = SpeechRecognitionState.Error(
+                        errorCode = error,
+                        message = message,
+                    )
+                }
+                isActivelyListening = false
                 destroyRecognizer()
             }
 
             override fun onResults(results: Bundle?) {
+                if (!isActivelyListening) return
+
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val text = matches?.firstOrNull()?.takeIf { it.isNotBlank() } ?: latestPartialText
-                if (text.isNotBlank()) {
-                    _state.value = SpeechRecognitionState.Finished(text.trim())
-                } else {
-                    _state.value = SpeechRecognitionState.Error(
-                        errorCode = SpeechRecognizer.ERROR_NO_MATCH,
-                        message = "No speech detected. Tap the mic to try again.",
-                    )
+                val text = matches?.firstOrNull()?.trim()
+                if (!text.isNullOrBlank()) {
+                    accumulatedText = if (accumulatedText.isBlank()) text else "$accumulatedText $text"
+                    currentSegmentPartial = ""
                 }
-                destroyRecognizer()
+
+                val fullText = getFullTranscript()
+                if (isActivelyListening) {
+                    // Update listening state and keep the microphone open for further speech
+                    _state.value = SpeechRecognitionState.Listening(
+                        rmsNormalized = 0f,
+                        partialText = fullText,
+                    )
+                    mainHandler.postDelayed({
+                        if (isActivelyListening) {
+                            startListeningInternal()
+                        }
+                    }, 150)
+                } else {
+                    if (fullText.isNotBlank()) {
+                        _state.value = SpeechRecognitionState.Finished(fullText)
+                    }
+                    destroyRecognizer()
+                }
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
+                if (!isActivelyListening) return
+
                 val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                val text = matches?.firstOrNull()
+                val text = matches?.firstOrNull()?.trim()
                 if (!text.isNullOrBlank()) {
-                    latestPartialText = text
-                    val currentState = _state.value
-                    if (currentState is SpeechRecognitionState.Listening) {
-                        _state.value = currentState.copy(partialText = text)
-                    } else {
-                        _state.value = SpeechRecognitionState.Listening(
-                            rmsNormalized = 0.2f,
-                            partialText = text,
-                        )
-                    }
+                    currentSegmentPartial = text
+                    _state.value = SpeechRecognitionState.Listening(
+                        rmsNormalized = 0.2f,
+                        partialText = getFullTranscript(),
+                    )
                 }
             }
 

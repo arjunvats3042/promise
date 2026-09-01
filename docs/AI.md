@@ -107,24 +107,33 @@ The AI layer utilizes structured JSON schema definitions. All raw LLM text outpu
 
 ---
 
-## 6. Promise Support Concierge Chatbot
+## 6. Promise Support Concierge Chatbot & Knowledge Engine
 
 Promise includes an interactive, intelligent **Concierge Guide** (`POST /api/v1/ai/support/ask/`) that answers user questions regarding the application:
 
 1. **Domain Grounding & Knowledge Injection**:
-   - Full context grounding in `PROMISE_SUPPORT_BOT_PROMPT_V1`: Commitments (one-time tasks) vs Goals (recurring habits), Goal / Commitment creation procedures (Method 1: Manual `+`, Method 2: Voice Quick Capture), Shared Goals & Room Chat, Offline-first Room DB synchronization, Glance widgets, Push Notifications, 4-step direct Account Deletion, and Zero AI Data Training privacy guarantees.
+   - Full context grounding in `PROMISE_SUPPORT_BOT_PROMPT_V1`:
+     - **App Overview**: Calm, local-first productivity system balancing one-time commitments and recurring goal practices.
+     - **Commitments vs Goals**: One-time tasks with precision deadlines vs recurring habit practices.
+     - **Personal Goals vs Shared Goals**: Private 1-person habits vs collaborative multi-member group habits with shared streaks and room chat.
+     - **Teammate Privacy Guarantee**: Strict architectural isolation — teammates in a Shared Goal can **never** see private commitments, personal habits, or other goals.
+     - **Goal Lifecycle**: Creating, pausing (retaining past streaks/history), and deleting/leaving goals.
+     - **Uninstallation & Account Deletion**: Guiding users to wipe local and cloud data from Profile → Account Management before uninstalling.
+     - **Group Chat AI Summary**: 1-tap `✨ AI Summary` inside shared room chat to catch up on member discussions.
+     - **AI Privacy & Zero Training**: Ephemeral inference guarantee with zero model training.
+     - **Notifications & Quiet Hours**: 15-minute advance alerts, morning briefs, evening streak protection, and customizable rest windows.
 2. **MacBook-Style Exact-Origin Zoom Window**:
    - The support window dynamically blooms outward directly from the floating orb's screen coordinates `(originX, originY)` using bouncy spring physics (`Spring.DampingRatioLowBouncy`, `Spring.StiffnessMediumLow`), scaling from `0.12f` to `1.0f` with frosted scrim fade.
    - On dismissal (close button, backdrop tap, or Android system back button), the sheet smoothly shrinks and collapses back into the orb.
 3. **1-Tap Action Deep-Link Badges (`SupportActionChip`)**:
-   - Structured action badges returned in `action_chips` (`CREATE_GOAL`, `CREATE_COMMITMENT`, `OPEN_THEME`, `OPEN_SHARED_GOALS`, `OPEN_PROFILE`, `OPEN_VOICE_CAPTURE`) render below responses.
+   - Structured action badges returned in `action_chips` (`CREATE_GOAL`, `CREATE_COMMITMENT`, `OPEN_THEME`, `OPEN_SHARED_GOALS`, `OPEN_PROFILE`, `OPEN_VOICE_CAPTURE`, `OPEN_NOTIFICATIONS`) render below responses.
    - 1 tap smoothly closes the chat window and navigates directly to the designated tab or creation sheet.
 4. **0ms Instant Local-First Resolution**:
-   - Frequently asked questions and follow-up suggestion chips (*"Goal vs. Commitment difference"*, *"How can I create a goal?"*, *"How does offline sync work?"*, *"How do Shared Goals work?"*, etc.) resolve **instantly in 0ms** from an in-memory knowledge store in `PromiseSupportViewModel`, bypassing network latency and eliminating loading spinners.
+   - Frequently asked questions and follow-up suggestion chips (*"What is Promise?"*, *"Can teammates see my private commitments?"*, *"Goal vs. Commitment difference"*, *"How do Shared Goals work?"*, *"How to quit a goal?"*, etc.) resolve **instantly in 0ms** from an in-memory knowledge store in `PromiseSupportViewModel`, bypassing network latency and eliminating loading spinners.
 5. **Smooth Typewriter Stream Rendering**:
    - Text streams in naturally character-by-character with calibrated cadence and tap-to-skip support.
 6. **Strict Guardrails for Off-Topic Queries**:
-   - Off-topic questions (e.g. trivia, homework, general coding, or profanities) set `is_off_topic = true` and politely redirect the user back to Promise capabilities with recommended exploration chips.
+   - Truly off-topic questions (e.g. trivia, homework, general coding, or profanities) set `is_off_topic = true` and politely redirect the user back to Promise capabilities with recommended exploration chips.
 7. **Floating Concierge Orb (`FloatingPromiseConciergeOrb.kt`)**:
    - Globally accessible floating assistant circle with spring-snapping physics (snaps to screen edges with natural damping), ambient radial breathing glow, live status micro-dot, and tactile haptic feedback.
 
@@ -136,3 +145,17 @@ Promise includes an interactive, intelligent **Concierge Guide** (`POST /api/v1/
 - **Pseudonymous Context Only**: Prompts receive only necessary entity metadata (e.g. title, target frequency, completion percentage). User identity, email addresses, phone numbers, and cryptographic keys are never sent to the LLM.
 - **Prompt Injection Defense**: User-supplied input is wrapped in isolated, delimited text blocks with explicit system instructions prohibiting override of output schemas or system roles.
 - **Failure Isolation & Graceful Fallbacks**: If Gemini is unreachable or rate-limited, fallback services take over seamlessly to guarantee continuous service availability.
+
+---
+
+## 8. Interactive Notifications & Quiet Hours Architecture
+
+1. **Interactive Notification Actions**:
+   - **✓ Complete**: Directly completes a commitment from the notification shade, dismisses the alert, cancels remaining local exact alarms, updates home screen widgets, and triggers instant UI Toast feedback.
+   - **⏰ Snooze**: Postpones commitment by 60 minutes, reschedules local reminder alarm, and provides instant Toast confirmation.
+   - **✓ Check In**: Logs daily goal completion, preserves active streak, and updates Glance widgets.
+   - **💬 Quick Reply**: RemoteInput inline chat reply inside Shared Goal message notifications.
+2. **Quiet Hours (Do Not Disturb Window)**:
+   - Full configuration restored in **Profile → Notifications & Reminders**.
+   - Allows users to specify start and end rest times (e.g., 10:00 PM – 8:00 AM) to mute non-urgent notifications during sleep.
+   - Device notification test trigger cleanly removed from the profile interface for a clutter-free production surface.
