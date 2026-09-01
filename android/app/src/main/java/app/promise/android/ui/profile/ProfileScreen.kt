@@ -64,7 +64,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -290,27 +292,10 @@ fun ProfileScreen(
                 )
                 Spacer(modifier = Modifier.height(Spacing.xs))
 
-                PromiseCardSurface {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    ) {
-                        ThemeOptionTile(
-                            title = "Light",
-                            icon = Icons.Outlined.LightMode,
-                            selected = mode == PromiseThemeMode.Light,
-                            onSelect = { viewModel.setMode(PromiseThemeMode.Light) },
-                            modifier = Modifier.weight(1f),
-                        )
-                        ThemeOptionTile(
-                            title = "Dark",
-                            icon = Icons.Outlined.DarkMode,
-                            selected = mode == PromiseThemeMode.Dark,
-                            onSelect = { viewModel.setMode(PromiseThemeMode.Dark) },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
+                PromiseThemeSelector(
+                    mode = mode,
+                    onSelectMode = { viewModel.setMode(it) },
+                )
 
                 Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
@@ -999,51 +984,153 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun ThemeOptionTile(
+private fun PromiseThemeSelector(
+    mode: PromiseThemeMode,
+    onSelectMode: (PromiseThemeMode) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = PromiseThemeColors.current
+    val haptics = LocalHapticFeedback.current
+
+    PromiseCardSurface(modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            // Header Info Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm + 2.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(Radius.sm))
+                            .background(colors.accent.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = if (mode == PromiseThemeMode.Dark) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "Theme Mode",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textPrimary,
+                        )
+                        Text(
+                            text = if (mode == PromiseThemeMode.Dark) "Deep night contrast" else "Warm daytime brightness",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
+                }
+
+                PromiseStatusChip(
+                    label = if (mode == PromiseThemeMode.Dark) "Dark" else "Light",
+                    isAccent = true,
+                )
+            }
+
+            PromiseHairlineDivider()
+
+            // Precision Segmented Control Pill
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(Radius.pill))
+                    .background(colors.surfaceMuted)
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                        RoundedCornerShape(Radius.pill),
+                    )
+                    .padding(4.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    ThemeSegmentItem(
+                        title = "Light",
+                        icon = Icons.Outlined.LightMode,
+                        selected = mode == PromiseThemeMode.Light,
+                        onClick = {
+                            if (mode != PromiseThemeMode.Light) {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onSelectMode(PromiseThemeMode.Light)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    ThemeSegmentItem(
+                        title = "Dark",
+                        icon = Icons.Outlined.DarkMode,
+                        selected = mode == PromiseThemeMode.Dark,
+                        onClick = {
+                            if (mode != PromiseThemeMode.Dark) {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onSelectMode(PromiseThemeMode.Dark)
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeSegmentItem(
     title: String,
     icon: ImageVector,
     selected: Boolean,
-    onSelect: () -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = PromiseThemeColors.current
     val bg by animateColorAsState(
-        targetValue = if (selected) colors.accent.copy(alpha = 0.14f) else colors.surfaceMuted,
+        targetValue = if (selected) colors.surfaceRaised else Color.Transparent,
         animationSpec = Motion.standardTween(Motion.FilterChangeMs),
-        label = "theme-bg",
+        label = "theme-segment-bg",
     )
     val border by animateColorAsState(
-        targetValue = if (selected) colors.accent.copy(alpha = 0.45f) else Color.Transparent,
+        targetValue = if (selected) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f) else Color.Transparent,
         animationSpec = Motion.standardTween(Motion.FilterChangeMs),
-        label = "theme-border",
+        label = "theme-segment-border",
     )
     val fg by animateColorAsState(
         targetValue = if (selected) colors.accent else colors.textSecondary,
         animationSpec = Motion.standardTween(Motion.FilterChangeMs),
-        label = "theme-fg",
+        label = "theme-segment-fg",
     )
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(Radius.md))
+            .heightIn(min = TouchTarget.min)
+            .clip(RoundedCornerShape(Radius.pill))
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(Radius.md))
+            .border(1.dp, border, RoundedCornerShape(Radius.pill))
             .pressScale(0.96f)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(color = colors.accent),
-                onClick = onSelect,
+                onClick = onClick,
             )
-            .padding(horizontal = Spacing.md, vertical = Spacing.md)
-            .semantics {
-                role = Role.RadioButton
-                this.selected = selected
-            },
+            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
         contentAlignment = Alignment.Center,
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs + 2.dp),
         ) {
             Icon(
                 imageVector = icon,
@@ -1053,18 +1140,10 @@ private fun ThemeOptionTile(
             )
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.labelLarge,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 color = fg,
             )
-            if (selected) {
-                Icon(
-                    imageVector = Icons.Outlined.Check,
-                    contentDescription = null,
-                    tint = colors.accent,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
         }
     }
 }

@@ -80,6 +80,7 @@ import app.promise.android.ui.components.PromiseCardSurface
 import app.promise.android.ui.components.PromiseErrorBanner
 import app.promise.android.ui.components.PromiseGoalHero
 import app.promise.android.ui.components.PromiseHairlineDivider
+import app.promise.android.ui.components.PromiseHistoryCalendar
 import app.promise.android.ui.components.PromiseLinearProgressBar
 import app.promise.android.ui.components.PromiseMicroLabel
 import app.promise.android.ui.components.PromisePrimaryButton
@@ -427,9 +428,9 @@ private fun DetailContent(
 
         Spacer(modifier = Modifier.height(Spacing.lg))
 
-        // Hero Progress Card
+        // Hero Progress Card (Daily Status & Focus)
         PromiseGoalHero(
-            sectionLabel = if (goal.isShared) "YOUR PROGRESS" else if (goal.trackingKind == GoalTrackingKind.COUNT) "WEEKLY PROGRESS" else "CONSISTENCY",
+            sectionLabel = if (goal.isShared) "TEAM TODAY" else "TODAY'S STATUS",
             primaryProgressText = GoalPresentation.progressLine(goal),
             progressFraction = GoalPresentation.progressFraction(goal),
             progressSubtitle = GoalPresentation.streakLine(goal)?.let { "$it streak" },
@@ -752,35 +753,24 @@ private fun DetailContent(
 
         Spacer(modifier = Modifier.height(Spacing.section))
         PromiseSectionHeader(
-            title = "History",
-            subtitle = if (ui.checkIns.isNotEmpty()) "${ui.checkIns.size} check-ins" else null,
+            title = "History & Check-ins",
+            subtitle = if (ui.checkIns.isNotEmpty()) "${ui.checkIns.size} check-ins recorded" else null,
         )
         Spacer(modifier = Modifier.height(Spacing.sm))
         if (ui.checkIns.isEmpty()) {
-            Text(
-                text = "No check-ins yet.",
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
-            )
-        } else {
-            // Weekly history grid — 4 weeks of check-in dots
             PromiseCardSurface {
-                app.promise.android.ui.components.PromiseWeeklyHistoryGrid(
-                    checkIns = ui.checkIns,
+                Text(
+                    text = "No check-ins recorded yet. Complete your first check-in above to start your activity history.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.textSecondary,
                 )
             }
-
-            // Timeline detail rows below the grid
-            Spacer(modifier = Modifier.height(Spacing.md))
-            PromiseSectionHeader(
-                title = "Details",
+        } else {
+            PromiseHistoryCalendar(
+                checkIns = ui.checkIns,
+                trackingKind = goal.trackingKind,
+                targetValue = goal.targetValue,
             )
-            Spacer(modifier = Modifier.height(Spacing.xs))
-            Column {
-                ui.checkIns.take(10).forEach { row ->
-                    HistoryRow(row)
-                }
-            }
         }
         Spacer(modifier = Modifier.height(Spacing.xxl))
     }
@@ -975,19 +965,6 @@ private fun InlineCheckIn(
     }
 }
 
-@Composable
-private fun HistoryRow(checkIn: GoalCheckIn) {
-    val status = when (checkIn.status) {
-        GoalCheckInStatus.COMPLETED -> "Done"
-        GoalCheckInStatus.SKIPPED -> "Skipped"
-    }
-    val valuePart = checkIn.value?.let { " · $it" }.orEmpty()
-    PromiseTimelineItem(
-        title = status + valuePart,
-        timestamp = checkIn.periodDate,
-        isCompleted = checkIn.status == GoalCheckInStatus.COMPLETED,
-    )
-}
 
 @Composable
 private fun ConfirmDialog(

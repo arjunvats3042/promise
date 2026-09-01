@@ -21,19 +21,32 @@ object GoalPresentation {
         }
     }
 
+    /**
+     * Clear daily status line representing today's execution reality.
+     */
     fun progressLine(goal: Goal): String {
-        val week = goal.progress.weekProgress
-        val required = week.required
-        val completed = week.completed
-        return if (required > 0) {
-            "$completed / $required this week"
-        } else {
-            val current = goal.progress.currentPeriod
-            if (current.required > 0) {
-                "$completed / ${current.required} today"
-            } else {
-                "No check-in expected today"
+        val current = goal.progress.currentPeriod
+        val isDueToday = current.required > 0
+        val isCompletedToday = isDueToday && current.completed >= current.required
+
+        return when {
+            goal.status == GoalStatus.PAUSED -> "Goal is paused"
+            goal.status == GoalStatus.COMPLETED -> "Goal completed"
+            goal.status == GoalStatus.CANCELLED -> "Goal cancelled"
+            goal.trackingKind == GoalTrackingKind.COUNT -> {
+                val target = goal.targetValue ?: 1
+                val value = current.value ?: 0
+                if (isCompletedToday) {
+                    "Today: Done ✓ ($value / $target)"
+                } else if (isDueToday) {
+                    "Today: $value of $target target"
+                } else {
+                    "Rest day today"
+                }
             }
+            isCompletedToday -> "Today: Completed ✓"
+            isDueToday -> "Today: Pending check-in"
+            else -> "Rest day today"
         }
     }
 
@@ -67,17 +80,17 @@ object GoalPresentation {
     }
 
     fun collectiveLine(goal: Goal): String? {
+        val summary = goal.groupSummary
+        if (summary != null) {
+            return "Team: ${summary.todayCompletedCount} of ${summary.activeParticipantsCount} completed today"
+        }
         val collective = goal.collectiveProgress ?: return null
-        val week = collective.weekProgress
-        return if (week.required > 0) {
-            "Everyone: ${week.completed}/${week.required} this week"
+        val current = collective.currentPeriod
+        return if (current.required > 0) {
+            "Team: ${current.completed}/${current.required} completed today"
         } else {
-            val current = collective.currentPeriod
-            if (current.required > 0) {
-                "Everyone: ${current.completed}/${current.required} today"
-            } else {
-                null
-            }
+            val week = collective.weekProgress
+            if (week.required > 0) "Team: ${week.completed}/${week.required} this week" else null
         }
     }
 
@@ -102,9 +115,17 @@ object GoalPresentation {
     }
 
     fun progressFraction(goal: Goal): Float {
-        val week = goal.progress.weekProgress
-        if (week.required <= 0) return 0f
-        return (week.completed.toFloat() / week.required.toFloat()).coerceIn(0f, 1f)
+        val current = goal.progress.currentPeriod
+        if (current.required <= 0) {
+            val week = goal.progress.weekProgress
+            return if (week.required > 0) (week.completed.toFloat() / week.required.toFloat()).coerceIn(0f, 1f) else 0f
+        }
+        if (goal.trackingKind == GoalTrackingKind.COUNT) {
+            val target = (goal.targetValue ?: 1).toFloat()
+            val value = (current.value ?: 0).toFloat()
+            return (value / target).coerceIn(0f, 1f)
+        }
+        return if (current.completed >= current.required) 1f else 0f
     }
 
     private fun weekdayShort(iso: Int): String = when (iso) {
