@@ -223,6 +223,9 @@ data class GoalCheckIn(
     val checkedAt: String,
     val createdAt: String,
     val updatedAt: String,
+    val userId: String = "",
+    val userName: String = "",
+    val userAvatarUrl: String? = null,
 )
 
 enum class ChatMessageDeliveryStatus {

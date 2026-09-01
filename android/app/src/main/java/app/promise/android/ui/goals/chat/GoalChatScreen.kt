@@ -37,7 +37,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -68,7 +67,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
@@ -86,7 +84,6 @@ import app.promise.android.domain.ChatMessageDeliveryStatus
 import app.promise.android.domain.GoalStatus
 import app.promise.android.ui.components.AvatarSize
 import app.promise.android.ui.components.PromiseAvatar
-import app.promise.android.ui.components.PromiseAvatarStack
 import app.promise.android.ui.components.PromiseCardSurface
 import app.promise.android.ui.components.PromiseHairlineDivider
 import app.promise.android.ui.home.HomeViewModel
@@ -95,13 +92,13 @@ import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
-import app.promise.android.ui.theme.bouncyClickable
 import app.promise.android.ui.theme.pressScale
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -174,7 +171,7 @@ fun GoalChatScreen(
                                 onValueChange = viewModel::onSearchQueryChange,
                                 placeholder = {
                                     Text(
-                                        "Search in conversation…",
+                                        "Search in room…",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = colors.textSecondary,
                                     )
@@ -198,9 +195,10 @@ fun GoalChatScreen(
                                     focusedContainerColor = colors.surfaceMuted,
                                     unfocusedContainerColor = colors.surfaceMuted,
                                     focusedBorderColor = colors.accent,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                    unfocusedBorderColor = Color.Transparent,
                                     focusedTextColor = colors.textPrimary,
                                     unfocusedTextColor = colors.textPrimary,
+                                    cursorColor = colors.accent,
                                 ),
                             )
                         }
@@ -275,6 +273,31 @@ fun GoalChatScreen(
                                         style = MaterialTheme.typography.labelSmall,
                                         color = colors.textSecondary,
                                     )
+                                }
+                            }
+
+                            // Team DP Avatars Stack in Top Bar
+                            val participants = state.goal?.participants.orEmpty()
+                            if (participants.isNotEmpty()) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy((-6).dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(end = Spacing.xs),
+                                ) {
+                                    participants.take(3).forEach { participant ->
+                                        val initials = HomeViewModel.initialsFor(participant.userName.ifBlank { "User" })
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(CircleShape)
+                                                .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                                        ) {
+                                            PromiseAvatar(
+                                                initials = initials,
+                                                photoPath = participant.avatarUrl,
+                                                size = AvatarSize.SM,
+                                            )
+                                        }
+                                    }
                                 }
                             }
 
@@ -363,7 +386,7 @@ fun GoalChatScreen(
                                     .weight(1f)
                                     .border(
                                         1.dp,
-                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.6f),
+                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
                                         RoundedCornerShape(Radius.xl),
                                     ),
                                 shape = RoundedCornerShape(Radius.xl),
@@ -378,14 +401,14 @@ fun GoalChatScreen(
                                     },
                                     placeholder = {
                                         Text(
-                                            "Send encouragement or update…",
+                                            "Message…",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = colors.textSecondary,
                                         )
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(min = 46.dp, max = 120.dp)
+                                        .heightIn(min = 44.dp, max = 120.dp)
                                         .semantics { contentDescription = "Message input" },
                                     shape = RoundedCornerShape(Radius.xl),
                                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
@@ -410,7 +433,7 @@ fun GoalChatScreen(
 
                             Box(
                                 modifier = Modifier
-                                    .size(46.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
                                     .background(sendBg)
                                     .pressScale(targetScale = 0.90f, enabled = canSend)
@@ -429,7 +452,7 @@ fun GoalChatScreen(
                                     Icons.AutoMirrored.Outlined.Send,
                                     contentDescription = null,
                                     tint = sendFg,
-                                    modifier = Modifier.size(20.dp),
+                                    modifier = Modifier.size(18.dp),
                                 )
                             }
                         }
@@ -565,9 +588,9 @@ fun GoalChatScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
                             horizontal = Spacing.screenHorizontal,
-                            vertical = Spacing.md,
+                            vertical = Spacing.sm,
                         ),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         itemsIndexed(
                             items = state.messages,
@@ -575,45 +598,61 @@ fun GoalChatScreen(
                         ) { index, message ->
                             val isMe = message.sender.id.isNotBlank() && message.sender.id == currentUserId
 
-                            // Check consecutive clustering
-                            val isNextSameSender = if (index > 0) {
-                                val nextMsg = state.messages[index - 1]
-                                nextMsg.sender.id == message.sender.id &&
-                                    areWithinMinutes(message.createdAt, nextMsg.createdAt, 5)
+                            // Consecutive clustering:
+                            // In reverse layout: index 0 is newest, index N is oldest.
+                            // index + 1 is OLDER than current message.
+                            // index - 1 is NEWER than current message.
+                            val isOlderSameSender = if (index < state.messages.size - 1) {
+                                val olderMsg = state.messages[index + 1]
+                                olderMsg.sender.id == message.sender.id &&
+                                    isSameDay(olderMsg.createdAt, message.createdAt) &&
+                                    areWithinMinutes(olderMsg.createdAt, message.createdAt, 5)
                             } else false
 
-                            val isPrevSameSender = if (index < state.messages.size - 1) {
-                                val prevMsg = state.messages[index + 1]
-                                prevMsg.sender.id == message.sender.id &&
-                                    areWithinMinutes(prevMsg.createdAt, message.createdAt, 5)
+                            val isNewerSameSender = if (index > 0) {
+                                val newerMsg = state.messages[index - 1]
+                                newerMsg.sender.id == message.sender.id &&
+                                    isSameDay(message.createdAt, newerMsg.createdAt) &&
+                                    areWithinMinutes(message.createdAt, newerMsg.createdAt, 5)
                             } else false
+
+                            val isFirstInGroup = !isOlderSameSender
+                            val isLastInGroup = !isNewerSameSender
+
+                            // Check if date header should appear ABOVE this message:
+                            // If it's the oldest message in chat, or if the older message is on a different day.
+                            val shouldShowDateHeader = if (index == state.messages.size - 1) {
+                                true
+                            } else {
+                                val olderMsg = state.messages[index + 1]
+                                !isSameDay(message.createdAt, olderMsg.createdAt)
+                            }
 
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .animateItem(),
                             ) {
+                                // Placed FIRST inside Column so in screen coordinates it is visually ABOVE the message
+                                if (shouldShowDateHeader) {
+                                    Spacer(modifier = Modifier.height(Spacing.md))
+                                    ChatDateSeparator(dateIso = message.createdAt)
+                                    Spacer(modifier = Modifier.height(Spacing.sm))
+                                }
+
+                                if (isFirstInGroup && !shouldShowDateHeader) {
+                                    Spacer(modifier = Modifier.height(Spacing.xs))
+                                }
+
                                 ChatMessageBubble(
                                     message = message,
                                     isMe = isMe,
-                                    showSenderHeader = !isMe && !isPrevSameSender,
-                                    showAvatar = !isMe && !isNextSameSender,
+                                    showSenderHeader = !isMe && isFirstInGroup,
+                                    showAvatar = !isMe && isLastInGroup,
+                                    isFirstInGroup = isFirstInGroup,
+                                    isLastInGroup = isLastInGroup,
                                     onRetry = { viewModel.retryMessage(message.id) },
                                 )
-
-                                // Check if we should show date separator above this message
-                                val shouldShowDateHeader = if (index == state.messages.size - 1) {
-                                    true // oldest message always gets a date header
-                                } else {
-                                    val olderMsg = state.messages[index + 1]
-                                    !isSameDay(message.createdAt, olderMsg.createdAt)
-                                }
-
-                                if (shouldShowDateHeader) {
-                                    Spacer(modifier = Modifier.height(Spacing.sm))
-                                    ChatDateSeparator(dateIso = message.createdAt)
-                                    Spacer(modifier = Modifier.height(Spacing.xs))
-                                }
                             }
                         }
 
@@ -686,27 +725,41 @@ fun GoalChatScreen(
                                 ) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                                        verticalAlignment = Alignment.Top,
                                     ) {
-                                        Text(
-                                            text = result.sender.name,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            color = colors.accent,
-                                            fontWeight = FontWeight.SemiBold,
+                                        val initials = HomeViewModel.initialsFor(result.sender.name.ifBlank { "User" })
+                                        PromiseAvatar(
+                                            initials = initials,
+                                            photoPath = result.sender.avatarUrl,
+                                            size = AvatarSize.SM,
                                         )
-                                        Text(
-                                            text = formatShortDate(result.createdAt),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = colors.textSecondary,
-                                        )
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically,
+                                            ) {
+                                                Text(
+                                                    text = result.sender.name,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = colors.accent,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                )
+                                                Text(
+                                                    text = formatShortDate(result.createdAt),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = colors.textSecondary,
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = result.snippet,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = colors.textPrimary,
+                                            )
+                                        }
                                     }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = result.snippet,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = colors.textPrimary,
-                                    )
                                 }
                             }
                         }
@@ -743,13 +796,14 @@ private fun ChatDateSeparator(dateIso: String) {
                     MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
                     RoundedCornerShape(Radius.pill),
                 )
-                .padding(horizontal = Spacing.md, vertical = 3.dp),
+                .padding(horizontal = Spacing.md, vertical = 4.dp),
         ) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textSecondary,
+                fontSize = 11.sp,
             )
         }
     }
@@ -761,30 +815,36 @@ private fun ChatMessageBubble(
     isMe: Boolean,
     showSenderHeader: Boolean,
     showAvatar: Boolean,
+    isFirstInGroup: Boolean,
+    isLastInGroup: Boolean,
     onRetry: () -> Unit,
 ) {
     val colors = PromiseThemeColors.current
     val alignment = if (isMe) Alignment.End else Alignment.Start
 
+    // Dynamic asymmetric corner radii based on grouping
     val bubbleShape = if (isMe) {
         RoundedCornerShape(
-            topStart = 18.dp,
-            topEnd = 18.dp,
-            bottomStart = 18.dp,
-            bottomEnd = 4.dp,
+            topStart = 16.dp,
+            topEnd = if (isFirstInGroup) 16.dp else 4.dp,
+            bottomStart = 16.dp,
+            bottomEnd = if (isLastInGroup) 16.dp else 4.dp,
         )
     } else {
         RoundedCornerShape(
-            topStart = 18.dp,
-            topEnd = 18.dp,
-            bottomStart = 4.dp,
-            bottomEnd = 18.dp,
+            topStart = if (isFirstInGroup) 16.dp else 4.dp,
+            topEnd = 16.dp,
+            bottomStart = if (isLastInGroup) 16.dp else 4.dp,
+            bottomEnd = 16.dp,
         )
     }
 
-    val bubbleBg = if (isMe) colors.primaryControl else colors.surfaceMuted
-    val textFg = if (isMe) colors.onPrimaryControl else colors.textPrimary
-    val metaFg = if (isMe) colors.onPrimaryControl.copy(alpha = 0.65f) else colors.textSecondary
+    // Rich color hierarchy:
+    // Sent: Clean brand accent with crisp white typography in both Light and Dark themes
+    // Received: Elevated surfaceRaised with subtle edge border
+    val bubbleBg = if (isMe) colors.accent else colors.surfaceRaised
+    val textFg = if (isMe) Color.White else colors.textPrimary
+    val metaFg = if (isMe) Color.White.copy(alpha = 0.72f) else colors.textSecondary
 
     Row(
         modifier = Modifier
@@ -800,14 +860,17 @@ private fun ChatMessageBubble(
                     initials = initials,
                     photoPath = message.sender.avatarUrl,
                     size = AvatarSize.SM,
-                    modifier = Modifier.padding(end = Spacing.xs, bottom = 2.dp),
+                    modifier = Modifier.padding(end = Spacing.xs, bottom = 1.dp),
                 )
             } else {
                 Spacer(modifier = Modifier.width(28.dp + Spacing.xs))
             }
         }
 
-        Column(horizontalAlignment = alignment) {
+        Column(
+            horizontalAlignment = alignment,
+            modifier = Modifier.widthIn(max = 290.dp),
+        ) {
             if (showSenderHeader && message.sender.name.isNotBlank()) {
                 Text(
                     text = message.sender.name,
@@ -815,6 +878,7 @@ private fun ChatMessageBubble(
                     fontWeight = FontWeight.SemiBold,
                     color = colors.accent,
                     modifier = Modifier.padding(start = Spacing.xs, bottom = 2.dp),
+                    fontSize = 11.sp,
                 )
             }
 
@@ -830,16 +894,21 @@ private fun ChatMessageBubble(
                 shape = bubbleShape,
                 color = bubbleBg,
                 border = if (!isMe) {
-                    BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.40f))
                 } else null,
                 modifier = Modifier
-                    .fillMaxWidth(0.82f)
+                    .widthIn(min = 52.dp, max = 290.dp)
                     .semantics(mergeDescendants = true) {
                         contentDescription = accessibilityLabel
                     },
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                    modifier = Modifier.padding(
+                        start = Spacing.md,
+                        end = Spacing.md,
+                        top = Spacing.xs + 2.dp,
+                        bottom = Spacing.xs,
+                    ),
                 ) {
                     Text(
                         text = message.body,
@@ -847,7 +916,7 @@ private fun ChatMessageBubble(
                         color = textFg,
                         lineHeight = 20.sp,
                     )
-                    Spacer(modifier = Modifier.height(3.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Row(
                         modifier = Modifier.align(Alignment.End),
                         verticalAlignment = Alignment.CenterVertically,
@@ -928,12 +997,14 @@ private fun formatHeaderDate(isoString: String): String {
         val instant = Instant.parse(isoString)
         val date = instant.atZone(ZoneId.systemDefault()).toLocalDate()
         val today = LocalDate.now(ZoneId.systemDefault())
-        when (ChronoUnit.DAYS.between(date, today)) {
-            0L -> "Today"
-            1L -> "Yesterday"
-            else -> DateTimeFormatter.ofPattern("EEE, MMM d").format(date)
+        val yesterday = today.minusDays(1)
+        when {
+            date == today -> "Today"
+            date == yesterday -> "Yesterday"
+            date.year == today.year -> DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault()).format(date)
+            else -> DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault()).format(date)
         }
-    }.getOrDefault("")
+    }.getOrDefault("Today")
 }
 
 private fun isSameDay(iso1: String, iso2: String): Boolean {
@@ -951,4 +1022,3 @@ private fun areWithinMinutes(iso1: String, iso2: String, minutes: Long): Boolean
         kotlin.math.abs(ChronoUnit.MINUTES.between(i1, i2)) <= minutes
     }.getOrDefault(false)
 }
-

@@ -357,6 +357,22 @@ class GoalCheckInSerializer(serializers.ModelSerializer):
             # Redact note if the viewer is not the author of this check-in and not the owner
             if instance.created_by_id != request.user.id and instance.goal.created_by_id != request.user.id:
                 data["note"] = ""
+
+        user = None
+        if instance.participant and getattr(instance.participant, "user", None):
+            user = instance.participant.user
+        elif instance.created_by:
+            user = instance.created_by
+
+        if user:
+            data["user_id"] = str(user.id)
+            data["user_name"] = user.name
+            data["user_avatar_url"] = user.avatar_url
+        else:
+            data["user_id"] = str(instance.created_by_id) if instance.created_by_id else ""
+            data["user_name"] = ""
+            data["user_avatar_url"] = None
+
         return data
 
 

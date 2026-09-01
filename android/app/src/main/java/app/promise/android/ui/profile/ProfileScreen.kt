@@ -5,12 +5,14 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,10 +24,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.Logout
@@ -45,6 +49,8 @@ import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.TrackChanges
 import androidx.compose.material.icons.outlined.Widgets
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -81,7 +87,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.promise.android.BuildConfig
 import app.promise.android.domain.UserSession
-import app.promise.android.ui.auth.GreetingClock
+import app.promise.android.ui.ai.support.PromiseSupportChatSheet
 import app.promise.android.ui.components.AvatarSize
 import app.promise.android.ui.components.PromiseAvatar
 import app.promise.android.ui.components.PromiseCardSurface
@@ -92,6 +98,7 @@ import app.promise.android.ui.components.PromiseStatusChip
 import app.promise.android.ui.components.TabSwipeContainer
 import app.promise.android.ui.home.HomeViewModel
 import app.promise.android.ui.navigation.LocalTabSwipeHost
+import app.promise.android.ui.theme.Elevation
 import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.PromiseThemeMode
@@ -100,7 +107,6 @@ import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
 import app.promise.android.ui.theme.pressScale
 import app.promise.android.widget.PromiseGlanceWidgetPinHelper
-import java.util.Calendar
 
 data class FaqItem(
     val question: String,
@@ -174,9 +180,6 @@ fun ProfileScreen(
     val name = user?.name?.takeIf { it.isNotBlank() } ?: "—"
     val email = user?.email.orEmpty()
     val initials = HomeViewModel.initialsFor(if (name == "—") "there" else name)
-    val greeting = GreetingClock.greetingForHour(
-        Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
-    )
 
     TabSwipeContainer(
         currentIndex = swipeHost?.currentIndex ?: 4,
@@ -199,7 +202,7 @@ fun ProfileScreen(
                     .padding(horizontal = Spacing.screenHorizontal)
                     .padding(top = Spacing.sm, bottom = Spacing.xxl),
             ) {
-                // 1. HERO PROFILE CARD
+                // 1. HERO PROFILE CARD (Clean Avatar & Name)
                 val effectivePhoto = photoUri ?: user?.avatarUrl
                 PromiseCardSurface(
                     onClick = {
@@ -242,21 +245,6 @@ fun ProfileScreen(
                         }
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(Radius.pill))
-                                    .background(colors.accent.copy(alpha = 0.12f))
-                                    .padding(horizontal = Spacing.sm, vertical = 2.dp),
-                            ) {
-                                Text(
-                                    text = greeting.uppercase(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = colors.accent,
-                                    letterSpacing = 0.8.sp,
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(Spacing.xxs))
                             Text(
                                 text = name,
                                 style = MaterialTheme.typography.headlineMedium,
@@ -265,41 +253,19 @@ fun ProfileScreen(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            Spacer(modifier = Modifier.height(Spacing.xxs))
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = email.ifBlank { "Signed in with Google" },
+                                text = "Tap photo to change",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
                             )
                         }
-
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = colors.textSecondary,
-                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
-                // 2. APPEARANCE SECTION
-                PromiseSectionHeader(
-                    title = "Appearance",
-                    subtitle = "Customize application theme and contrast",
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-
-                PromiseThemeSelector(
-                    mode = mode,
-                    onSelectMode = { viewModel.setMode(it) },
-                )
-
-                Spacer(modifier = Modifier.height(Spacing.sectionGap))
-
-                // 3. NOTIFICATIONS SECTION
+                // 2. NOTIFICATIONS SECTION
                 NotificationPreferencesSection(
                     preferences = preferences,
                     onUpdate = { patch -> viewModel.updatePreferences(patch) },
@@ -310,65 +276,7 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
-                // 4. SECURITY & IDENTITY SECTION
-                PromiseSectionHeader(
-                    title = "Security & Identity",
-                    subtitle = "Account credentials and authentication provider",
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-
-                PromiseCardSurface {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(RoundedCornerShape(Radius.md))
-                                    .background(colors.accent.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Shield,
-                                    contentDescription = null,
-                                    tint = colors.accent,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            }
-                            Column {
-                                Text(
-                                    text = "Google Account",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = colors.textPrimary,
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = email.ifBlank { "Connected" },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.textSecondary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                        PromiseStatusChip(
-                            label = "Connected",
-                            isAccent = true,
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(Spacing.sectionGap))
-
-                // 5. HOME SCREEN GLANCE WIDGETS
+                // 3. HOME SCREEN GLANCE WIDGETS
                 PromiseSectionHeader(
                     title = "Home Screen Widgets",
                     subtitle = "1-tap interactive Glance widgets for habits and capture",
@@ -489,7 +397,65 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
-                // 6. DEVICES & ACTIVE SESSIONS
+                // 4. SECURITY & IDENTITY SECTION
+                PromiseSectionHeader(
+                    title = "Security & Identity",
+                    subtitle = "Account credentials and authentication provider",
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+
+                PromiseCardSurface {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(Radius.md))
+                                    .background(colors.accent.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Shield,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Google Account",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.textPrimary,
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = email.ifBlank { "Connected" },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        PromiseStatusChip(
+                            label = "Connected",
+                            isAccent = true,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
+
+                // 5. ACTIVE DEVICES & SESSIONS
                 PromiseSectionHeader(
                     title = "Active Devices",
                     subtitle = "${sessions.size} connected session${if (sessions.size != 1) "s" else ""}",
@@ -584,35 +550,7 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
-                // 7. HELP & KNOWLEDGE BASE
-                PromiseSectionHeader(
-                    title = "Help & FAQ",
-                    subtitle = "Product concepts, AI privacy, and local-first architecture",
-                )
-                Spacer(modifier = Modifier.height(Spacing.xs))
-
-                PromiseCardSurface {
-                    Column {
-                        PROMISE_FAQS.forEachIndexed { index, item ->
-                            if (index > 0) {
-                                Spacer(modifier = Modifier.height(Spacing.xs))
-                                PromiseHairlineDivider()
-                                Spacer(modifier = Modifier.height(Spacing.xs))
-                            }
-                            FaqAccordionRow(
-                                item = item,
-                                expanded = expandedFaqIndex == index,
-                                onToggle = {
-                                    expandedFaqIndex = if (expandedFaqIndex == index) null else index
-                                },
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(Spacing.sectionGap))
-
-                // 8. ACCOUNT MANAGEMENT (DANGER ZONE)
+                // 7. ACCOUNT MANAGEMENT (DANGER ZONE)
                 PromiseSectionHeader(
                     title = "Account Management",
                     subtitle = "Sign out sessions and manage account termination",
@@ -704,6 +642,7 @@ fun ProfileScreen(
                                     style = MaterialTheme.typography.bodyLarge,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.error,
+                                    fontSize = 15.sp,
                                 )
                                 Text(
                                     text = "Permanently wipe habits, commitments and data",
@@ -719,6 +658,20 @@ fun ProfileScreen(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
+
+                // 8. THEME & APPEARANCE SECTION (Positioned Last as Requested)
+                PromiseSectionHeader(
+                    title = "Appearance",
+                    subtitle = "Customize application theme and contrast",
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+
+                PromiseThemeSelector(
+                    mode = mode,
+                    onSelectMode = { viewModel.setMode(it) },
+                )
 
                 Spacer(modifier = Modifier.height(Spacing.xxl))
 
@@ -827,14 +780,14 @@ fun ProfileScreen(
             onDismissRequest = { showRevokeOtherDialog = false },
             title = {
                 Text(
-                    text = "Sign out all other devices?",
+                    text = "Sign out other devices?",
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
             },
             text = {
                 Text(
-                    text = "This will sign out all other devices while keeping your current session active.",
+                    text = "This will revoke all active sessions on your other phones and browsers, keeping you signed in here.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.textSecondary,
                 )
@@ -864,14 +817,14 @@ fun ProfileScreen(
             onDismissRequest = { sessionToRevoke = null },
             title = {
                 Text(
-                    text = "Sign out device?",
+                    text = "Revoke session?",
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
             },
             text = {
                 Text(
-                    text = "Are you sure you want to sign out ${session.deviceName}?",
+                    text = "Sign out from ${session.deviceName} (${session.platform})?",
                     style = MaterialTheme.typography.bodyMedium,
                     color = colors.textSecondary,
                 )
@@ -1041,10 +994,11 @@ private fun PromiseThemeSelector(
 
             PromiseHairlineDivider()
 
-            // Precision Segmented Control Pill
-            Box(
+            // Smooth Fluid Sliding Segmented Controller
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .height(48.dp)
                     .clip(RoundedCornerShape(Radius.pill))
                     .background(colors.surfaceMuted)
                     .border(
@@ -1054,11 +1008,36 @@ private fun PromiseThemeSelector(
                     )
                     .padding(4.dp),
             ) {
+                val totalWidth = maxWidth
+                val segmentWidth = (totalWidth - 4.dp) / 2
+                val targetOffset = if (mode == PromiseThemeMode.Light) 0.dp else segmentWidth + 4.dp
+                val indicatorOffset by animateDpAsState(
+                    targetValue = targetOffset,
+                    animationSpec = Motion.fluidSpring(),
+                    label = "theme-slider-offset",
+                )
+
+                // Smooth sliding indicator pill
+                Box(
+                    modifier = Modifier
+                        .padding(start = indicatorOffset)
+                        .width(segmentWidth)
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(Radius.pill))
+                        .background(colors.surfaceRaised)
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                            RoundedCornerShape(Radius.pill),
+                        ),
+                )
+
+                // Interactive Segment Buttons
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    ThemeSegmentItem(
+                    ThemeSegmentButton(
                         title = "Light",
                         icon = Icons.Outlined.LightMode,
                         selected = mode == PromiseThemeMode.Light,
@@ -1070,7 +1049,7 @@ private fun PromiseThemeSelector(
                         },
                         modifier = Modifier.weight(1f),
                     )
-                    ThemeSegmentItem(
+                    ThemeSegmentButton(
                         title = "Dark",
                         icon = Icons.Outlined.DarkMode,
                         selected = mode == PromiseThemeMode.Dark,
@@ -1089,7 +1068,7 @@ private fun PromiseThemeSelector(
 }
 
 @Composable
-private fun ThemeSegmentItem(
+private fun ThemeSegmentButton(
     title: String,
     icon: ImageVector,
     selected: Boolean,
@@ -1097,16 +1076,6 @@ private fun ThemeSegmentItem(
     modifier: Modifier = Modifier,
 ) {
     val colors = PromiseThemeColors.current
-    val bg by animateColorAsState(
-        targetValue = if (selected) colors.surfaceRaised else Color.Transparent,
-        animationSpec = Motion.standardTween(Motion.FilterChangeMs),
-        label = "theme-segment-bg",
-    )
-    val border by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.outline.copy(alpha = 0.5f) else Color.Transparent,
-        animationSpec = Motion.standardTween(Motion.FilterChangeMs),
-        label = "theme-segment-border",
-    )
     val fg by animateColorAsState(
         targetValue = if (selected) colors.accent else colors.textSecondary,
         animationSpec = Motion.standardTween(Motion.FilterChangeMs),
@@ -1115,17 +1084,13 @@ private fun ThemeSegmentItem(
 
     Box(
         modifier = modifier
-            .heightIn(min = TouchTarget.min)
+            .fillMaxSize()
             .clip(RoundedCornerShape(Radius.pill))
-            .background(bg)
-            .border(1.dp, border, RoundedCornerShape(Radius.pill))
-            .pressScale(0.96f)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = colors.accent),
+                indication = null,
                 onClick = onClick,
-            )
-            .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Row(
@@ -1166,9 +1131,9 @@ private fun GlanceWidgetCatalogItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.cardPadding),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1178,7 +1143,7 @@ private fun GlanceWidgetCatalogItem(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(RoundedCornerShape(Radius.sm))
+                        .clip(CircleShape)
                         .background(colors.accent.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -1196,7 +1161,6 @@ private fun GlanceWidgetCatalogItem(
                         fontWeight = FontWeight.SemiBold,
                         color = colors.textPrimary,
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = description,
                         style = MaterialTheme.typography.bodySmall,
@@ -1204,12 +1168,144 @@ private fun GlanceWidgetCatalogItem(
                     )
                 }
             }
-            if (PromiseGlanceWidgetPinHelper.isPinSupported(LocalContext.current)) {
+            Spacer(modifier = Modifier.width(Spacing.xs))
+            TextButton(
+                onClick = onPin,
+                modifier = Modifier.heightIn(min = TouchTarget.min),
+            ) {
+                Text(
+                    text = "Add +",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.accent,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationPreferencesSection(
+    preferences: app.promise.android.domain.NotificationPreferences?,
+    onUpdate: (app.promise.android.domain.NotificationPreferencesPatch) -> Unit,
+    onSendTestNotification: () -> Unit,
+    isSendingTest: Boolean,
+    testFeedback: String?,
+) {
+    val colors = PromiseThemeColors.current
+
+    PromiseSectionHeader(
+        title = "Notifications",
+        subtitle = "Quiet, intentional reminders for your promises",
+    )
+    Spacer(modifier = Modifier.height(Spacing.xs))
+
+    PromiseCardSurface {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            if (preferences != null && preferences.quietHoursEnabled) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.sm))
+                        .background(colors.accent.copy(alpha = 0.12f)),
+                    color = colors.accent.copy(alpha = 0.12f),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.DarkMode,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            text = "Quiet hours active (${preferences.quietHoursStart} – ${preferences.quietHoursEnd})",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.accent,
+                        )
+                    }
+                }
+            }
+
+            NotificationToggleRow(
+                title = "Morning brief",
+                subtitle = "Summary of today's focus and scheduled practices",
+                checked = preferences?.goalsTodayPractice ?: true,
+                onCheckedChange = { checked ->
+                    onUpdate(app.promise.android.domain.NotificationPreferencesPatch(goalsTodayPractice = checked))
+                },
+            )
+
+            PromiseHairlineDivider()
+
+            NotificationToggleRow(
+                title = "Commitment due alerts",
+                subtitle = "Timely heads-up when high-priority tasks approach deadline",
+                checked = preferences?.commitmentsDueSoon ?: true,
+                onCheckedChange = { checked ->
+                    onUpdate(app.promise.android.domain.NotificationPreferencesPatch(commitmentsDueSoon = checked))
+                },
+            )
+
+            PromiseHairlineDivider()
+
+            NotificationToggleRow(
+                title = "Evening streak protection",
+                subtitle = "Gentle reminder if any daily goals remain pending",
+                checked = preferences?.goalsStreakProtection ?: true,
+                onCheckedChange = { checked ->
+                    onUpdate(app.promise.android.domain.NotificationPreferencesPatch(goalsStreakProtection = checked))
+                },
+            )
+
+            PromiseHairlineDivider()
+
+            NotificationToggleRow(
+                title = "Shared goal room messages",
+                subtitle = "Incoming chat notes and check-in celebrations from teammates",
+                checked = preferences?.sharedGoalsChat ?: true,
+                onCheckedChange = { checked ->
+                    onUpdate(app.promise.android.domain.NotificationPreferencesPatch(sharedGoalsChat = checked))
+                },
+            )
+
+            PromiseHairlineDivider()
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Device notification test",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.textPrimary,
+                    )
+                    testFeedback?.let { feedback ->
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = feedback,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (feedback.contains("sent", ignoreCase = true)) colors.success else colors.accent,
+                        )
+                    }
+                }
                 TextButton(
-                    onClick = onPin,
+                    onClick = onSendTestNotification,
+                    enabled = !isSendingTest,
                     modifier = Modifier.heightIn(min = TouchTarget.min),
                 ) {
-                    Text("Add", color = colors.accent, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isSendingTest) "Sending…" else "Send test",
+                        color = colors.accent,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }
@@ -1217,59 +1313,127 @@ private fun GlanceWidgetCatalogItem(
 }
 
 @Composable
-fun FaqAccordionRow(
+private fun NotificationToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = Spacing.xxs)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "$title, ${if (checked) "enabled" else "disabled"}"
+                role = Role.Switch
+                selected = checked
+            },
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = colors.textPrimary,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.textSecondary,
+            )
+        }
+
+        Spacer(modifier = Modifier.width(Spacing.md))
+
+        // Tactile custom switch pill
+        val switchTrackBg by animateColorAsState(
+            targetValue = if (checked) colors.accent else colors.surfaceMuted,
+            animationSpec = Motion.standardTween(Motion.FilterChangeMs),
+            label = "switch-track-bg",
+        )
+        val switchThumbOffset by animateDpAsState(
+            targetValue = if (checked) 20.dp else 2.dp,
+            animationSpec = Motion.fluidSpring(),
+            label = "switch-thumb-offset",
+        )
+
+        Box(
+            modifier = Modifier
+                .width(44.dp)
+                .height(26.dp)
+                .clip(RoundedCornerShape(13.dp))
+                .background(switchTrackBg)
+                .border(
+                    1.dp,
+                    if (checked) colors.accent else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                    RoundedCornerShape(13.dp),
+                )
+                .padding(horizontal = 1.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(start = switchThumbOffset)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .border(0.5.dp, Color.Black.copy(alpha = 0.1f), CircleShape),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FaqAccordionRow(
     item: FaqItem,
     expanded: Boolean,
     onToggle: () -> Unit,
 ) {
     val colors = PromiseThemeColors.current
-    val stateDescription = if (expanded) "expanded" else "collapsed"
-    val semanticsDesc = "${item.question}, $stateDescription. Double tap to toggle."
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize(animationSpec = Motion.standardTween(Motion.CompletionMs))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(color = colors.accent),
                 onClick = onToggle,
             )
-            .semantics(mergeDescendants = true) {
-                contentDescription = semanticsDesc
-            },
+            .padding(vertical = Spacing.xs),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = TouchTarget.min)
-                .padding(vertical = Spacing.xs),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = item.question,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            Spacer(modifier = Modifier.width(Spacing.sm))
             Icon(
                 imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                contentDescription = null,
+                contentDescription = if (expanded) "Collapse answer" else "Expand answer",
                 tint = colors.textSecondary,
                 modifier = Modifier.size(20.dp),
             )
         }
+
         if (expanded) {
             Spacer(modifier = Modifier.height(Spacing.xs))
             Text(
                 text = item.answer,
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
-                modifier = Modifier.padding(bottom = Spacing.md),
-                lineHeight = 22.sp,
+                lineHeight = 20.sp,
             )
         }
     }

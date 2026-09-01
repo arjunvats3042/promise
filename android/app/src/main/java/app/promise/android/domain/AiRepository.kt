@@ -10,4 +10,9 @@ interface AiRepository {
     suspend fun reflectOnItem(itemType: String, itemId: String? = null, notes: String? = null): ReflectionCoaching
     suspend fun getSharedGoalSummary(goalId: String): SharedGoalAiSummary
     suspend fun summarizeChat(goalId: String, limit: Int = 50): GoalChatAiSummary
+    suspend fun askSupportBot(
+        question: String,
+        conversationHistory: List<SupportBotMessage> = emptyList(),
+        timezone: String = "Asia/Kolkata",
+    ): SupportBotAnswer
 }

@@ -1,8 +1,11 @@
 package app.promise.android.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,9 +17,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,13 +31,17 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.FormatQuote
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -50,9 +60,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import app.promise.android.domain.GoalCheckIn
 import app.promise.android.domain.GoalCheckInStatus
+import app.promise.android.domain.GoalParticipant
+import app.promise.android.domain.GoalParticipantRole
 import app.promise.android.domain.GoalTrackingKind
+import app.promise.android.ui.home.HomeViewModel
+import app.promise.android.ui.theme.Elevation
 import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
@@ -69,15 +84,18 @@ import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
 
 /**
- * Interactive Monthly History Calendar with past check-in inspection.
- * Allows users to browse past months and tap any date to inspect check-in notes,
- * exact timestamps, logged values, and completion status.
+ * Interactive Monthly History Calendar with multi-member inspection popover.
+ * Allows users to browse past months and tap any date to open a detailed day popover
+ * showing check-in notes, exact timestamps, logged values, and each member's status in shared goals.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PromiseHistoryCalendar(
     checkIns: List<GoalCheckIn>,
     trackingKind: GoalTrackingKind = GoalTrackingKind.BINARY,
     targetValue: Int? = null,
+    participants: List<GoalParticipant> = emptyList(),
+    isShared: Boolean = false,
     modifier: Modifier = Modifier,
     initialDate: LocalDate = LocalDate.now(),
 ) {
@@ -87,12 +105,14 @@ fun PromiseHistoryCalendar(
 
     var currentMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
     var selectedDate by remember { mutableStateOf(initialDate) }
+    var showDayDetailSheet by remember { mutableStateOf(false) }
 
-    val checkInMap = remember(checkIns) {
-        checkIns.associateBy { it.periodDate }
+    // Map date -> list of check-ins on that date
+    val checkInsByDate = remember(checkIns) {
+        checkIns.groupBy { it.periodDate }
     }
 
-    val selectedCheckIn = checkInMap[selectedDate.toString()]
+    val selectedDateCheckIns = checkInsByDate[selectedDate.toString()].orEmpty()
     val monthTitle = remember(currentMonth) {
         currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()))
     }
@@ -133,7 +153,7 @@ fun PromiseHistoryCalendar(
                     )
                     if (currentMonth != YearMonth.from(today)) {
                         Text(
-                            text = "Tap to return to current month",
+                            text = "Tap to return to today",
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.accent,
                             modifier = Modifier
@@ -214,7 +234,7 @@ fun PromiseHistoryCalendar(
                             if (dayNumber in 1..daysInMonth) {
                                 val date = currentMonth.atDay(dayNumber)
                                 val dateStr = date.toString()
-                                val checkIn = checkInMap[dateStr]
+                                val dayCheckIns = checkInsByDate[dateStr].orEmpty()
                                 val isSelected = date == selectedDate
                                 val isToday = date == today
                                 val isFuture = date.isAfter(today)
@@ -222,13 +242,15 @@ fun PromiseHistoryCalendar(
                                 CalendarDayCell(
                                     day = dayNumber,
                                     date = date,
-                                    checkIn = checkIn,
+                                    dayCheckIns = dayCheckIns,
+                                    totalParticipants = if (isShared && participants.isNotEmpty()) participants.size else 1,
                                     isSelected = isSelected,
                                     isToday = isToday,
                                     isFuture = isFuture,
                                     onClick = {
                                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         selectedDate = date
+                                        showDayDetailSheet = true
                                     },
                                     modifier = Modifier.weight(1f),
                                 )
@@ -256,144 +278,46 @@ fun PromiseHistoryCalendar(
             }
         }
 
-        // 5. Selected Day Detail Inspector Card
-        AnimatedContent(
-            targetState = selectedDate,
-            transitionSpec = { fadeIn(Motion.standardTween(Motion.FilterChangeMs)) togetherWith fadeOut(Motion.standardTween(Motion.FilterChangeMs)) },
-            label = "dayInspection",
-        ) { date ->
-            val dateFormatted = remember(date) {
-                date.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.getDefault()))
-            }
-            val checkIn = checkInMap[date.toString()]
-            val isToday = date == today
-            val isFuture = date.isAfter(today)
+        // 5. Inline Selected Day Detail Card (Instant Glance)
+        DayDetailCard(
+            date = selectedDate,
+            dayCheckIns = selectedDateCheckIns,
+            participants = participants,
+            isShared = isShared,
+            trackingKind = trackingKind,
+            targetValue = targetValue,
+            onOpenFullDetails = { showDayDetailSheet = true },
+        )
+    }
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.lg))
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), RoundedCornerShape(Radius.lg)),
-                color = colors.surfaceRaised,
-            ) {
-                Column(
+    // 6. Smooth Day Detail Modal Sheet (Interactive Popover)
+    if (showDayDetailSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showDayDetailSheet = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(topStart = Radius.xl, topEnd = Radius.xl),
+            dragHandle = {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(Spacing.cardPadding),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = dateFormatted,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colors.textPrimary,
-                            )
-                            if (isToday) {
-                                Text(
-                                    text = "Today",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = colors.accent,
-                                )
-                            }
-                        }
-
-                        when {
-                            isFuture -> {
-                                PromiseStatusChip(label = "Upcoming", isAccent = false)
-                            }
-                            checkIn?.status == GoalCheckInStatus.COMPLETED -> {
-                                PromiseStatusChip(label = "Completed ✓", isAccent = true)
-                            }
-                            checkIn?.status == GoalCheckInStatus.SKIPPED -> {
-                                PromiseStatusChip(label = "Skipped", isWarning = true)
-                            }
-                            isToday -> {
-                                PromiseStatusChip(label = "Pending Today", isAccent = false)
-                            }
-                            else -> {
-                                PromiseStatusChip(label = "No Check-in", isAccent = false)
-                            }
-                        }
-                    }
-
-                    if (checkIn != null) {
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-                        PromiseHairlineDivider()
-                        Spacer(modifier = Modifier.height(Spacing.sm))
-
-                        // Check-in Timestamp & Target Details
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Schedule,
-                                contentDescription = null,
-                                tint = colors.textSecondary,
-                                modifier = Modifier.size(16.dp),
-                            )
-                            val timeLabel = formatCheckInTime(checkIn.checkedAt.ifBlank { checkIn.createdAt })
-                            Text(
-                                text = if (timeLabel.isNotBlank()) "Checked in at $timeLabel" else "Check-in recorded",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.textSecondary,
-                            )
-
-                            if (trackingKind == GoalTrackingKind.COUNT && checkIn.value != null) {
-                                Text(
-                                    text = "· Value: ${checkIn.value}${targetValue?.let { " of $it target" } ?: ""}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = colors.accent,
-                                )
-                            }
-                        }
-
-                        // Reflection Note if present
-                        if (checkIn.note.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(Spacing.xs + 2.dp))
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(Radius.sm))
-                                    .background(colors.surfaceMuted),
-                                color = colors.surfaceMuted,
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(Spacing.sm),
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.FormatQuote,
-                                        contentDescription = null,
-                                        tint = colors.accent,
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                    Text(
-                                        text = checkIn.note,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = colors.textPrimary,
-                                    )
-                                }
-                            }
-                        }
-                    } else if (!isFuture && !isToday) {
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        Text(
-                            text = "No check-in was recorded for this day.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.textSecondary,
-                        )
-                    }
-                }
-            }
+                        .padding(vertical = Spacing.sm)
+                        .width(36.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(colors.textSecondary.copy(alpha = 0.4f)),
+                )
+            },
+        ) {
+            DayDetailSheetContent(
+                date = selectedDate,
+                dayCheckIns = selectedDateCheckIns,
+                participants = participants,
+                isShared = isShared,
+                trackingKind = trackingKind,
+                targetValue = targetValue,
+                onClose = { showDayDetailSheet = false },
+            )
         }
     }
 }
@@ -402,7 +326,8 @@ fun PromiseHistoryCalendar(
 private fun CalendarDayCell(
     day: Int,
     date: LocalDate,
-    checkIn: GoalCheckIn?,
+    dayCheckIns: List<GoalCheckIn>,
+    totalParticipants: Int,
     isSelected: Boolean,
     isToday: Boolean,
     isFuture: Boolean,
@@ -419,7 +344,7 @@ private fun CalendarDayCell(
 
     val borderColor = when {
         isSelected -> colors.accent
-        isToday -> colors.accent.copy(alpha = 0.5f)
+        isToday -> colors.accent.copy(alpha = 0.6f)
         else -> Color.Transparent
     }
 
@@ -430,10 +355,13 @@ private fun CalendarDayCell(
         else -> colors.textPrimary
     }
 
+    val completedCount = dayCheckIns.count { it.status == GoalCheckInStatus.COMPLETED }
+    val skippedCount = dayCheckIns.count { it.status == GoalCheckInStatus.SKIPPED }
+
     Box(
         modifier = modifier
             .padding(1.dp)
-            .size(38.dp)
+            .height(44.dp)
             .clip(RoundedCornerShape(Radius.sm))
             .background(cellBg)
             .border(1.dp, borderColor, RoundedCornerShape(Radius.sm))
@@ -444,7 +372,7 @@ private fun CalendarDayCell(
                 onClick = onClick,
             )
             .semantics {
-                contentDescription = "Day $day, ${if (checkIn != null) "Completed" else "No check-in"}"
+                contentDescription = "Day $day, $completedCount of $totalParticipants completed"
             },
         contentAlignment = Alignment.Center,
     ) {
@@ -454,38 +382,560 @@ private fun CalendarDayCell(
         ) {
             Text(
                 text = day.toString(),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
                 color = textColor,
-                fontSize = 12.sp,
+                fontSize = 13.sp,
             )
 
             if (!isFuture) {
-                Spacer(modifier = Modifier.height(1.dp))
-                when (checkIn?.status) {
-                    GoalCheckInStatus.COMPLETED -> {
-                        Box(
-                            modifier = Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(colors.accent),
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    when {
+                        completedCount > 0 -> {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.accent),
+                            )
+                            if (completedCount > 1) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(5.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.accent.copy(alpha = 0.6f)),
+                                )
+                            }
+                        }
+                        skippedCount > 0 -> {
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.error.copy(alpha = 0.8f)),
+                            )
+                        }
+                        else -> {
+                            Box(
+                                modifier = Modifier
+                                    .size(3.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.textSecondary.copy(alpha = 0.25f)),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayDetailCard(
+    date: LocalDate,
+    dayCheckIns: List<GoalCheckIn>,
+    participants: List<GoalParticipant>,
+    isShared: Boolean,
+    trackingKind: GoalTrackingKind,
+    targetValue: Int?,
+    onOpenFullDetails: () -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+    val today = remember { LocalDate.now() }
+    val isToday = date == today
+    val isFuture = date.isAfter(today)
+
+    val dateFormatted = remember(date) {
+        date.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.getDefault()))
+    }
+
+    val completedCheckIns = dayCheckIns.filter { it.status == GoalCheckInStatus.COMPLETED }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.lg))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f), RoundedCornerShape(Radius.lg))
+            .clickable(onClick = onOpenFullDetails),
+        color = colors.surfaceRaised,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.cardPadding),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = dateFormatted,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary,
+                    )
+                    if (isToday) {
+                        Text(
+                            text = "Today",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.accent,
                         )
                     }
-                    GoalCheckInStatus.SKIPPED -> {
-                        Box(
-                            modifier = Modifier
-                                .size(5.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.8f)),
+                }
+
+                when {
+                    isFuture -> {
+                        PromiseStatusChip(label = "Upcoming", isAccent = false)
+                    }
+                    isShared && participants.isNotEmpty() -> {
+                        val activeMembers = participants.size
+                        PromiseStatusChip(
+                            label = "${completedCheckIns.size}/$activeMembers Done",
+                            isAccent = completedCheckIns.size == activeMembers,
                         )
+                    }
+                    completedCheckIns.isNotEmpty() -> {
+                        PromiseStatusChip(label = "Completed ✓", isAccent = true)
+                    }
+                    dayCheckIns.any { it.status == GoalCheckInStatus.SKIPPED } -> {
+                        PromiseStatusChip(label = "Skipped", isWarning = true)
+                    }
+                    isToday -> {
+                        PromiseStatusChip(label = "Pending Today", isAccent = false)
                     }
                     else -> {
-                        Box(
-                            modifier = Modifier
-                                .size(3.dp)
-                                .clip(CircleShape)
-                                .background(colors.textSecondary.copy(alpha = 0.25f)),
+                        PromiseStatusChip(label = "No Check-in", isAccent = false)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            PromiseHairlineDivider()
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            if (isShared && participants.isNotEmpty()) {
+                // Shared goal: member check-in breakdown
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                    participants.forEach { participant ->
+                        val checkIn = dayCheckIns.firstOrNull { it.userId == participant.userId || it.userId == participant.id }
+                        MemberCheckInRow(
+                            participant = participant,
+                            checkIn = checkIn,
+                            trackingKind = trackingKind,
+                            targetValue = targetValue,
+                            isFuture = isFuture,
                         )
+                    }
+                }
+            } else {
+                // Individual goal check-in inspection
+                val checkIn = dayCheckIns.firstOrNull()
+                if (checkIn != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Schedule,
+                            contentDescription = null,
+                            tint = colors.textSecondary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        val timeLabel = formatCheckInTime(checkIn.checkedAt.ifBlank { checkIn.createdAt })
+                        Text(
+                            text = if (timeLabel.isNotBlank()) "Checked in at $timeLabel" else "Check-in recorded",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
+
+                        if (trackingKind == GoalTrackingKind.COUNT && checkIn.value != null) {
+                            Text(
+                                text = "· Value: ${checkIn.value}${targetValue?.let { " of $it target" } ?: ""}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.accent,
+                            )
+                        }
+                    }
+
+                    if (checkIn.note.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(Spacing.xs))
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(Radius.sm))
+                                .background(colors.surfaceMuted),
+                            color = colors.surfaceMuted,
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(Spacing.sm),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.FormatQuote,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Text(
+                                    text = checkIn.note,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.textPrimary,
+                                )
+                            }
+                        }
+                    }
+                } else if (!isFuture) {
+                    Text(
+                        text = "No check-in was recorded for this day.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayDetailSheetContent(
+    date: LocalDate,
+    dayCheckIns: List<GoalCheckIn>,
+    participants: List<GoalParticipant>,
+    isShared: Boolean,
+    trackingKind: GoalTrackingKind,
+    targetValue: Int?,
+    onClose: () -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+    val today = remember { LocalDate.now() }
+    val isToday = date == today
+    val isFuture = date.isAfter(today)
+
+    val dateFormatted = remember(date) {
+        date.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.getDefault()))
+    }
+
+    val completedCheckIns = dayCheckIns.filter { it.status == GoalCheckInStatus.COMPLETED }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.screenHorizontal)
+            .padding(bottom = Spacing.xxl),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = dateFormatted,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary,
+                )
+                Text(
+                    text = if (isToday) "Today's Ledger" else "Historical Check-in Record",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            }
+
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.size(TouchTarget.min),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = "Close",
+                    tint = colors.textSecondary,
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(Spacing.md))
+        PromiseHairlineDivider()
+        Spacer(modifier = Modifier.height(Spacing.md))
+
+        if (isShared && participants.isNotEmpty()) {
+            Text(
+                text = "TEAM ACTIVITY (${completedCheckIns.size} of ${participants.size} checked in)",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.accent,
+                letterSpacing = 1.sp,
+            )
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                participants.forEach { participant ->
+                    val checkIn = dayCheckIns.firstOrNull { it.userId == participant.userId || it.userId == participant.id }
+                    MemberCheckInDetailCard(
+                        participant = participant,
+                        checkIn = checkIn,
+                        trackingKind = trackingKind,
+                        targetValue = targetValue,
+                        isFuture = isFuture,
+                    )
+                }
+            }
+        } else {
+            val checkIn = dayCheckIns.firstOrNull()
+            if (checkIn != null) {
+                MemberCheckInDetailCard(
+                    participant = null,
+                    checkIn = checkIn,
+                    trackingKind = trackingKind,
+                    targetValue = targetValue,
+                    isFuture = isFuture,
+                )
+            } else {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.md))
+                        .background(colors.surfaceMuted)
+                        .padding(Spacing.cardPadding),
+                    color = colors.surfaceMuted,
+                ) {
+                    Text(
+                        text = if (isFuture) "This date is in the future." else "No check-in was recorded for this day.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textSecondary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemberCheckInRow(
+    participant: GoalParticipant,
+    checkIn: GoalCheckIn?,
+    trackingKind: GoalTrackingKind,
+    targetValue: Int?,
+    isFuture: Boolean,
+) {
+    val colors = PromiseThemeColors.current
+    val initials = HomeViewModel.initialsFor(participant.userName.ifBlank { "User" })
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            modifier = Modifier.weight(1f),
+        ) {
+            PromiseAvatar(
+                initials = initials,
+                photoPath = participant.avatarUrl,
+                size = AvatarSize.SM,
+            )
+            Column {
+                Text(
+                    text = participant.userName.ifBlank { "Member" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.textPrimary,
+                )
+                if (checkIn != null) {
+                    val timeLabel = formatCheckInTime(checkIn.checkedAt.ifBlank { checkIn.createdAt })
+                    if (timeLabel.isNotBlank()) {
+                        Text(
+                            text = "at $timeLabel",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.textSecondary,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+            }
+        }
+
+        when {
+            isFuture -> {
+                Text(
+                    text = "—",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.textSecondary,
+                )
+            }
+            checkIn?.status == GoalCheckInStatus.COMPLETED -> {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Check,
+                        contentDescription = null,
+                        tint = colors.accent,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text = if (trackingKind == GoalTrackingKind.COUNT && checkIn.value != null) "${checkIn.value}" else "Done",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.accent,
+                    )
+                }
+            }
+            checkIn?.status == GoalCheckInStatus.SKIPPED -> {
+                Text(
+                    text = "Skipped",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            else -> {
+                Text(
+                    text = "Pending",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textSecondary.copy(alpha = 0.6f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemberCheckInDetailCard(
+    participant: GoalParticipant?,
+    checkIn: GoalCheckIn?,
+    trackingKind: GoalTrackingKind,
+    targetValue: Int?,
+    isFuture: Boolean,
+) {
+    val colors = PromiseThemeColors.current
+    val name = participant?.userName?.ifBlank { "Member" } ?: checkIn?.userName?.ifBlank { "You" } ?: "You"
+    val initials = HomeViewModel.initialsFor(name)
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.md))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(Radius.md)),
+        color = colors.surfaceMuted,
+    ) {
+        Column(modifier = Modifier.padding(Spacing.cardPadding)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                ) {
+                    PromiseAvatar(
+                        initials = initials,
+                        photoPath = participant?.avatarUrl ?: checkIn?.userAvatarUrl,
+                        size = AvatarSize.MD,
+                    )
+                    Column {
+                        Text(
+                            text = name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textPrimary,
+                        )
+                        if (participant?.role == GoalParticipantRole.OWNER) {
+                            Text(
+                                text = "Host / Creator",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.accent,
+                            )
+                        }
+                    }
+                }
+
+                when {
+                    isFuture -> {
+                        PromiseStatusChip(label = "Upcoming", isAccent = false)
+                    }
+                    checkIn?.status == GoalCheckInStatus.COMPLETED -> {
+                        PromiseStatusChip(label = "Completed ✓", isAccent = true)
+                    }
+                    checkIn?.status == GoalCheckInStatus.SKIPPED -> {
+                        PromiseStatusChip(label = "Skipped", isWarning = true)
+                    }
+                    else -> {
+                        PromiseStatusChip(label = "No Check-in", isAccent = false)
+                    }
+                }
+            }
+
+            if (checkIn != null) {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Schedule,
+                        contentDescription = null,
+                        tint = colors.textSecondary,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    val timeLabel = formatCheckInTime(checkIn.checkedAt.ifBlank { checkIn.createdAt })
+                    Text(
+                        text = if (timeLabel.isNotBlank()) "Checked in at $timeLabel" else "Check-in logged",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+
+                    if (trackingKind == GoalTrackingKind.COUNT && checkIn.value != null) {
+                        Text(
+                            text = "· Value: ${checkIn.value}${targetValue?.let { " of $it target" } ?: ""}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.accent,
+                        )
+                    }
+                }
+
+                if (checkIn.note.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(Radius.sm))
+                            .background(colors.surfaceRaised),
+                        color = colors.surfaceRaised,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(Spacing.sm),
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.FormatQuote,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                text = checkIn.note,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textPrimary,
+                            )
+                        }
                     }
                 }
             }

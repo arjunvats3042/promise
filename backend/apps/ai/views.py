@@ -19,12 +19,15 @@ from apps.ai.serializers import (
     ReflectionRequestSerializer,
     ReflectionResponseSerializer,
     SharedGoalWeeklySummaryResponseSerializer,
+    SupportBotRequestSerializer,
+    SupportBotResponseSerializer,
     ThoughtParserRequestSerializer,
     ThoughtParserResponseSerializer,
     WeeklyInsightsResponseSerializer,
     DailyMotivationQuoteSerializer,
 )
 from apps.ai.services import (
+    ask_promise_support_bot,
     build_goal_suggestion,
     generate_shared_goal_weekly_summary,
     generate_weekly_insights,
@@ -186,5 +189,21 @@ def chat_summary_view(request, goal_id):
     result = summarize_goal_chat(
         goal=goal,
         limit=serializer.validated_data.get("limit", 50),
+    )
+    return Response(result, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def support_bot_view(request):
+    """Promise AI Concierge: Interactive Product Support & Knowledge Assistant."""
+    enforce_ai_rate_limit(request.user, "support_bot")
+    serializer = SupportBotRequestSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+
+    result = ask_promise_support_bot(
+        question=serializer.validated_data["question"],
+        conversation_history=serializer.validated_data.get("conversation_history", []),
+        timezone=serializer.validated_data.get("timezone", getattr(request.user, "timezone", "Asia/Kolkata")),
     )
     return Response(result, status=status.HTTP_200_OK)

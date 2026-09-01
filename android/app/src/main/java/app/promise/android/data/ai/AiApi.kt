@@ -35,4 +35,9 @@ interface AiApi {
         @Path("goalId") goalId: String,
         @Body request: ChatSummaryRequestDto,
     ): GoalChatAiSummaryDto
+
+    @POST("ai/support/ask/")
+    suspend fun askSupportBot(
+        @Body request: SupportBotRequestDto,
+    ): SupportBotResponseDto
 }

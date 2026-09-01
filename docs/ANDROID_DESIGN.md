@@ -807,4 +807,27 @@ Simplified the commitments view from 5 overlapping categories down to 3 focused 
 - **Clock-Skew Defense**: Ensures optimistic outgoing message timestamps satisfy `maxOf(System.currentTimeMillis(), latestEpoch + 1)`.
 - **Auto-Scroll Anchor**: `LaunchedEffect(newestMessageId)` smoothly scrolls `LazyColumn(reverseLayout = true)` to index 0 on new message arrival.
 
+---
+
+## 26. Interactive Craft Components, Multilingual Voice & Global Floating Concierge
+
+### 26.1. Interactive Multi-Member History Calendar (`PromiseHistoryCalendar.kt`)
+- **Interactive Day Popover**: Tapping any calendar day opens an animated glassmorphic modal popover (`DayDetailDialog`) displaying exact check-in proof, notes, metrics, and completion timestamps.
+- **Shared Goal Multi-Member Status**: For shared accountability rooms, the popover displays each participant's status (`COMPLETED`, `PENDING`, `MISSED`) with their avatar and role badge (`CREATOR`, `MEMBER`).
+- **Smooth Month Transitions**: Fluid cross-fade and scale animation when navigating past/future months.
+
+### 26.2. Profile Screen Architecture & Fluid Sliding Theme Controller (`ProfileScreen.kt`)
+- **Hero Profile Header**: Streamlined layout removing greetings and redundant email text (email is housed in Security & Identity). Tapping the profile photo directly launches the photo picker.
+- **Strict Information Hierarchy**: Section order: `Notifications -> Widgets -> Security -> Devices -> Account Management`.
+- **Fluid Theme Segmented Controller**: Positioned at the very bottom of the screen. Utilizes `Motion.fluidSpring()`, `animateDpAsState`, and `animateColorAsState` for a tactile, physical sliding pill transition between Light and Dark modes.
+
+### 26.3. Goal Chat Date Grouping & Member Avatars (`GoalChatScreen.kt`)
+- **Local Day Header Grouping**: Message timestamps are grouped relative to the user's local timezone via `formatHeaderDate` (`"Today"`, `"Yesterday"`, `"EEEE, MMM d"`), guaranteeing messages sent today appear under "Today".
+- **Sender Avatars & Clustering**: Incoming messages render sender profile photos (`PromiseAvatar(size = AvatarSize.SM)`) with smart vertical clustering to group consecutive messages from the same sender within 5 minutes.
+
+### 26.4. Floating Promise Concierge Orb (`FloatingPromiseConciergeOrb.kt`)
+- **Spring-Snapping Physics**: Full 1:1 drag gesture tracking. When released, it computes the nearest screen edge and springs cleanly to the left or right margin with natural bouncy damping (`Spring.DampingRatioMediumBouncy`).
+- **Ambient Breathing Glow**: Continuous radial pulse animation (`InfiniteTransition`, 2200ms) with cyan/violet light diffusion and micro-rotating AI spark icon (`Icons.Rounded.AutoAwesome`).
+- **Global MainShell Overlay**: Floats unobtrusively above all 5 main app tabs (`Home`, `Commitments`, `Roadmap`, `Goals`, `Profile`). Tapping opens `PromiseSupportChatSheet` with markdown styling, shimmer typing animation, and 1-tap follow-up question chips.
+
 

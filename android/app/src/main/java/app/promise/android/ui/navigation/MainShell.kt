@@ -47,6 +47,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import app.promise.android.ui.ai.support.PromiseSupportChatSheet
+import app.promise.android.ui.components.FloatingPromiseConciergeOrb
 import app.promise.android.ui.components.PromiseHairlineDivider
 import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.Radius
@@ -94,6 +98,7 @@ fun MainShell(
     val density = LocalDensity.current
     val detailSlidePx = with(density) { 48.dp.roundToPx() }
     val coroutineScope = rememberCoroutineScope()
+    var showSupportSheet by remember { mutableStateOf(false) }
 
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { TabDestinations.items.size })
 
@@ -163,185 +168,199 @@ fun MainShell(
             composable<MainTabsRoute>(
                 deepLinks = listOf(navDeepLink { uriPattern = "promise://home" }),
             ) {
-                Scaffold(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    bottomBar = {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding(),
-                            color = MaterialTheme.colorScheme.background,
-                            shadowElevation = Elevation.none,
-                            tonalElevation = Elevation.none,
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Scaffold(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        bottomBar = {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .navigationBarsPadding(),
+                                color = MaterialTheme.colorScheme.background,
+                                shadowElevation = Elevation.none,
+                                tonalElevation = Elevation.none,
                             ) {
-                                PromiseHairlineDivider(
+                                Column(
                                     modifier = Modifier.fillMaxWidth(),
-                                )
-                                androidx.compose.foundation.layout.BoxWithConstraints(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 64.dp)
-                                        .padding(horizontal = Spacing.sm),
                                 ) {
-                                    val totalWidth = maxWidth
-                                    val tabCount = TabDestinations.items.size
-                                    val tabWidth = totalWidth / tabCount
-                                    val currentPos = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                                    PromiseHairlineDivider(
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                    androidx.compose.foundation.layout.BoxWithConstraints(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(min = 64.dp)
+                                            .padding(horizontal = Spacing.sm),
+                                    ) {
+                                        val totalWidth = maxWidth
+                                        val tabCount = TabDestinations.items.size
+                                        val tabWidth = totalWidth / tabCount
+                                        val currentPos = pagerState.currentPage + pagerState.currentPageOffsetFraction
 
-                                    // Real-time fluid sliding indicator pill
-                                    if (!reduceMotion) {
-                                        val pillWidth = minOf(tabWidth * 0.72f, 56.dp)
-                                        Box(
-                                            modifier = Modifier
-                                                .offset(x = tabWidth * currentPos)
-                                                .width(tabWidth)
-                                                .padding(top = 4.dp),
-                                            contentAlignment = Alignment.TopCenter,
-                                        ) {
+                                        // Real-time fluid sliding indicator pill
+                                        if (!reduceMotion) {
+                                            val pillWidth = minOf(tabWidth * 0.72f, 56.dp)
                                             Box(
                                                 modifier = Modifier
-                                                    .width(pillWidth)
-                                                    .height(30.dp)
-                                                    .clip(RoundedCornerShape(Radius.pill))
-                                                    .background(colors.accent.copy(alpha = 0.14f)),
-                                            )
-                                        }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceEvenly,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        TabDestinations.items.forEachIndexed { index, tab ->
-                                            val selected = index == pagerState.currentPage
-                                            val itemFg = if (selected) colors.accent else colors.textSecondary
-                                            val iconScale by androidx.compose.animation.core.animateFloatAsState(
-                                                targetValue = if (selected) 1.08f else 1f,
-                                                animationSpec = Motion.bouncySpring(),
-                                                label = "tab-icon-scale",
-                                            )
-
-                                            Column(
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .clip(RoundedCornerShape(Radius.md))
-                                                    .bouncyClickable(
-                                                        targetScale = 0.92f,
-                                                        onClickLabel = tab.label,
-                                                    ) {
-                                                        if (pagerState.currentPage != index) {
-                                                            viewModel.haptics.selection()
-                                                            coroutineScope.launch {
-                                                                if (reduceMotion) {
-                                                                    pagerState.scrollToPage(index)
-                                                                } else {
-                                                                    pagerState.animateScrollToPage(
-                                                                        page = index,
-                                                                        animationSpec = Motion.fluidSpring(),
-                                                                    )
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    .padding(vertical = 4.dp)
-                                                    .semantics {
-                                                        this.contentDescription = tab.contentDescription
-                                                        this.selected = selected
-                                                    },
-                                                horizontalAlignment = Alignment.CenterHorizontally,
-                                                verticalArrangement = Arrangement.Center,
+                                                    .offset(x = tabWidth * currentPos)
+                                                    .width(tabWidth)
+                                                    .padding(top = 4.dp),
+                                                contentAlignment = Alignment.TopCenter,
                                             ) {
                                                 Box(
                                                     modifier = Modifier
+                                                        .width(pillWidth)
+                                                        .height(30.dp)
                                                         .clip(RoundedCornerShape(Radius.pill))
-                                                        .background(
-                                                            if (reduceMotion && selected) colors.accent.copy(alpha = 0.14f)
-                                                            else androidx.compose.ui.graphics.Color.Transparent
-                                                        )
-                                                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                                                    contentAlignment = Alignment.Center,
+                                                        .background(colors.accent.copy(alpha = 0.14f)),
+                                                )
+                                            }
+                                        }
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceEvenly,
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            TabDestinations.items.forEachIndexed { index, tab ->
+                                                val selected = index == pagerState.currentPage
+                                                val itemFg = if (selected) colors.accent else colors.textSecondary
+                                                val iconScale by androidx.compose.animation.core.animateFloatAsState(
+                                                    targetValue = if (selected) 1.08f else 1f,
+                                                    animationSpec = Motion.bouncySpring(),
+                                                    label = "tab-icon-scale",
+                                                )
+
+                                                Column(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clip(RoundedCornerShape(Radius.md))
+                                                        .bouncyClickable(
+                                                            targetScale = 0.92f,
+                                                            onClickLabel = tab.label,
+                                                        ) {
+                                                            if (pagerState.currentPage != index) {
+                                                                viewModel.haptics.selection()
+                                                                coroutineScope.launch {
+                                                                    if (reduceMotion) {
+                                                                        pagerState.scrollToPage(index)
+                                                                    } else {
+                                                                        pagerState.animateScrollToPage(
+                                                                            page = index,
+                                                                            animationSpec = Motion.fluidSpring(),
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                        .padding(vertical = 4.dp)
+                                                        .semantics {
+                                                            this.contentDescription = tab.contentDescription
+                                                            this.selected = selected
+                                                        },
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                    verticalArrangement = Arrangement.Center,
                                                 ) {
-                                                    Icon(
-                                                        imageVector = tab.icon,
-                                                        contentDescription = null,
-                                                        tint = itemFg,
+                                                    Box(
                                                         modifier = Modifier
-                                                            .size(24.dp)
-                                                            .graphicsLayer {
-                                                                scaleX = iconScale
-                                                                scaleY = iconScale
-                                                            },
+                                                            .clip(RoundedCornerShape(Radius.pill))
+                                                            .background(
+                                                                if (reduceMotion && selected) colors.accent.copy(alpha = 0.14f)
+                                                                else androidx.compose.ui.graphics.Color.Transparent
+                                                            )
+                                                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                                                        contentAlignment = Alignment.Center,
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = tab.icon,
+                                                            contentDescription = null,
+                                                            tint = itemFg,
+                                                            modifier = Modifier
+                                                                .size(24.dp)
+                                                                .graphicsLayer {
+                                                                    scaleX = iconScale
+                                                                    scaleY = iconScale
+                                                                },
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.height(2.dp))
+                                                    Text(
+                                                        text = tab.label,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                        fontSize = 11.sp,
+                                                        color = itemFg,
+                                                        maxLines = 1,
                                                     )
                                                 }
-                                                Spacer(modifier = Modifier.height(2.dp))
-                                                Text(
-                                                    text = tab.label,
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                                    fontSize = 11.sp,
-                                                    color = itemFg,
-                                                    maxLines = 1,
-                                                )
                                             }
                                         }
                                     }
                                 }
                             }
+                        },
+                    ) { innerPadding ->
+                        HorizontalPager(
+                            state = pagerState,
+                            userScrollEnabled = !reduceMotion,
+                            beyondViewportPageCount = 1,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(bottom = innerPadding.calculateBottomPadding()),
+                        ) { page ->
+                            when (page) {
+                                0 -> HomeScreen(
+                                    onOpenProfile = {
+                                        coroutineScope.launch {
+                                            if (reduceMotion) pagerState.scrollToPage(4) else pagerState.animateScrollToPage(4, animationSpec = Motion.snappySpring())
+                                        }
+                                    },
+                                    onNavigateToCommitments = {
+                                        coroutineScope.launch {
+                                            if (reduceMotion) pagerState.scrollToPage(1) else pagerState.animateScrollToPage(1, animationSpec = Motion.snappySpring())
+                                        }
+                                    },
+                                    onNavigateToGoals = {
+                                        coroutineScope.launch {
+                                            if (reduceMotion) pagerState.scrollToPage(3) else pagerState.animateScrollToPage(3, animationSpec = Motion.snappySpring())
+                                        }
+                                    },
+                                    onOpenCommitment = { id ->
+                                        navController.navigate(CommitmentRoute(id))
+                                    },
+                                    onOpenPractice = { id ->
+                                        navController.navigate(GoalRoute(id))
+                                    },
+                                    onOpenSearch = {
+                                        navController.navigate(SearchRoute)
+                                    },
+                                )
+                                1 -> CommitmentsListScreen(
+                                    onOpenDetail = { id ->
+                                        navController.navigate(CommitmentRoute(id))
+                                    },
+                                )
+                                2 -> RoadmapScreen()
+                                3 -> GoalsListScreen(
+                                    onOpenDetail = { id ->
+                                        navController.navigate(GoalRoute(id))
+                                    },
+                                )
+                                4 -> ProfileScreen(onSignOut = onSignOut)
+                            }
                         }
-                    },
-                ) { innerPadding ->
-                    HorizontalPager(
-                        state = pagerState,
-                        userScrollEnabled = !reduceMotion,
-                        beyondViewportPageCount = 1,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = innerPadding.calculateBottomPadding()),
-                    ) { page ->
-                        when (page) {
-                            0 -> HomeScreen(
-                                onOpenProfile = {
-                                    coroutineScope.launch {
-                                        if (reduceMotion) pagerState.scrollToPage(4) else pagerState.animateScrollToPage(4, animationSpec = Motion.snappySpring())
-                                    }
-                                },
-                                onNavigateToCommitments = {
-                                    coroutineScope.launch {
-                                        if (reduceMotion) pagerState.scrollToPage(1) else pagerState.animateScrollToPage(1, animationSpec = Motion.snappySpring())
-                                    }
-                                },
-                                onNavigateToGoals = {
-                                    coroutineScope.launch {
-                                        if (reduceMotion) pagerState.scrollToPage(3) else pagerState.animateScrollToPage(3, animationSpec = Motion.snappySpring())
-                                    }
-                                },
-                                onOpenCommitment = { id ->
-                                    navController.navigate(CommitmentRoute(id))
-                                },
-                                onOpenPractice = { id ->
-                                    navController.navigate(GoalRoute(id))
-                                },
-                                onOpenSearch = {
-                                    navController.navigate(SearchRoute)
-                                },
-                            )
-                            1 -> CommitmentsListScreen(
-                                onOpenDetail = { id ->
-                                    navController.navigate(CommitmentRoute(id))
-                                },
-                            )
-                            2 -> RoadmapScreen()
-                            3 -> GoalsListScreen(
-                                onOpenDetail = { id ->
-                                    navController.navigate(GoalRoute(id))
-                                },
-                            )
-                            4 -> ProfileScreen(onSignOut = onSignOut)
-                        }
+                    }
+
+                    // Floating Interactive Concierge Orb
+                    FloatingPromiseConciergeOrb(
+                        onClick = { showSupportSheet = true },
+                    )
+
+                    // Concierge Modal Chat Sheet
+                    if (showSupportSheet) {
+                        PromiseSupportChatSheet(
+                            onDismiss = { showSupportSheet = false },
+                        )
                     }
                 }
             }

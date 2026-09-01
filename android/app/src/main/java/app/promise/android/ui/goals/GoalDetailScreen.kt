@@ -699,59 +699,6 @@ private fun DetailContent(
         }
 
         Spacer(modifier = Modifier.height(Spacing.section))
-        if (goal.canPause) {
-            PromiseSecondaryButton(
-                text = "Pause",
-                onClick = onPause,
-                enabled = !busy,
-                modifier = Modifier.semantics { contentDescription = "Pause goal" },
-            )
-            Spacer(modifier = Modifier.height(Spacing.xs))
-        }
-        if (goal.canResume) {
-            PromiseSecondaryButton(
-                text = "Resume",
-                onClick = onResume,
-                enabled = !busy,
-                modifier = Modifier.semantics { contentDescription = "Resume goal" },
-            )
-            Spacer(modifier = Modifier.height(Spacing.xs))
-        }
-        if (goal.canCompleteGoal) {
-            PromisePrimaryButton(
-                text = if (busy) "Working…" else "Complete",
-                onClick = onComplete,
-                enabled = !busy,
-                modifier = Modifier.semantics { contentDescription = "Complete goal" },
-            )
-            Spacer(modifier = Modifier.height(Spacing.sm))
-        }
-        if (goal.canCancel) {
-            TextButton(
-                onClick = onCancel,
-                enabled = !busy,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = TouchTarget.buttonMin)
-                    .semantics { contentDescription = "Cancel goal" },
-            ) {
-                Text("Cancel goal", color = MaterialTheme.colorScheme.error)
-            }
-        }
-        if (goal.canLeave) {
-            TextButton(
-                onClick = onLeave,
-                enabled = !busy,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = TouchTarget.buttonMin)
-                    .semantics { contentDescription = "Leave goal" },
-            ) {
-                Text("Leave goal", color = MaterialTheme.colorScheme.error)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(Spacing.section))
         PromiseSectionHeader(
             title = "History & Check-ins",
             subtitle = if (ui.checkIns.isNotEmpty()) "${ui.checkIns.size} check-ins recorded" else null,
@@ -770,8 +717,71 @@ private fun DetailContent(
                 checkIns = ui.checkIns,
                 trackingKind = goal.trackingKind,
                 targetValue = goal.targetValue,
+                participants = goal.participants,
+                isShared = goal.isShared,
             )
         }
+
+        // Goal Management Actions (Cleanly placed at the bottom)
+        val hasActions = goal.canPause || goal.canResume || goal.canCompleteGoal || goal.canCancel || goal.canLeave
+        if (hasActions) {
+            Spacer(modifier = Modifier.height(Spacing.section))
+            PromiseSectionHeader(title = "Goal Actions")
+            Spacer(modifier = Modifier.height(Spacing.xs))
+
+            if (goal.canPause) {
+                PromiseSecondaryButton(
+                    text = "Pause goal",
+                    onClick = onPause,
+                    enabled = !busy,
+                    modifier = Modifier.semantics { contentDescription = "Pause goal" },
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+            }
+            if (goal.canResume) {
+                PromiseSecondaryButton(
+                    text = "Resume goal",
+                    onClick = onResume,
+                    enabled = !busy,
+                    modifier = Modifier.semantics { contentDescription = "Resume goal" },
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+            }
+            if (goal.canCompleteGoal) {
+                PromisePrimaryButton(
+                    text = if (busy) "Working…" else "Mark goal completed",
+                    onClick = onComplete,
+                    enabled = !busy,
+                    modifier = Modifier.semantics { contentDescription = "Mark goal completed" },
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+            }
+            if (goal.canCancel) {
+                TextButton(
+                    onClick = onCancel,
+                    enabled = !busy,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = TouchTarget.buttonMin)
+                        .semantics { contentDescription = "Cancel goal" },
+                ) {
+                    Text("Cancel goal", color = MaterialTheme.colorScheme.error)
+                }
+            }
+            if (goal.canLeave) {
+                TextButton(
+                    onClick = onLeave,
+                    enabled = !busy,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = TouchTarget.buttonMin)
+                        .semantics { contentDescription = "Leave goal" },
+                ) {
+                    Text("Leave goal", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(Spacing.xxl))
     }
 }

@@ -171,19 +171,35 @@ def _extract_date_time_from_text(text: str, timezone_str: str) -> Optional[tuple
             "dec": 12, "december": 12,
         }
 
-        # Check "1st of September", "15th Oct"
+        ORDINAL_MAP = {
+            "first": 1, "1st": 1, "second": 2, "2nd": 2, "third": 3, "3rd": 3,
+            "fourth": 4, "4th": 4, "fifth": 5, "5th": 5, "sixth": 6, "6th": 6,
+            "seventh": 7, "7th": 7, "eighth": 8, "8th": 8, "ninth": 9, "9th": 9,
+            "tenth": 10, "10th": 10, "eleventh": 11, "11th": 11, "twelfth": 12, "12th": 12,
+            "thirteenth": 13, "13th": 13, "fourteenth": 14, "14th": 14, "fifteenth": 15, "15th": 15,
+            "sixteenth": 16, "16th": 16, "seventeenth": 17, "17th": 17, "eighteenth": 18, "18th": 18,
+            "nineteenth": 19, "19th": 19, "twentieth": 20, "20th": 20, "twenty-first": 21, "21st": 21,
+            "twenty-second": 22, "22nd": 22, "twenty-third": 23, "23rd": 23, "twenty-fourth": 24, "24th": 24,
+            "twenty-fifth": 25, "25th": 25, "twenty-sixth": 26, "26th": 26, "twenty-seventh": 27, "27th": 27,
+            "twenty-eighth": 28, "28th": 28, "twenty-ninth": 29, "29th": 29, "thirtieth": 30, "30th": 30,
+            "thirty-first": 31, "31st": 31,
+        }
+        ord_pattern = r"(?:\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|twenty-first|twenty-second|twenty-third|twenty-fourth|twenty-fifth|twenty-sixth|twenty-seventh|twenty-eighth|twenty-ninth|thirtieth|thirty-first)"
+
+        # Check "1st of September", "first of October", "15th Oct"
         dm_match = re.search(
-            r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
+            rf"\b({ord_pattern})\s+(?:of\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
             lower,
         )
-        # Check "September 1st", "Oct 15"
+        # Check "September 1st", "October first", "Oct 15"
         md_match = re.search(
-            r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})(?:st|nd|rd|th)?\b",
+            rf"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+({ord_pattern})\b",
             lower,
         )
 
         if dm_match:
-            day = int(dm_match.group(1))
+            day_token = dm_match.group(1).lower()
+            day = ORDINAL_MAP.get(day_token) or (int(re.sub(r"\D", "", day_token)) if re.sub(r"\D", "", day_token) else 1)
             month_str = dm_match.group(2)
             month = MONTH_MAP.get(month_str, 1)
             year = now_local.year
@@ -197,7 +213,8 @@ def _extract_date_time_from_text(text: str, timezone_str: str) -> Optional[tuple
             precision = "DAY"
         elif md_match:
             month_str = md_match.group(1)
-            day = int(md_match.group(2))
+            day_token = md_match.group(2).lower()
+            day = ORDINAL_MAP.get(day_token) or (int(re.sub(r"\D", "", day_token)) if re.sub(r"\D", "", day_token) else 1)
             month = MONTH_MAP.get(month_str, 1)
             year = now_local.year
             candidate = datetime.date(year, month, min(day, 28))
@@ -208,38 +225,59 @@ def _extract_date_time_from_text(text: str, timezone_str: str) -> Optional[tuple
             except ValueError:
                 target_date = datetime.date(year, month, 28)
             precision = "DAY"
-        elif "day after tomorrow" in lower:
+        elif "day after tomorrow" in lower or re.search(r"\b(?:parso|parson)\b", lower):
             target_date = now_local.date() + datetime.timedelta(days=2)
-        elif "tomorrow" in lower:
+        elif "tomorrow" in lower or re.search(r"\b(?:kal)\b", lower):
             target_date = now_local.date() + datetime.timedelta(days=1)
-        elif "tonight" in lower:
+        elif re.search(r"\b(?:narso)\b", lower):
+            target_date = now_local.date() + datetime.timedelta(days=3)
+        elif "tonight" in lower or re.search(r"\baaj\s+raat\b", lower):
             target_date = now_local.date()
             target_time = datetime.time(21, 0)
             precision = "HOUR"
-        elif "today" in lower:
+        elif "today" in lower or re.search(r"\baaj\b", lower):
             target_date = now_local.date()
-        elif "next week" in lower:
+        elif "next week" in lower or re.search(r"\b(?:agle?\s+hafte?|agla\s+hafta)\b", lower):
             target_date = now_local.date() + datetime.timedelta(days=7)
-        elif "weekend" in lower:
+        elif "weekend" in lower or re.search(r"\bweekend\b", lower):
             days_ahead = (5 - now_local.weekday()) % 7
             if days_ahead == 0:
                 days_ahead = 7
             target_date = now_local.date() + datetime.timedelta(days=days_ahead)
+        else:
+            # Check Hindi / English weekdays
+            WEEKDAY_HINDI = {
+                "somwar": 0, "monday": 0,
+                "mangalwar": 1, "tuesday": 1,
+                "budhwar": 2, "wednesday": 2,
+                "guruwar": 3, "veervar": 3, "thursday": 3,
+                "shukrawar": 4, "friday": 4,
+                "shaniwar": 5, "saturday": 5,
+                "ravivar": 6, "itwar": 6, "sunday": 6,
+            }
+            for wd_name, wd_idx in WEEKDAY_HINDI.items():
+                if wd_name in lower:
+                    days_ahead = (wd_idx - now_local.weekday()) % 7
+                    if days_ahead == 0:
+                        days_ahead = 7
+                    target_date = now_local.date() + datetime.timedelta(days=days_ahead)
+                    precision = "DAY"
+                    break
 
-    # 3. Detect named periods of day (e.g. "in afternoon", "afternoon", "in morning", "evening", "at night")
-    if "afternoon" in lower:
+    # 3. Detect named periods of day (e.g. "in afternoon", "afternoon", "in morning", "evening", "at night", "subah", "shaam", "dopahar", "raat")
+    if "afternoon" in lower or "dopahar" in lower:
         if target_time is None:
             target_time = datetime.time(14, 0)
         precision = "HOUR"
-    elif "morning" in lower:
+    elif "morning" in lower or "subah" in lower or "pratah" in lower:
         if target_time is None:
             target_time = datetime.time(9, 0)
         precision = "HOUR"
-    elif "evening" in lower:
+    elif "evening" in lower or "shaam" in lower or "sham" in lower:
         if target_time is None:
             target_time = datetime.time(18, 0)
         precision = "HOUR"
-    elif "night" in lower and "tonight" not in lower:
+    elif ("night" in lower or "raat" in lower) and "tonight" not in lower:
         if target_time is None:
             target_time = datetime.time(21, 0)
         precision = "HOUR"
@@ -248,22 +286,24 @@ def _extract_date_time_from_text(text: str, timezone_str: str) -> Optional[tuple
             target_time = datetime.time(12, 0)
         precision = "HOUR"
 
-    # 4. Detect explicit clock time: e.g. "12:00 p.m.", "12:00 pm", "12 pm", "5:30 am", "5pm", "17:00"
-    time_match = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?|am|pm)?\b", lower)
+    # 4. Detect explicit clock time: e.g. "12:00 p.m.", "12:00 pm", "12 pm", "5:30 am", "5pm", "17:00", "5 baje", "11 baje"
+    time_match = re.search(r"\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?|am|pm|baje)?\b", lower)
     if time_match:
         raw_hour = int(time_match.group(1))
         raw_min = int(time_match.group(2)) if time_match.group(2) else 0
-        ampm = time_match.group(3)
+        ampm = (time_match.group(3) or "").lower().replace(".", "")
 
-        if ampm:
-            ampm_clean = ampm.replace(".", "")
-            if ampm_clean == "pm" and raw_hour < 12:
+        if ampm == "pm" and raw_hour < 12:
+            raw_hour += 12
+        elif ampm == "am" and raw_hour == 12:
+            raw_hour = 0
+        elif ampm == "baje":
+            if ("shaam" in lower or "sham" in lower or "raat" in lower or "evening" in lower or "night" in lower) and raw_hour < 12:
                 raw_hour += 12
-            elif ampm_clean == "am" and raw_hour == 12:
-                raw_hour = 0
-            target_time = datetime.time(raw_hour, raw_min)
-            precision = "HOUR"
-        elif ":" in time_match.group(0) and raw_hour <= 23 and raw_min <= 59:
+            elif ("dopahar" in lower or "afternoon" in lower) and raw_hour < 12 and raw_hour <= 5:
+                raw_hour += 12
+
+        if raw_hour in range(0, 24) and raw_min in range(0, 60):
             target_time = datetime.time(raw_hour, raw_min)
             precision = "HOUR"
 
@@ -296,15 +336,15 @@ def _split_compound_thoughts(text: str) -> List[str]:
         # e.g. "and I have to", "also I need to", "and I must", "and call", "and send"
         task_split_pattern = (
             r"(?:\s+(?:and\s+)?(?:also\s+)?(?:then\s+)?(?:i\s+(?:have\s+to|need\s+to|must|want\s+to|will|should|gotta|plan\s+to))\s+)"
-            r"|(?:\s+(?:and\s+also|and\s+then|plus\s+i)\s+)"
-            r"|(?:\s*,\s*(?:and\s+)?(?:call|send|email|buy|pay|meet|submit|write|finish|clean|visit|schedule|pick\s+up|order|remind|workout|exercise|meditate|drink|read)\b)"
-            r"|(?:\s+and\s+(?:call|send|email|buy|pay|meet|submit|write|finish|clean|visit|schedule|pick\s+up|order|remind|workout|exercise|meditate|drink|read)\b)"
+            r"|(?:\s+(?:and\s+also|and\s+then|plus\s+i|aur\s+bhi|aur\s+phir|aur\s+fir|aur)\s+)"
+            r"|(?:\s*,\s*(?:and\s+|aur\s+)?(?:call|send|email|buy|pay|meet|submit|write|finish|clean|visit|schedule|pick\s+up|order|remind|workout|exercise|meditate|drink|read)\b)"
+            r"|(?:\s+(?:and|aur)\s+(?:call|send|email|buy|pay|meet|submit|write|finish|clean|visit|schedule|pick\s+up|order|remind|workout|exercise|meditate|drink|read)\b)"
         )
         sub_tasks = re.split(task_split_pattern, chunk, flags=re.IGNORECASE)
         for sub in sub_tasks:
             if sub and sub.strip() and len(sub.strip()) >= 3:
                 cleaned_sub = re.sub(
-                    r"^(?:and\s+|also\s+|then\s+|plus\s+|so\s+)?(?:i\s+(?:have\s+to|need\s+to|must|want\s+to|will|should|gotta|plan\s+to)\s+)?",
+                    r"^(?:and\s+|also\s+|then\s+|plus\s+|so\s+|aur\s+|phir\s+)?(?:i\s+(?:have\s+to|need\s+to|must|want\s+to|will|should|gotta|plan\s+to)\s+)?",
                     "",
                     sub.strip(),
                     flags=re.IGNORECASE,
@@ -325,7 +365,9 @@ def _heuristic_parse_thought(user_thought: str, timezone: str) -> Dict[str, Any]
     goal_keywords = {
         "daily", "every day", "everyday", "habit", "gym", "workout",
         "water", "meditat", "read", "exercise", "walk", "stretch",
-        "practice", "routine", "weekly",
+        "practice", "routine", "weekly", "roz", "har din", "har roz",
+        "har subah", "har sham", "kasrat", "paani", "kitab", "dhyan",
+        "hafte me", "hafte mein",
     }
 
     for task_str in raw_tasks:
@@ -362,10 +404,11 @@ def _heuristic_parse_thought(user_thought: str, timezone: str) -> Dict[str, Any]
 def _clean_title_heuristic(text: str) -> str:
     cleaned = text
     patterns = [
+        r"\b(?:and\s+)?(?:set|schedule|remind|create)\s+(?:it\s+)?(?:for|to|at|on)\b.*$",
         r"\b(?:in|after)\s+(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*(?:days?|weeks?|months?|hours?|hrs?|minutes?|mins?)\b",
         r"\b(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*(?:days?|weeks?|months?|hours?|hrs?|minutes?|mins?)\s+(?:after|later|from\s+now)\b",
-        r"\b(?:on\s+)?(?:\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
-        r"\b(?:on\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(?:\d{1,2})(?:st|nd|rd|th)?\b",
+        r"\b(?:on\s+)?(?:\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|twenty-first|twenty-second|twenty-third|twenty-fourth|twenty-fifth|twenty-sixth|twenty-seventh|twenty-eighth|twenty-ninth|thirtieth|thirty-first)\s+(?:of\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
+        r"\b(?:on\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(?:\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|twenty-first|twenty-second|twenty-third|twenty-fourth|twenty-fifth|twenty-sixth|twenty-seventh|twenty-eighth|twenty-ninth|thirtieth|thirty-first)\b",
         r"\bday after tomorrow\b",
         r"\btomorrow\b",
         r"\btonight\b",
@@ -380,10 +423,13 @@ def _clean_title_heuristic(text: str) -> str:
         r"\b(?:at|by|on)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
         r"\b(?:at|by)\s+\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?|am|pm)?\b",
         r"\b\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?|am|pm)\b",
+        r"\b(?:ko\s+call\s+karna\s+hai|call\s+karna\s+hai|karna\s+hai|jana\s+hai|bhejna\s+hai|dena\s+hai|lena\s+hai|khareedna\s+hai|peena\s+hai|padhna\s+hai|kar\s+dena)\b",
+        r"\b(?:kal|parso|parson|narso|aaj|subah|shaam|sham|dopahar|raat|baje|roz|har\s+din|har\s+roz|agle?\s+somwar|ko)\b",
     ]
     for p in patterns:
         cleaned = re.sub(p, "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\b(?:at|by|on|for|in|due|and|also|then|plus|so)\s*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(?:at|by|on|for|in|due|and|also|then|plus|so|set|it|ko|hai|se)\s*$", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(?:and|also|then|plus|so|please|aur|phir|fir|i\s+need\s+to|i\s+have\s+to|i\s+want\s+to|remember\s+to|remind\s+me\s+to|mujhe|hume)\s+", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     if len(cleaned) < 2:
         cleaned = text.strip()
@@ -404,10 +450,18 @@ def parse_thought_into_promises(
         from django.utils import timezone as django_tz
         current_time_iso = django_tz.now().isoformat()
 
+    try:
+        tz = zoneinfo.ZoneInfo(timezone)
+    except Exception:
+        tz = datetime.timezone.utc
+    now_local = datetime.datetime.now(tz)
+    local_time_str = now_local.strftime("%A, %B %d, %Y, %I:%M %p")
+
     model = get_model_for_feature("thought_parser")
     sanitized_prompt = (
         f"User timezone: {timezone}\n"
-        f"Reference current time (UTC): {current_time_iso}\n"
+        f"Current local date & time: {local_time_str}\n"
+        f"Reference current time (UTC ISO): {current_time_iso}\n"
         f"User unstructured thought:\n{user_thought.strip()}"
     )
     start_time = time.time()

@@ -947,3 +947,22 @@ class GoalChatReadState(BaseModel):
    - Used solely as an optimization to suppress redundant FCM push notifications when the recipient is actively in the chat room. Stale presence never compromises message delivery correctness.
 6. **Membership Revocation & Disconnect**:
    - When a participant becomes `LEFT` or `REMOVED`, the server immediately closes all active WebSockets for that user/goal session and rejects future handshakes.
+
+---
+
+## 21. Interactive History Calendar & Multi-Member Inspection
+
+### 21.1. Interactive Month History Calendar (`PromiseHistoryCalendar.kt`)
+- **Interactive Day Popover**: Tapping any calendar day presents an animated modal popover (`DayDetailDialog`) showing:
+  - Exact check-in timestamp (localized).
+  - Check-in status (`COMPLETED`, `MISSED`, `PENDING`).
+  - Logged value vs target (e.g. `20 / 20 pages` for COUNT tracking).
+  - Check-in reflection notes and verification proof if submitted.
+- **Shared Goal Multi-Member Inspection**: In shared accountability rooms, the popover displays a participant breakdown list:
+  - Participant avatar ([PromiseAvatar](file:///Users/arjunvats/Desktop/promise/android/app/src/main/java/app/promise/android/ui/components/PromiseAvatar.kt)) and name.
+  - Role indicator (`Creator` / `Member`).
+  - Individual completion indicator for that date.
+
+### 21.2. Shared Goal Chat Polish & Message Grouping
+- **Date Separator Headers**: Message timestamps are grouped relative to the user's local timezone via `formatHeaderDate` (`"Today"`, `"Yesterday"`, `"EEEE, MMM d"`), ensuring messages sent today appear under "Today".
+- **Sender Avatars & Smart Clustering**: Incoming messages render sender profile photos with smart vertical clustering to group consecutive messages from the same sender within 5 minutes.

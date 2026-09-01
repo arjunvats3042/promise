@@ -4,7 +4,9 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -19,6 +21,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -39,6 +44,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
@@ -47,6 +54,7 @@ import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MicOff
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,7 +82,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -82,6 +93,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -96,10 +108,12 @@ import app.promise.android.domain.DuePrecision
 import app.promise.android.domain.GoalRecurrenceKind
 import app.promise.android.domain.GoalTrackingKind
 import app.promise.android.domain.ParsedThoughtItem
+import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
+import app.promise.android.ui.theme.pressScale
 import app.promise.android.ui.theme.rememberReduceMotion
 import kotlinx.coroutines.launch
 
@@ -119,8 +133,8 @@ fun VoiceCaptureSheet(
     onParseThought: (suspend (String) -> List<ParsedThoughtItem>)? = null,
     onCreateCommitment: (suspend (CreateCommitmentInput) -> Unit)? = null,
     onCreateGoal: (suspend (CreateGoalInput) -> Unit)? = null,
-    titleText: String = "Voice → Promise",
-    subtitleText: String = "Speak naturally. Mention tasks, deadlines, or recurring habits.",
+    titleText: String = "Voice Intent Engine",
+    subtitleText: String = "Speak naturally — mentions of tasks, dates, or routines are resolved automatically.",
 ) {
     val colors = PromiseThemeColors.current
     val haptics = LocalHapticFeedback.current
@@ -193,12 +207,11 @@ fun VoiceCaptureSheet(
     fun proceedToAIProcessing() {
         val query = transcriptText.trim()
         if (query.isBlank()) {
-            errorMessage = "No speech detected. Please speak or edit your text."
+            errorMessage = "No speech detected. Please speak or write your thoughts."
             return
         }
 
         if (onParseThought == null) {
-            // No AI parser provided; finish with raw transcript
             onTranscriptReady?.invoke(query)
             onDismiss()
             return
@@ -236,7 +249,6 @@ fun VoiceCaptureSheet(
             } catch (_: kotlinx.coroutines.CancellationException) {
                 // Ignore cancellation
             } catch (e: Exception) {
-                // If remote AI fails (e.g. offline/network error), attempt offline natural language fallback
                 val offlineParsed = app.promise.android.core.util.NaturalLanguageDateParser.parse(query)
                 if (offlineParsed.dueAt != null || offlineParsed.cleanedTitle.isNotBlank()) {
                     val fallbackItem = ParsedThoughtItem(
@@ -338,11 +350,13 @@ fun VoiceCaptureSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.screenHorizontal, vertical = Spacing.lg)
+                .padding(horizontal = Spacing.screenHorizontal)
+                .padding(top = Spacing.sm, bottom = Spacing.xl)
+                .navigationBarsPadding()
                 .imePadding(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Header
+            // Header Bar with AI spark and close button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -352,19 +366,28 @@ fun VoiceCaptureSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.GraphicEq,
-                        contentDescription = null,
-                        tint = colors.accent,
-                        modifier = Modifier.size(24.dp),
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(colors.accent.copy(alpha = 0.12f))
+                            .border(1.dp, colors.accent.copy(alpha = 0.28f), CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                     Column {
                         Text(
                             text = when (currentStep) {
                                 VoicePipelineStep.RECORDING -> titleText
-                                VoicePipelineStep.REVIEW -> "Review Transcript"
-                                VoicePipelineStep.AI_PROCESSING -> "Organizing Tasks..."
-                                VoicePipelineStep.FINALIZE -> "Review & Confirm"
+                                VoicePipelineStep.REVIEW -> "Review Spoken Words"
+                                VoicePipelineStep.AI_PROCESSING -> "Decomposing Intent…"
+                                VoicePipelineStep.FINALIZE -> "Create Promise(s)"
                             },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
@@ -373,12 +396,14 @@ fun VoiceCaptureSheet(
                         Text(
                             text = when (currentStep) {
                                 VoicePipelineStep.RECORDING -> subtitleText
-                                VoicePipelineStep.REVIEW -> "Review what was transcribed or tap Retake."
-                                VoicePipelineStep.AI_PROCESSING -> "Setting up dates and schedules..."
-                                VoicePipelineStep.FINALIZE -> "Select the items you want to schedule."
+                                VoicePipelineStep.REVIEW -> "Check what was heard or tap Retake."
+                                VoicePipelineStep.AI_PROCESSING -> "Resolving dates, deadlines, and routines…"
+                                VoicePipelineStep.FINALIZE -> "Confirm items to add to your plan."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -388,6 +413,7 @@ fun VoiceCaptureSheet(
                         speechManager.reset()
                         onDismiss()
                     },
+                    modifier = Modifier.size(TouchTarget.min),
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Close,
@@ -397,11 +423,11 @@ fun VoiceCaptureSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.lg))
+            Spacer(modifier = Modifier.height(Spacing.md))
 
             AnimatedContent(
                 targetState = currentStep,
-                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
+                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
                 label = "voiceStepTransition",
             ) { step ->
                 when (step) {
@@ -419,7 +445,10 @@ fun VoiceCaptureSheet(
                             } else {
                                 val isListening = speechState is SpeechRecognitionState.Listening
 
-                                AcousticWaveform(
+                                Spacer(modifier = Modifier.height(Spacing.sm))
+
+                                // Luminous Aura Microphone visualizer
+                                LuminousAcousticAura(
                                     isListening = isListening,
                                     rmsNormalized = (speechState as? SpeechRecognitionState.Listening)?.rmsNormalized ?: 0f,
                                     reduceMotion = reduceMotion,
@@ -438,7 +467,7 @@ fun VoiceCaptureSheet(
                                 Spacer(modifier = Modifier.height(Spacing.md))
 
                                 Text(
-                                    text = if (isListening) "Listening... speak now" else "Tap microphone to speak",
+                                    text = if (isListening) "Listening… Speak your intentions" else "Tap microphone to speak",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = if (isListening) colors.accent else colors.textSecondary,
                                     fontWeight = FontWeight.SemiBold,
@@ -446,17 +475,18 @@ fun VoiceCaptureSheet(
 
                                 Spacer(modifier = Modifier.height(Spacing.md))
 
+                                // Glassmorphic live transcript monitor
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(min = 90.dp, max = 160.dp)
+                                        .heightIn(min = 96.dp, max = 160.dp)
                                         .border(
                                             1.dp,
-                                            if (isListening) colors.accent.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                            if (isListening) colors.accent.copy(alpha = 0.45f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f),
                                             RoundedCornerShape(Radius.md),
                                         ),
                                     shape = RoundedCornerShape(Radius.md),
-                                    color = colors.surfaceMuted,
+                                    color = colors.surfaceRaised,
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -467,14 +497,16 @@ fun VoiceCaptureSheet(
                                         if (transcriptText.isNotBlank()) {
                                             Text(
                                                 text = transcriptText,
-                                                style = MaterialTheme.typography.bodyMedium,
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.Medium,
                                                 color = colors.textPrimary,
+                                                lineHeight = 22.sp,
                                             )
                                         } else {
                                             Text(
-                                                text = "e.g. \"Submit quarterly report by Thursday 5pm, and run 5k every morning\"",
+                                                text = "e.g. \"Send pnd mail on first of October 11 am, and gym 4 days a week\"",
                                                 style = MaterialTheme.typography.bodyMedium,
-                                                color = colors.textSecondary.copy(alpha = 0.6f),
+                                                color = colors.textSecondary.copy(alpha = 0.55f),
                                             )
                                         }
                                     }
@@ -486,22 +518,31 @@ fun VoiceCaptureSheet(
                                     onClick = {
                                         speechManager.stopListening()
                                         if (transcriptText.isNotBlank()) {
-                                            currentStep = VoicePipelineStep.REVIEW
+                                            proceedToAIProcessing()
                                         }
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(TouchTarget.min),
-                                    shape = RoundedCornerShape(Radius.sm),
+                                        .height(TouchTarget.min)
+                                        .pressScale(0.97f),
+                                    shape = RoundedCornerShape(Radius.pill),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = colors.accent,
-                                        contentColor = colors.surfaceMuted,
+                                        contentColor = Color.Black,
                                     ),
                                     enabled = transcriptText.isNotBlank(),
                                 ) {
-                                    Icon(imageVector = Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(
+                                        imageVector = Icons.Outlined.AutoAwesome,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
                                     Spacer(modifier = Modifier.width(Spacing.xs))
-                                    Text("Done Speaking", style = MaterialTheme.typography.labelLarge)
+                                    Text(
+                                        "Decompose with AI",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                    )
                                 }
                             }
                         }
@@ -515,13 +556,16 @@ fun VoiceCaptureSheet(
                             OutlinedTextField(
                                 value = transcriptText,
                                 onValueChange = { transcriptText = it },
-                                label = { Text("Transcript") },
+                                label = { Text("Spoken Words") },
                                 modifier = Modifier.fillMaxWidth(),
                                 minLines = 3,
                                 maxLines = 6,
+                                shape = RoundedCornerShape(Radius.md),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = colors.accent,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.40f),
+                                    focusedContainerColor = colors.surfaceRaised,
+                                    unfocusedContainerColor = colors.surfaceRaised,
                                 ),
                             )
 
@@ -542,20 +586,22 @@ fun VoiceCaptureSheet(
                             ) {
                                 OutlinedButton(
                                     onClick = {
-                                        transcriptText = ""
-                                        currentStep = VoicePipelineStep.RECORDING
-                                        speechManager.reset()
-                                        speechManager.startListening()
+                                        startListening()
                                     },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(TouchTarget.min),
-                                    shape = RoundedCornerShape(Radius.sm),
+                                        .height(TouchTarget.min)
+                                        .pressScale(0.97f),
+                                    shape = RoundedCornerShape(Radius.pill),
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                                 ) {
-                                    Icon(imageVector = Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(
+                                        imageVector = Icons.Outlined.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
                                     Spacer(modifier = Modifier.width(Spacing.xs))
-                                    Text("Retake")
+                                    Text("Retake", fontWeight = FontWeight.SemiBold)
                                 }
 
                                 Button(
@@ -564,17 +610,22 @@ fun VoiceCaptureSheet(
                                     },
                                     modifier = Modifier
                                         .weight(1.3f)
-                                        .height(TouchTarget.min),
-                                    shape = RoundedCornerShape(Radius.sm),
+                                        .height(TouchTarget.min)
+                                        .pressScale(0.97f),
+                                    shape = RoundedCornerShape(Radius.pill),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = colors.accent,
-                                        contentColor = colors.surfaceMuted,
+                                        contentColor = Color.Black,
                                     ),
                                     enabled = transcriptText.isNotBlank(),
                                 ) {
-                                    Text("Continue")
+                                    Text("Continue", fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.width(Spacing.xs))
-                                    Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
                                 }
                             }
                         }
@@ -587,21 +638,45 @@ fun VoiceCaptureSheet(
                                 .padding(vertical = Spacing.xxl),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(44.dp),
-                                color = colors.accent,
-                                strokeWidth = 3.dp,
+                            val infiniteTransition = rememberInfiniteTransition(label = "processingSpin")
+                            val pulseScale by infiniteTransition.animateFloat(
+                                initialValue = 0.9f,
+                                targetValue = 1.15f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(900, easing = FastOutSlowInEasing),
+                                    repeatMode = RepeatMode.Reverse,
+                                ),
+                                label = "processingPulse",
                             )
+
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .scale(pulseScale)
+                                    .clip(CircleShape)
+                                    .background(colors.accent.copy(alpha = 0.15f))
+                                    .border(1.5.dp, colors.accent.copy(alpha = 0.40f), CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(32.dp),
+                                )
+                            }
+
                             Spacer(modifier = Modifier.height(Spacing.lg))
+
                             Text(
-                                text = "Structuring your promises...",
+                                text = "Structuring your promises…",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Bold,
                                 color = colors.textPrimary,
                             )
                             Spacer(modifier = Modifier.height(Spacing.xs))
                             Text(
-                                text = "Setting up deadlines and schedules",
+                                text = "Parsing dates, fixing grammar, and scheduling tasks",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary,
                             )
@@ -626,7 +701,7 @@ fun VoiceCaptureSheet(
                                 )
                                 Spacer(modifier = Modifier.height(Spacing.xs))
                                 Text(
-                                    text = "Try speaking concrete tasks, deadlines, or daily habits.",
+                                    text = "Try speaking concrete tasks, deadlines, or daily routines.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = colors.textSecondary,
                                     textAlign = TextAlign.Center,
@@ -638,34 +713,61 @@ fun VoiceCaptureSheet(
                                     },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(TouchTarget.min),
-                                    shape = RoundedCornerShape(Radius.sm),
+                                        .height(TouchTarget.min)
+                                        .pressScale(0.97f),
+                                    shape = RoundedCornerShape(Radius.pill),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = colors.accent,
-                                        contentColor = colors.surfaceMuted,
+                                        contentColor = Color.Black,
                                     ),
                                 ) {
-                                    Text("Edit Transcript")
+                                    Text("Edit Spoken Words", fontWeight = FontWeight.Bold)
                                 }
                             }
                         } else {
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "Detected Items (${selectedIndices.size} of ${items.size})",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = colors.textSecondary,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                                Spacer(modifier = Modifier.height(Spacing.sm))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "PROMISES TO CREATE (${selectedIndices.size}/${items.size})",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = colors.accent,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp,
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            if (selectedIndices.size == items.size) {
+                                                selectedIndices.clear()
+                                            } else {
+                                                selectedIndices.clear()
+                                                selectedIndices.addAll(items.indices)
+                                            }
+                                        },
+                                    ) {
+                                        Text(
+                                            text = if (selectedIndices.size == items.size) "Deselect all" else "Select all",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = colors.textSecondary,
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(Spacing.xs))
 
                                 LazyColumn(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(max = 260.dp),
-                                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                        .heightIn(max = 280.dp),
+                                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                                 ) {
                                     itemsIndexed(items) { index, item ->
                                         val isSelected = selectedIndices.contains(index)
+                                        val isGoal = item.type == "goal"
+
                                         Surface(
                                             onClick = {
                                                 if (isSelected) selectedIndices.remove(index) else selectedIndices.add(index)
@@ -673,66 +775,109 @@ fun VoiceCaptureSheet(
                                             },
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clip(RoundedCornerShape(Radius.sm))
+                                                .clip(RoundedCornerShape(Radius.md))
                                                 .border(
-                                                    1.dp,
-                                                    if (isSelected) colors.accent else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-                                                    RoundedCornerShape(Radius.sm),
-                                                ),
-                                            color = if (isSelected) colors.surfaceMuted else MaterialTheme.colorScheme.surface,
+                                                    1.5.dp,
+                                                    if (isSelected) colors.accent else MaterialTheme.colorScheme.outline.copy(alpha = 0.30f),
+                                                    RoundedCornerShape(Radius.md),
+                                                )
+                                                .pressScale(0.98f),
+                                            color = if (isSelected) colors.accent.copy(alpha = 0.08f) else colors.surfaceRaised,
+                                            shape = RoundedCornerShape(Radius.md),
                                         ) {
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .padding(Spacing.sm),
-                                                verticalAlignment = Alignment.CenterVertically,
+                                                    .padding(Spacing.md),
+                                                verticalAlignment = Alignment.Top,
                                             ) {
                                                 Icon(
                                                     imageVector = if (isSelected) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
-                                                    contentDescription = null,
+                                                    contentDescription = if (isSelected) "Selected" else "Not selected",
                                                     tint = if (isSelected) colors.accent else colors.textSecondary,
-                                                    modifier = Modifier.size(20.dp),
+                                                    modifier = Modifier
+                                                        .size(22.dp)
+                                                        .padding(top = 2.dp),
                                                 )
                                                 Spacer(modifier = Modifier.width(Spacing.sm))
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Row(
                                                         verticalAlignment = Alignment.CenterVertically,
-                                                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                                                     ) {
-                                                        Text(
-                                                            text = if (item.type == "goal") "HABIT" else "COMMITMENT",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = colors.accent,
-                                                        )
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .clip(RoundedCornerShape(Radius.xs))
+                                                                .background(
+                                                                    if (isGoal) Color(0xFF8B5CF6).copy(alpha = 0.18f) else colors.accent.copy(alpha = 0.18f),
+                                                                )
+                                                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                        ) {
+                                                            Text(
+                                                                text = if (isGoal) "DAILY HABIT" else "COMMITMENT",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 10.sp,
+                                                                color = if (isGoal) Color(0xFFC4B5FD) else colors.accent,
+                                                            )
+                                                        }
+
                                                         if (!item.dueAt.isNullOrBlank()) {
                                                             val formattedDue = app.promise.android.ui.commitments.CommitmentTime.formatDue(
                                                                 dueAt = item.dueAt,
                                                                 precision = if (item.duePrecision?.equals("DAY", ignoreCase = true) == true) DuePrecision.DATE else DuePrecision.DATETIME,
                                                                 timeZoneId = "Asia/Kolkata",
                                                             ) ?: item.dueAt
-                                                            Text(
-                                                                text = "• Due $formattedDue",
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                color = colors.textSecondary,
-                                                            )
+
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Outlined.CalendarToday,
+                                                                    contentDescription = null,
+                                                                    tint = colors.textSecondary,
+                                                                    modifier = Modifier.size(11.dp),
+                                                                )
+                                                                Text(
+                                                                    text = "Due $formattedDue",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = colors.textSecondary,
+                                                                    fontSize = 11.sp,
+                                                                )
+                                                            }
                                                         } else if (item.recurrenceKind != null) {
-                                                            Text(
-                                                                text = "• ${item.recurrenceKind}",
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                color = colors.textSecondary,
-                                                            )
+                                                            Row(
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                                            ) {
+                                                                Icon(
+                                                                    imageVector = Icons.Outlined.Repeat,
+                                                                    contentDescription = null,
+                                                                    tint = colors.textSecondary,
+                                                                    modifier = Modifier.size(11.dp),
+                                                                )
+                                                                Text(
+                                                                    text = item.recurrenceKind,
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = colors.textSecondary,
+                                                                    fontSize = 11.sp,
+                                                                )
+                                                            }
                                                         }
                                                     }
-                                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                                    Spacer(modifier = Modifier.height(6.dp))
+
                                                     Text(
                                                         text = item.title,
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        fontWeight = FontWeight.Medium,
+                                                        style = MaterialTheme.typography.bodyLarge,
+                                                        fontWeight = FontWeight.Bold,
                                                         color = colors.textPrimary,
                                                     )
+
                                                     if (item.description.isNotBlank()) {
-                                                        Spacer(modifier = Modifier.height(2.dp))
+                                                        Spacer(modifier = Modifier.height(3.dp))
                                                         Text(
                                                             text = item.description,
                                                             style = MaterialTheme.typography.bodySmall,
@@ -752,23 +897,32 @@ fun VoiceCaptureSheet(
                                     enabled = selectedIndices.isNotEmpty() && !isSubmitting,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(TouchTarget.min),
-                                    shape = RoundedCornerShape(Radius.sm),
+                                        .height(TouchTarget.min)
+                                        .pressScale(0.97f),
+                                    shape = RoundedCornerShape(Radius.pill),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = colors.accent,
-                                        contentColor = colors.surfaceMuted,
+                                        contentColor = Color.Black,
                                     ),
                                 ) {
                                     if (isSubmitting) {
                                         CircularProgressIndicator(
                                             modifier = Modifier.size(20.dp),
-                                            color = colors.surfaceMuted,
+                                            color = Color.Black,
                                             strokeWidth = 2.dp,
                                         )
                                     } else {
-                                        Icon(imageVector = Icons.Outlined.Check, contentDescription = null)
+                                        Icon(
+                                            imageVector = Icons.Outlined.Check,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                        )
                                         Spacer(modifier = Modifier.width(Spacing.xs))
-                                        Text("Create Promise(s) (${selectedIndices.size})")
+                                        Text(
+                                            "Create Promise(s) (${selectedIndices.size})",
+                                            fontWeight = FontWeight.Bold,
+                                            style = MaterialTheme.typography.labelLarge,
+                                        )
                                     }
                                 }
 
@@ -778,21 +932,23 @@ fun VoiceCaptureSheet(
                                     onClick = { currentStep = VoicePipelineStep.REVIEW },
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
-                                    Text("Edit Spoken Words")
+                                    Text(
+                                        "Edit Spoken Words",
+                                        color = colors.textSecondary,
+                                        style = MaterialTheme.typography.labelMedium,
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(Spacing.md))
         }
     }
 }
 
 @Composable
-private fun AcousticWaveform(
+private fun LuminousAcousticAura(
     isListening: Boolean,
     rmsNormalized: Float,
     reduceMotion: Boolean,
@@ -802,7 +958,7 @@ private fun AcousticWaveform(
 
     val smoothRms by animateFloatAsState(
         targetValue = if (isListening) rmsNormalized else 0f,
-        animationSpec = spring(stiffness = 200f, dampingRatio = 0.7f),
+        animationSpec = spring(stiffness = 250f, dampingRatio = 0.65f),
         label = "rmsAnimation",
     )
 
@@ -811,13 +967,13 @@ private fun AcousticWaveform(
         initialValue = 0.95f,
         targetValue = 1.05f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
+            animation = tween(1400, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse,
         ),
         label = "idlePulse",
     )
 
-    val baseScale = if (reduceMotion) 1f else if (isListening) (1f + smoothRms * 0.4f) else idlePulse
+    val baseScale = if (reduceMotion) 1f else if (isListening) (1f + smoothRms * 0.35f) else idlePulse
 
     Box(
         modifier = Modifier
@@ -825,24 +981,24 @@ private fun AcousticWaveform(
             .semantics { contentDescription = if (isListening) "Microphone active" else "Microphone idle" },
         contentAlignment = Alignment.Center,
     ) {
-        // Acoustic ripple rings drawn on Canvas
+        // Luminous Canvas Ripples & Pulsing Rings
         if (!reduceMotion && isListening) {
             Canvas(modifier = Modifier.size(180.dp)) {
                 val center = Offset(size.width / 2, size.height / 2)
                 val baseRadius = 42.dp.toPx()
 
-                // Outer Ring 2
+                // Outer Glowing Ring 2
                 drawCircle(
-                    color = colors.accent.copy(alpha = (0.12f + smoothRms * 0.25f).coerceIn(0f, 0.4f)),
-                    radius = baseRadius + 36.dp.toPx() * (0.6f + smoothRms * 0.6f),
+                    color = colors.accent.copy(alpha = (0.12f + smoothRms * 0.28f).coerceIn(0f, 0.45f)),
+                    radius = baseRadius + 38.dp.toPx() * (0.6f + smoothRms * 0.7f),
                     center = center,
                     style = Stroke(width = 1.5.dp.toPx()),
                 )
 
-                // Outer Ring 1
+                // Outer Glowing Ring 1
                 drawCircle(
-                    color = colors.accent.copy(alpha = (0.2f + smoothRms * 0.35f).coerceIn(0f, 0.6f)),
-                    radius = baseRadius + 18.dp.toPx() * (0.4f + smoothRms * 0.6f),
+                    color = colors.accent.copy(alpha = (0.22f + smoothRms * 0.40f).coerceIn(0f, 0.65f)),
+                    radius = baseRadius + 18.dp.toPx() * (0.4f + smoothRms * 0.7f),
                     center = center,
                     style = Stroke(width = 2.dp.toPx()),
                 )
@@ -853,15 +1009,21 @@ private fun AcousticWaveform(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            // Inner Action Circle Button
+            // Floating Microphone Orb
             Surface(
                 onClick = onToggleListening,
                 modifier = Modifier
-                    .size((72 * baseScale).dp)
-                    .clip(CircleShape),
+                    .size((76 * baseScale).dp)
+                    .clip(CircleShape)
+                    .border(
+                        2.dp,
+                        if (isListening) colors.accent else colors.surfaceRaised,
+                        CircleShape,
+                    )
+                    .pressScale(0.94f),
                 shape = CircleShape,
-                color = if (isListening) colors.accent else colors.surfaceMuted,
-                shadowElevation = if (isListening) 4.dp else 1.dp,
+                color = if (isListening) colors.accent else colors.surfaceRaised,
+                shadowElevation = if (isListening) 8.dp else 2.dp,
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -869,25 +1031,25 @@ private fun AcousticWaveform(
                 ) {
                     Icon(
                         imageVector = if (isListening) Icons.Outlined.Mic else Icons.Outlined.MicOff,
-                        contentDescription = if (isListening) "Tap to pause" else "Tap to speak",
-                        tint = if (isListening) colors.surfaceMuted else colors.textPrimary,
-                        modifier = Modifier.size(32.dp),
+                        contentDescription = if (isListening) "Tap to stop" else "Tap to speak",
+                        tint = if (isListening) Color.Black else colors.textPrimary,
+                        modifier = Modifier.size(34.dp),
                     )
                 }
             }
 
-            // Real-time 5-bar reactive audio equalizer
+            // High-precision 7-bar reactive audio equalizer
             if (!reduceMotion && isListening) {
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    val barMultipliers = listOf(0.6f, 1.1f, 1.5f, 0.9f, 0.5f)
+                    val barMultipliers = listOf(0.5f, 0.9f, 1.3f, 1.7f, 1.2f, 0.8f, 0.4f)
                     barMultipliers.forEachIndexed { i, mult ->
                         val barHeight by animateFloatAsState(
-                            targetValue = (6f + smoothRms * 22f * mult).coerceIn(4f, 28f),
-                            animationSpec = spring(stiffness = 350f + i * 50f, dampingRatio = 0.6f),
+                            targetValue = (5f + smoothRms * 24f * mult).coerceIn(4f, 30f),
+                            animationSpec = spring(stiffness = 380f + i * 40f, dampingRatio = 0.65f),
                             label = "bar-$i",
                         )
                         Box(
@@ -895,7 +1057,7 @@ private fun AcousticWaveform(
                                 .width(3.5.dp)
                                 .height(barHeight.dp)
                                 .clip(RoundedCornerShape(Radius.pill))
-                                .background(colors.accent.copy(alpha = (0.5f + smoothRms * 0.5f).coerceIn(0.4f, 1f))),
+                                .background(colors.accent.copy(alpha = (0.55f + smoothRms * 0.45f).coerceIn(0.5f, 1f))),
                         )
                     }
                 }
@@ -927,11 +1089,11 @@ private fun PermissionRequiredView(
             text = "Microphone Access Needed",
             style = MaterialTheme.typography.titleMedium,
             color = colors.textPrimary,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = FontWeight.Bold,
         )
         Spacer(modifier = Modifier.height(Spacing.xs))
         Text(
-            text = "Promise uses speech recognition to turn your thoughts into promises and daily habits.",
+            text = "Promise uses on-device speech recognition to turn your thoughts into actionable promises and daily routines.",
             style = MaterialTheme.typography.bodyMedium,
             color = colors.textSecondary,
             textAlign = TextAlign.Center,
@@ -939,13 +1101,13 @@ private fun PermissionRequiredView(
         Spacer(modifier = Modifier.height(Spacing.lg))
         Button(
             onClick = onGrantPermission,
-            shape = RoundedCornerShape(Radius.sm),
+            shape = RoundedCornerShape(Radius.pill),
             colors = ButtonDefaults.buttonColors(
                 containerColor = colors.accent,
-                contentColor = colors.surfaceMuted,
+                contentColor = Color.Black,
             ),
         ) {
-            Text("Grant Microphone Access")
+            Text("Grant Microphone Access", fontWeight = FontWeight.Bold)
         }
     }
 }

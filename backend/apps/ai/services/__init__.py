@@ -7,6 +7,7 @@ from apps.ai.services.motivation import get_or_create_daily_quote
 from apps.ai.services.planner import plan_commitments
 from apps.ai.services.reflection import reflect_on_stuck_item
 from apps.ai.services.shared_goal_summary import generate_shared_goal_weekly_summary
+from apps.ai.services.support_bot import ask_promise_support_bot
 from apps.ai.services.thought_parser import parse_thought_into_promises
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "reflect_on_stuck_item",
     "generate_shared_goal_weekly_summary",
     "summarize_goal_chat",
+    "ask_promise_support_bot",
 ]

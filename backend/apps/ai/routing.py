@@ -6,6 +6,7 @@ FAST_FEATURES = {
     "commitment_refiner",
     "thought_parser",
     "command_parser",
+    "support_bot",
 }
 
 REASONING_FEATURES = {

@@ -540,6 +540,14 @@ sequenceDiagram
 |                           | speech stream          | into individual promises with|
 |                           |                        | relative temporal grounding  |
 +---------------------------+------------------------+------------------------------+
+| Multilingual Hinglish NLP | Hindi / Hinglish voice | Ingests Hindi lexicon (aaj,  |
+| & Title Purification      | and text inputs        | kal, parso, baje, roz) and   |
+|                           |                        | purifies clean English titles|
++---------------------------+------------------------+------------------------------+
+| Support AI Concierge      | User product questions | Contextual guide answering   |
+|                           | regarding Promise      | app questions with follow-ups|
+|                           |                        | and strict domain guardrails |
++---------------------------+------------------------+------------------------------+
 | Weekly Insights           | 7-day PostgreSQL usage | Computes factual statistics  |
 |                           | statistics             | + generates calm suggestions |
 |                           |                        | (Always returns HTTP 200)    |
@@ -552,8 +560,14 @@ sequenceDiagram
 ### 9.3 Voice Quick Capture & Natural Language Engine
 - **Voice Quick Capture Activity**: Translucent overlay launching directly from home/lock screen via `VoiceMicGlanceWidget`.
 - **4-Stage Voice Pipeline**: `RECORDING` (live acoustic waveform) $\rightarrow$ `REVIEW` (human-edited transcript) $\rightarrow$ `AI_PROCESSING` (decomposition) $\rightarrow$ `FINALIZE` (preview with localized dates).
+- **Multilingual Hinglish & Title Purification**: Ingests colloquial Hindi/Hinglish speech (`kal subah 8 baje`, `roz gym`, `har din`), purifies scheduling prepositions, and outputs structured items in clean English.
 - **Suspend-and-Await Creation**: Coroutines await database insertion and event bus dispatch before dismissing to eliminate premature activity teardown.
 - **Dual-Layer Date Parsing**: On-device Kotlin parser (`NaturalLanguageDateParser.kt`) mirrors backend Python heuristic parsing when offline.
+
+### 9.4 Promise Support Concierge Chatbot & Floating Orb
+- **Conversational Concierge (`POST /api/v1/ai/support/ask/`)**: Grounded in application architecture (Commitments vs Goals, Shared Goals, Offline sync, Widgets, Privacy).
+- **Domain Guardrails**: Rejects off-topic queries (`is_off_topic = true`) with helpful recommendations and dynamic exploration chips.
+- **Floating Concierge Orb (`FloatingPromiseConciergeOrb.kt`)**: Draggable 54dp circle with spring-snapping physics, ambient radial breathing glow, and global availability across main tabs.
 
 ---
 
@@ -589,15 +603,20 @@ val PrimaryDark     = Color(0xFFE2DDD5)
 ```
 
 ### 11.2 Custom Component Suite
-1. **`PromiseDatePicker`**: Custom calendar grid with month navigation, AA contrast in Light/Dark, and 48dp touch targets.
-2. **`PromiseClockPicker`**: Analog clock face with rotatable hour/minute hands + AM/PM segment controls and large digital readouts.
-3. **`PromiseSkeleton`**: Layout-preserving shimmer loaders eliminating abrupt layout shift during tab switches.
-4. **`bouncyClickable`**: Micro-interaction modifier utilizing spring physics (`dampingRatio = 0.92f`).
+1. **`PromiseHistoryCalendar`**: Interactive monthly history calendar with clickable date inspection popover, check-in notes, proof, and multi-member status in shared goals.
+2. **`FloatingPromiseConciergeOrb`**: Floating draggable AI guide with spring-snapping physics and luminous aura.
+3. **`PromiseDatePicker`**: Custom calendar grid with month navigation, AA contrast in Light/Dark, and 48dp touch targets.
+4. **`PromiseClockPicker`**: Analog clock face with rotatable hour/minute hands + AM/PM segment controls and large digital readouts.
+5. **`PromiseSkeleton`**: Layout-preserving shimmer loaders eliminating abrupt layout shift during tab switches.
+6. **`bouncyClickable` & `pressScale`**: Tactile micro-interaction modifiers utilizing spring physics (`Motion.fluidSpring()`).
+7. **`GoalChatScreen`**: Real-time room chat with local day grouping (`"Today"`, `"Yesterday"`), member profile avatars, and message clustering.
+8. **`ProfileScreen`**: Refined settings hierarchy (`Notifications -> Widgets -> Security -> Devices -> Account Management`) with smooth physical theme slider at the bottom.
 
 ### 11.3 Autonomous Glance Widget Suite
 - **`GoalsGlanceWidget`**: Displays daily habits with Glance `LazyColumn` and 1-tap in-widget check-ins.
 - **`CommitmentsGlanceWidget`**: Displays active commitments with 1-tap completion and overdue badges.
 - **`VoiceMicGlanceWidget`**: 1x1 floating glowing aura disc and 2x1 pill mode launching `VoiceQuickCaptureActivity`.
+- **`RoadmapGlanceWidget`**: Visualizes year progress dot constellation.
 - **`RoadmapGlanceWidget`**: Visualizes year progress dot constellation.
 
 ### 11.4 Dynamic Roadmap Wallpaper Engine

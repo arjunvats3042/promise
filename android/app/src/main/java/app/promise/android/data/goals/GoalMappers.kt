@@ -198,6 +198,9 @@ fun GoalCheckInDto.toDomain(): GoalCheckIn {
         checkedAt = checkedAt,
         createdAt = createdAt,
         updatedAt = updatedAt,
+        userId = userId.orEmpty(),
+        userName = userName.orEmpty(),
+        userAvatarUrl = userAvatarUrl,
     )
 }
 

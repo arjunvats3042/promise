@@ -139,3 +139,20 @@ class DailyMotivationQuoteSerializer(serializers.Serializer):
     model = serializers.CharField()
     created_at = serializers.DateTimeField()
     updated_at = serializers.DateTimeField()
+
+
+class SupportBotMessageSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=["user", "assistant"])
+    text = serializers.CharField(max_length=2000)
+
+
+class SupportBotRequestSerializer(serializers.Serializer):
+    question = serializers.CharField(max_length=1000, required=True, allow_blank=False)
+    conversation_history = SupportBotMessageSerializer(many=True, required=False, default=list)
+    timezone = serializers.CharField(max_length=50, default="Asia/Kolkata")
+
+
+class SupportBotResponseSerializer(serializers.Serializer):
+    answer = serializers.CharField()
+    suggested_followups = serializers.ListField(child=serializers.CharField(), default=list)
+    is_off_topic = serializers.BooleanField(default=False)

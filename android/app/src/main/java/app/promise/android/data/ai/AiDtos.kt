@@ -9,6 +9,8 @@ import app.promise.android.domain.PlannedOrderItem
 import app.promise.android.domain.PlanningSuggestion
 import app.promise.android.domain.ReflectionCoaching
 import app.promise.android.domain.SharedGoalAiSummary
+import app.promise.android.domain.SupportBotAnswer
+import app.promise.android.domain.SupportBotMessage
 import app.promise.android.domain.WeeklyAiFacts
 import app.promise.android.domain.WeeklyAiInsights
 import app.promise.android.domain.WeeklyAiInsightsContent
@@ -290,5 +292,38 @@ data class GoalChatAiSummaryDto(
         agreedActions = agreedActions,
         importantDates = importantDates,
         openQuestions = openQuestions,
+    )
+}
+
+@Serializable
+data class SupportBotMessageDto(
+    val role: String,
+    val text: String,
+) {
+    fun toDomain(): SupportBotMessage = SupportBotMessage(role = role, text = text)
+
+    companion object {
+        fun fromDomain(model: SupportBotMessage): SupportBotMessageDto =
+            SupportBotMessageDto(role = model.role, text = model.text)
+    }
+}
+
+@Serializable
+data class SupportBotRequestDto(
+    val question: String,
+    @SerialName("conversation_history") val conversationHistory: List<SupportBotMessageDto> = emptyList(),
+    val timezone: String = "Asia/Kolkata",
+)
+
+@Serializable
+data class SupportBotResponseDto(
+    val answer: String,
+    @SerialName("suggested_followups") val suggestedFollowups: List<String> = emptyList(),
+    @SerialName("is_off_topic") val isOffTopic: Boolean = false,
+) {
+    fun toDomain(): SupportBotAnswer = SupportBotAnswer(
+        answer = answer,
+        suggestedFollowups = suggestedFollowups,
+        isOffTopic = isOffTopic,
     )
 }

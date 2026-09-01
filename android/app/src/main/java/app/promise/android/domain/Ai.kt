@@ -131,3 +131,16 @@ data class GoalChatAiSummary(
     val importantDates: List<String> = emptyList(),
     val openQuestions: List<String> = emptyList(),
 )
+
+@Serializable
+data class SupportBotMessage(
+    val role: String, // "user" or "assistant"
+    val text: String,
+)
+
+@Serializable
+data class SupportBotAnswer(
+    val answer: String,
+    val suggestedFollowups: List<String> = emptyList(),
+    val isOffTopic: Boolean = false,
+)

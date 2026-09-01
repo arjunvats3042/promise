@@ -306,6 +306,7 @@ class GoalChatViewModel @Inject constructor(
             sender = ChatMessageSender(
                 id = currentUser?.id ?: "",
                 name = currentUser?.name ?: "You",
+                avatarUrl = currentUser?.avatarUrl,
             ),
             body = trimmed,
             createdAt = nowIso,

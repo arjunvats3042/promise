@@ -1,5 +1,9 @@
 package app.promise.android.ui.goals
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,18 +29,28 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Group
+import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.outlined.MailOutline
+import androidx.compose.material.icons.outlined.PauseCircleOutline
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,6 +61,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -67,9 +83,18 @@ import app.promise.android.domain.GoalCheckInStatus
 import app.promise.android.domain.GoalInvitePreview
 import app.promise.android.domain.GoalListFilter
 import app.promise.android.domain.GoalListItem
+import app.promise.android.domain.GoalParticipant
+import app.promise.android.domain.GoalRecurrenceKind
 import app.promise.android.domain.GoalStatus
 import app.promise.android.domain.GoalTrackingKind
+import app.promise.android.ui.components.AvatarSize
+import app.promise.android.ui.components.PromiseAvatar
+import app.promise.android.ui.components.PromiseCardSurface
+import app.promise.android.ui.components.PromiseHairlineDivider
+import app.promise.android.ui.components.PromiseProgressRing
+import app.promise.android.ui.components.PromiseStreakBadge
 import app.promise.android.ui.components.TabSwipeContainer
+import app.promise.android.ui.home.HomeViewModel
 import app.promise.android.ui.navigation.LocalTabSwipeHost
 import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseThemeColors
@@ -92,6 +117,7 @@ fun GoalsListScreen(
     var showAiBuilder by remember { mutableStateOf(false) }
     var checkInGoal by remember { mutableStateOf<Goal?>(null) }
     val colors = PromiseThemeColors.current
+    val haptics = LocalHapticFeedback.current
     val inviteBusy = inviteAction is ActionState.InFlight
 
     var showCelebration by remember { mutableStateOf(false) }
@@ -100,19 +126,26 @@ fun GoalsListScreen(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showCreate = true },
-                containerColor = colors.primaryControl,
-                contentColor = colors.onPrimaryControl,
+                onClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    showCreate = true
+                },
+                containerColor = colors.accent,
+                contentColor = Color.White,
                 shape = RoundedCornerShape(Radius.button),
                 elevation = FloatingActionButtonDefaults.elevation(
-                    defaultElevation = 0.dp,
+                    defaultElevation = 2.dp,
                     pressedElevation = 0.dp,
                 ),
                 modifier = Modifier
-                    .semantics { contentDescription = "New goal" }
+                    .semantics { contentDescription = "Create new goal" }
                     .pressScale(0.92f),
             ) {
-                Icon(Icons.Outlined.Add, contentDescription = null)
+                Icon(
+                    imageVector = Icons.Outlined.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                )
             }
         },
     ) { padding ->
@@ -126,16 +159,85 @@ fun GoalsListScreen(
                     .fillMaxSize()
                     .statusBarsPadding(),
             ) {
-                Text(
-                    text = "Goals",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = colors.textPrimary,
-                    modifier = Modifier.padding(horizontal = Spacing.inset, vertical = Spacing.sm),
-                )
+                // 1. Refined Goals Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.inset)
+                        .padding(top = Spacing.sm, bottom = Spacing.xs),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column {
+                        Text(
+                            text = "Goals & Practices",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary,
+                        )
+                        val totalGoals = (state as? LoadState.Ready)?.value?.items?.count { it is GoalListItem.Membership } ?: 0
+                        val completedToday = (state as? LoadState.Ready)?.value?.items
+                            ?.filterIsInstance<GoalListItem.Membership>()
+                            ?.count { !GoalPresentation.needsCheckInToday(it.goal) && it.goal.status == GoalStatus.ACTIVE } ?: 0
+
+                        val subtitleText = when {
+                            totalGoals > 0 -> "$totalGoals active practice${if (totalGoals != 1) "s" else ""} · $completedToday completed today"
+                            else -> "Build quiet discipline, day by day"
+                        }
+                        Text(
+                            text = subtitleText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
+                    }
+
+                    // AI Intention trigger pill
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.pill))
+                            .border(1.dp, colors.accent.copy(alpha = 0.35f), RoundedCornerShape(Radius.pill))
+                            .pressScale(0.94f)
+                            .clickable {
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                showAiBuilder = true
+                            },
+                        color = colors.accent.copy(alpha = 0.12f),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AutoAwesome,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                text = "AI Intention",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.accent,
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.xs))
+
+                // 2. Segmented Filter Navigation Bar
                 FilterChipsRow(
                     selected = selectedFilter,
-                    onSelect = viewModel::selectFilter,
+                    onSelect = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        viewModel.selectFilter(it)
+                    },
                 )
+
+                Spacer(modifier = Modifier.height(Spacing.xs))
+
+                // 3. Goal Feed & Active Invites
                 when (val s = state) {
                     is LoadState.Loading -> {
                         app.promise.android.ui.components.PromiseListSkeleton(itemCount = 4)
@@ -146,11 +248,17 @@ fun GoalsListScreen(
                                 .fillMaxSize()
                                 .padding(Spacing.inset),
                             verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            Text(s.kind.toUserMessage(), color = colors.textPrimary)
+                            Text(
+                                text = s.kind.toUserMessage(),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.textPrimary,
+                            )
                             if (s.canRetry) {
+                                Spacer(modifier = Modifier.height(Spacing.sm))
                                 TextButton(onClick = viewModel::refresh) {
-                                    Text("Try again", color = colors.accent)
+                                    Text("Try again", color = colors.accent, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
@@ -161,7 +269,7 @@ fun GoalsListScreen(
                             currentIndex = swipeHost?.currentIndex ?: 3,
                             tabCount = swipeHost?.tabCount ?: 5,
                             enabled = swipeHost?.enabled == true,
-                            modalBlocking = showCreate || checkInGoal != null,
+                            modalBlocking = showCreate || checkInGoal != null || showAiBuilder,
                             onSwipe = { direction -> swipeHost?.onSwipe(direction) },
                             modifier = Modifier.fillMaxSize(),
                         ) {
@@ -194,10 +302,11 @@ fun GoalsListScreen(
                                         ) { item ->
                                             Box(modifier = Modifier.animateItem()) {
                                                 when (item) {
-                                                    is GoalListItem.Membership -> GoalRow(
+                                                    is GoalListItem.Membership -> GoalCard(
                                                         goal = item.goal,
                                                         onClick = { onOpenDetail(item.goal.id) },
                                                         onCheckIn = {
+                                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                                             showCelebration = true
                                                             if (item.goal.trackingKind == GoalTrackingKind.BINARY) {
                                                                 viewModel.quickCheckIn(
@@ -209,11 +318,17 @@ fun GoalsListScreen(
                                                             }
                                                         },
                                                     )
-                                                    is GoalListItem.Invite -> InvitePreviewRow(
+                                                    is GoalListItem.Invite -> InviteBannerCard(
                                                         preview = item.preview,
                                                         busy = inviteBusy,
-                                                        onAccept = { viewModel.acceptInvite(item.preview.id) },
-                                                        onDecline = { viewModel.declineInvite(item.preview.id) },
+                                                        onAccept = {
+                                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            viewModel.acceptInvite(item.preview.id)
+                                                        },
+                                                        onDecline = {
+                                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                            viewModel.declineInvite(item.preview.id)
+                                                        },
                                                         onOpenDetail = { onOpenDetail(item.preview.id) },
                                                     )
                                                 }
@@ -306,17 +421,17 @@ private fun FilterChipsRow(
     ) {
         GoalListFilter.entries.forEach { filter ->
             val isSelected = filter == selected
-            val chipBg by androidx.compose.animation.animateColorAsState(
+            val chipBg by animateColorAsState(
                 targetValue = if (isSelected) colors.accent.copy(alpha = 0.14f) else colors.surfaceMuted,
                 animationSpec = Motion.standardTween(Motion.FilterChangeMs),
                 label = "chip-bg",
             )
-            val chipBorder by androidx.compose.animation.animateColorAsState(
+            val chipBorder by animateColorAsState(
                 targetValue = if (isSelected) colors.accent.copy(alpha = 0.38f) else Color.Transparent,
                 animationSpec = Motion.standardTween(Motion.FilterChangeMs),
                 label = "chip-border",
             )
-            val chipFg by androidx.compose.animation.animateColorAsState(
+            val chipFg by animateColorAsState(
                 targetValue = if (isSelected) colors.accent else colors.textSecondary,
                 animationSpec = Motion.standardTween(Motion.FilterChangeMs),
                 label = "chip-fg",
@@ -330,7 +445,7 @@ private fun FilterChipsRow(
                     .pressScale(0.95f)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = androidx.compose.material3.ripple(color = colors.accent),
+                        indication = ripple(color = colors.accent),
                         onClick = { onSelect(filter) },
                     )
                     .padding(horizontal = Spacing.md, vertical = Spacing.xs + 2.dp)
@@ -343,18 +458,20 @@ private fun FilterChipsRow(
                 Text(
                     text = filter.label(),
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                     color = chipFg,
                 )
             }
         }
     }
-    Spacer(modifier = Modifier.height(Spacing.sm))
 }
 
-
+/**
+ * World-class redesigned Goal Card featuring rich cadence chips, team presence,
+ * fluid progress ring gauge, and direct 1-tap check-in ribbon.
+ */
 @Composable
-fun GoalRow(
+fun GoalCard(
     goal: Goal,
     onClick: () -> Unit,
     onCheckIn: () -> Unit,
@@ -363,76 +480,186 @@ fun GoalRow(
     val progressLine = GoalPresentation.progressLine(goal)
     val fraction = GoalPresentation.progressFraction(goal)
     val streak = GoalPresentation.streakLine(goal)
-    val statusPrefix = if (goal.status == GoalStatus.PAUSED) "Paused, " else ""
-    val sharedDesc = if (goal.isShared) "Shared goal" else "Personal goal"
-    val streakDesc = if (streak != null) ", $streak streak" else ""
-    val readableProgress = progressLine.replace("/", " of ")
-    val goalDesc = "$statusPrefix${goal.title}, $sharedDesc, ${goalMetaLine(goal)}, $readableProgress$streakDesc"
+    val needsCheckIn = GoalPresentation.needsCheckInToday(goal)
+    val isPaused = goal.status == GoalStatus.PAUSED
+    val isCompleted = goal.status == GoalStatus.COMPLETED
 
-    app.promise.android.ui.components.PromiseCardSurface(
+    PromiseCardSurface(
         onClick = onClick,
         modifier = Modifier.semantics(mergeDescendants = true) {
-            contentDescription = goalDesc
+            contentDescription = "${goal.title}, $progressLine"
         },
     ) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            // Progress ring — leading visual anchor
-            app.promise.android.ui.components.PromiseProgressRing(
-                progress = fraction,
-                size = 48.dp,
-                strokeWidth = 4.5.dp,
+            // 1. TOP HEADER: Cadence / Category Pill + Streak Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = "${(fraction * 100).toInt()}%",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary,
-                )
-            }
-
-            Spacer(modifier = Modifier.width(Spacing.md))
-
-            // Title + meta
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = goal.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.textPrimary,
-                )
-                Spacer(modifier = Modifier.height(Spacing.xxs))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (goal.status == GoalStatus.PAUSED) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(colors.warning),
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    // Cadence chip
+                    Surface(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.pill))
+                            .background(colors.surfaceMuted),
+                        color = colors.surfaceMuted,
+                    ) {
+                        Text(
+                            text = GoalPresentation.recurrenceLabel(goal).uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.textSecondary,
+                            fontSize = 10.sp,
+                            letterSpacing = 0.6.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                         )
-                        Spacer(modifier = Modifier.width(Spacing.xs))
                     }
-                    Text(
-                        text = goalMetaLine(goal),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.textSecondary,
-                    )
+
+                    // Shared Goal presence pill
+                    if (goal.isShared) {
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(Radius.pill))
+                                .background(colors.accent.copy(alpha = 0.12f)),
+                            color = colors.accent.copy(alpha = 0.12f),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Group,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(12.dp),
+                                )
+                                Text(
+                                    text = "${goal.participants.size} MEMBERS",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.accent,
+                                    fontSize = 9.5.sp,
+                                    letterSpacing = 0.5.sp,
+                                )
+                            }
+                        }
+                    }
                 }
 
-                if (goal.isShared && (goal.unreadChatCount > 0 || goal.latestChatMessage != null)) {
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(Radius.sm))
-                            .background(if (goal.unreadChatCount > 0) colors.accent.copy(alpha = 0.15f) else colors.surfaceMuted)
-                            .border(
-                                width = 1.dp,
-                                color = if (goal.unreadChatCount > 0) colors.accent.copy(alpha = 0.35f) else Color.Transparent,
-                                shape = RoundedCornerShape(Radius.sm),
+                // Streak counter or status badge
+                when {
+                    isPaused -> {
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(Radius.pill))
+                                .background(colors.warning.copy(alpha = 0.15f)),
+                            color = colors.warning.copy(alpha = 0.15f),
+                        ) {
+                            Text(
+                                text = "PAUSED",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.warning,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                             )
-                            .padding(horizontal = Spacing.xs + 2.dp, vertical = Spacing.xxs),
+                        }
+                    }
+                    streak != null -> {
+                        PromiseStreakBadge(streakText = streak)
+                    }
+                }
+            }
+
+            // 2. MAIN ROW: Progress Visual + Goal Title + Team Meta
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Visual Anchor: Circular Progress Ring Gauge
+                PromiseProgressRing(
+                    progress = fraction,
+                    size = 46.dp,
+                    strokeWidth = 4.dp,
+                ) {
+                    if (fraction >= 1f && !isPaused) {
+                        Icon(
+                            imageVector = Icons.Outlined.Check,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    } else {
+                        Text(
+                            text = "${(fraction * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(Spacing.md))
+
+                // Title + Description / Subtitle
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = goal.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    if (goal.isShared && goal.participants.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(Spacing.xxs))
+                        // Teammate Avatars Cluster
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        ) {
+                            TeammateAvatarCluster(participants = goal.participants)
+                            GoalPresentation.collectiveLine(goal)?.let { teamStatus ->
+                                Text(
+                                    text = teamStatus,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary,
+                                    fontSize = 11.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. UNREAD CHAT SNIPPET (If Shared)
+            if (goal.isShared && (goal.unreadChatCount > 0 || goal.latestChatMessage != null)) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(Radius.sm))
+                        .background(if (goal.unreadChatCount > 0) colors.accent.copy(alpha = 0.12f) else colors.surfaceMuted)
+                        .border(
+                            width = 1.dp,
+                            color = if (goal.unreadChatCount > 0) colors.accent.copy(alpha = 0.3f) else Color.Transparent,
+                            shape = RoundedCornerShape(Radius.sm),
+                        ),
+                    color = if (goal.unreadChatCount > 0) colors.accent.copy(alpha = 0.12f) else colors.surfaceMuted,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
@@ -450,73 +677,171 @@ fun GoalRow(
                                 color = colors.accent,
                             )
                             Text(
-                                text = "•",
+                                text = "·",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = colors.textSecondary,
                             )
                         }
                         Text(
-                            text = goal.latestChatMessage?.let { "${it.senderName}: ${it.text}" } ?: "Group chat",
+                            text = goal.latestChatMessage?.let { "${it.senderName}: ${it.text}" } ?: "Group discussion active",
                             style = MaterialTheme.typography.bodySmall,
                             color = if (goal.unreadChatCount > 0) colors.textPrimary else colors.textSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
             }
 
-            // Streak badge — top-right accent
-            if (streak != null) {
-                app.promise.android.ui.components.PromiseStreakBadge(
-                    streakText = streak,
-                )
-            }
-        }
+            PromiseHairlineDivider()
 
-        // Progress detail row
-        Spacer(modifier = Modifier.height(Spacing.sm))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = progressLine,
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.textSecondary,
-            )
-            // Elevated check-in chip
-            if (GoalPresentation.needsCheckInToday(goal)) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.pill))
-                        .background(colors.accent.copy(alpha = 0.12f))
-                        .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(Radius.pill))
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = androidx.compose.material3.ripple(color = colors.accent),
-                            onClick = onCheckIn,
-                        )
-                        .padding(horizontal = Spacing.md, vertical = Spacing.xs + 2.dp)
-                        .heightIn(min = TouchTarget.min)
-                        .semantics { contentDescription = "Check in" },
-                    contentAlignment = Alignment.Center,
+            // 4. BOTTOM ACTION & DAILY EXECUTION RIBBON
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Today's Status
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    modifier = Modifier.weight(1f),
                 ) {
-                    Text(
-                        text = "Check in",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.accent,
-                    )
+                    when {
+                        isPaused -> {
+                            Icon(
+                                imageVector = Icons.Outlined.PauseCircleOutline,
+                                contentDescription = null,
+                                tint = colors.textSecondary,
+                                modifier = Modifier.size(15.dp),
+                            )
+                            Text(
+                                text = "Goal is currently paused",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                            )
+                        }
+                        needsCheckIn -> {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.accent),
+                            )
+                            Text(
+                                text = progressLine,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = colors.textPrimary,
+                            )
+                        }
+                        else -> {
+                            Icon(
+                                imageVector = Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(15.dp),
+                            )
+                            Text(
+                                text = progressLine,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.accent,
+                            )
+                        }
+                    }
+                }
+
+                // Tactile 1-Tap Check-In Button
+                if (needsCheckIn) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(Radius.pill))
+                            .background(colors.accent)
+                            .pressScale(0.92f)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = ripple(color = Color.White),
+                                onClick = onCheckIn,
+                            )
+                            .padding(horizontal = Spacing.md, vertical = 6.dp)
+                            .heightIn(min = TouchTarget.min)
+                            .semantics { contentDescription = "Check in to ${goal.title}" },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Check,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(14.dp),
+                            )
+                            Text(
+                                text = if (goal.trackingKind == GoalTrackingKind.COUNT) "Log Progress" else "Check In",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
 
+/**
+ * Overlapping avatar cluster to display active participants in shared goals.
+ */
 @Composable
-private fun InvitePreviewRow(
+private fun TeammateAvatarCluster(participants: List<GoalParticipant>) {
+    val displayParticipants = participants.take(3)
+    Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
+        displayParticipants.forEach { participant ->
+            val initials = HomeViewModel.initialsFor(participant.userName.ifBlank { "User" })
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+            ) {
+                PromiseAvatar(
+                    initials = initials,
+                    photoPath = participant.avatarUrl,
+                    size = AvatarSize.SM,
+                )
+            }
+        }
+        if (participants.size > 3) {
+            val colors = PromiseThemeColors.current
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(colors.surfaceMuted)
+                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "+${participants.size - 3}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Elevated Shared Goal Invitation Card with inviter presence and 1-tap accept.
+ */
+@Composable
+private fun InviteBannerCard(
     preview: GoalInvitePreview,
     busy: Boolean,
     onAccept: () -> Unit,
@@ -524,76 +849,122 @@ private fun InvitePreviewRow(
     onOpenDetail: () -> Unit,
 ) {
     val colors = PromiseThemeColors.current
-    Column(
+    val initials = HomeViewModel.initialsFor(preview.inviterName.ifBlank { "Host" })
+
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpenDetail)
-            .padding(vertical = Spacing.sm)
-            .semantics { contentDescription = "Invitation: ${preview.title}" },
+            .clip(RoundedCornerShape(Radius.lg))
+            .border(1.dp, colors.accent.copy(alpha = 0.45f), RoundedCornerShape(Radius.lg))
+            .clickable(onClick = onOpenDetail),
+        color = colors.surfaceRaised,
     ) {
-        Text(
-            text = preview.title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = colors.textPrimary,
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = "Invited by ${preview.inviterName}",
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textSecondary,
-        )
-        Text(
-            text = GoalPresentation.inviteScheduleLabel(preview),
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.textSecondary,
-        )
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Row {
-            TextButton(
-                onClick = onAccept,
-                enabled = !busy,
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .semantics { contentDescription = "Accept invitation to ${preview.title}" },
-            ) {
-                Text("Accept", color = colors.accent)
-            }
-            TextButton(
-                onClick = onDecline,
-                enabled = !busy,
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .semantics { contentDescription = "Decline invitation to ${preview.title}" },
-            ) {
-                Text("Decline", color = colors.textSecondary)
-            }
-        }
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(1.dp)
-                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
-        )
-    }
-}
+                .padding(Spacing.cardPadding),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Radius.pill))
+                        .background(colors.accent.copy(alpha = 0.15f)),
+                    color = colors.accent.copy(alpha = 0.15f),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.MailOutline,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(12.dp),
+                        )
+                        Text(
+                            text = "SHARED GOAL INVITATION",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.accent,
+                            fontSize = 9.5.sp,
+                            letterSpacing = 0.5.sp,
+                        )
+                    }
+                }
 
-@Composable
-fun ProgressTrack(fraction: Float) {
-    val colors = PromiseThemeColors.current
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(3.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(fraction.coerceIn(0f, 1f))
-                .height(3.dp)
-                .background(colors.accent),
-        )
+                Text(
+                    text = GoalPresentation.inviteScheduleLabel(preview),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.textSecondary,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+            ) {
+                PromiseAvatar(
+                    initials = initials,
+                    photoPath = null,
+                    size = AvatarSize.MD,
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = preview.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary,
+                    )
+                    Text(
+                        text = "Invited by ${preview.inviterName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            PromiseHairlineDivider()
+            Spacer(modifier = Modifier.height(Spacing.xs))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = onDecline,
+                    enabled = !busy,
+                    modifier = Modifier.heightIn(min = TouchTarget.min),
+                ) {
+                    Text("Decline", color = colors.textSecondary)
+                }
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Radius.pill))
+                        .background(colors.accent)
+                        .clickable(enabled = !busy, onClick = onAccept)
+                        .padding(horizontal = Spacing.md, vertical = 6.dp)
+                        .heightIn(min = TouchTarget.min),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (busy) "Joining…" else "Accept & Join",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -610,16 +981,6 @@ private fun EmptyGoals(
         onActionClick = if (content.actionLabel != null) onCreate else null,
         modifier = Modifier.fillMaxSize(),
     )
-}
-
-
-private fun goalMetaLine(goal: Goal): String {
-    val parts = mutableListOf(GoalPresentation.recurrenceLabel(goal))
-    GoalPresentation.sharedMetaLine(goal)?.let { parts += it }
-    if (goal.status == GoalStatus.PAUSED) parts += "Paused"
-    if (goal.status == GoalStatus.COMPLETED) parts += "Completed"
-    if (goal.status == GoalStatus.CANCELLED) parts += "Cancelled"
-    return parts.joinToString(" · ")
 }
 
 private fun GoalListFilter.label(): String = when (this) {

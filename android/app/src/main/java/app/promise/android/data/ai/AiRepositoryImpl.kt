@@ -10,6 +10,8 @@ import app.promise.android.domain.ParsedThoughtItem
 import app.promise.android.domain.PlanningSuggestion
 import app.promise.android.domain.ReflectionCoaching
 import app.promise.android.domain.SharedGoalAiSummary
+import app.promise.android.domain.SupportBotAnswer
+import app.promise.android.domain.SupportBotMessage
 import app.promise.android.domain.WeeklyAiInsights
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -69,6 +71,23 @@ class AiRepositoryImpl @Inject constructor(
 
     override suspend fun summarizeChat(goalId: String, limit: Int): GoalChatAiSummary = try {
         api.summarizeChat(goalId, ChatSummaryRequestDto(limit = limit)).toDomain()
+    } catch (e: Exception) {
+        throw e.toApiException()
+    }
+
+    override suspend fun askSupportBot(
+        question: String,
+        conversationHistory: List<SupportBotMessage>,
+        timezone: String,
+    ): SupportBotAnswer = try {
+        val historyDtos = conversationHistory.map { SupportBotMessageDto.fromDomain(it) }
+        api.askSupportBot(
+            SupportBotRequestDto(
+                question = question,
+                conversationHistory = historyDtos,
+                timezone = timezone,
+            )
+        ).toDomain()
     } catch (e: Exception) {
         throw e.toApiException()
     }

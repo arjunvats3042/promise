@@ -253,8 +253,8 @@ def list_goal_check_ins(
     participant = get_participant(goal, viewer)
     if participant is None or participant.status != GoalParticipant.Status.ACTIVE:
         raise GoalNotFoundError()
-    queryset = goal.check_ins.order_by("-period_date", "-created_at")
-    if not can_manage_goal(viewer, goal):
+    queryset = goal.check_ins.select_related("participant__user", "created_by").order_by("-period_date", "-created_at")
+    if not goal.is_shared and not can_manage_goal(viewer, goal):
         queryset = queryset.filter(participant=participant)
     if start_date is not None:
         queryset = queryset.filter(period_date__gte=start_date)

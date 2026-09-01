@@ -29,17 +29,34 @@ object NaturalLanguageDateParser {
     )
 
     private val TIME_REGEX = Pattern.compile(
-        "\\b(?:at\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*(a\\.?m\\.?|p\\.?m\\.?|am|pm)?\\b",
+        "\\b(?:at\\s+)?(\\d{1,2})(?::(\\d{2}))?\\s*(a\\.?m\\.?|p\\.?m\\.?|am|pm|baje)?\\b",
         Pattern.CASE_INSENSITIVE,
     )
 
+    private val ORDINAL_WORDS = mapOf(
+        "first" to 1, "1st" to 1, "second" to 2, "2nd" to 2, "third" to 3, "3rd" to 3,
+        "fourth" to 4, "4th" to 4, "fifth" to 5, "5th" to 5, "sixth" to 6, "6th" to 6,
+        "seventh" to 7, "7th" to 7, "eighth" to 8, "8th" to 8, "ninth" to 9, "9th" to 9,
+        "tenth" to 10, "10th" to 10, "eleventh" to 11, "11th" to 11, "twelfth" to 12, "12th" to 12,
+        "thirteenth" to 13, "13th" to 13, "fourteenth" to 14, "14th" to 14, "fifteenth" to 15, "15th" to 15,
+        "sixteenth" to 16, "16th" to 16, "seventeenth" to 17, "17th" to 17, "eighteenth" to 18, "18th" to 18,
+        "nineteenth" to 19, "19th" to 19, "twentieth" to 20, "20th" to 20,
+        "twenty-first" to 21, "21st" to 21, "twenty-second" to 22, "22nd" to 22,
+        "twenty-third" to 23, "23rd" to 23, "twenty-fourth" to 24, "24th" to 24,
+        "twenty-fifth" to 25, "25th" to 25, "twenty-sixth" to 26, "26th" to 26,
+        "twenty-seventh" to 27, "27th" to 27, "twenty-eighth" to 28, "28th" to 28,
+        "twenty-ninth" to 29, "29th" to 29, "thirtieth" to 30, "30th" to 30, "thirty-first" to 31, "31st" to 31,
+    )
+
+    private const val ORD_PATTERN = "(?:\\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|eighteenth|nineteenth|twentieth|twenty-first|twenty-second|twenty-third|twenty-fourth|twenty-fifth|twenty-sixth|twenty-seventh|twenty-eighth|twenty-ninth|thirtieth|thirty-first)"
+
     private val MONTH_DAY_REGEX = Pattern.compile(
-        "\\b(?:on|by\\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b",
+        "\\b(?:on|by\\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\s+($ORD_PATTERN)\\b",
         Pattern.CASE_INSENSITIVE,
     )
 
     private val DAY_MONTH_REGEX = Pattern.compile(
-        "\\b(?:on|by\\s+)?(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\b",
+        "\\b(?:on|by\\s+)?($ORD_PATTERN)\\s+(?:of\\s+)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\b",
         Pattern.CASE_INSENSITIVE,
     )
 
@@ -103,24 +120,28 @@ object NaturalLanguageDateParser {
         // 2. Detect Day Offsets (if not already set by relative offset)
         if (targetDate == null) {
             when {
-                lower.contains("day after tomorrow") -> {
+                lower.contains("day after tomorrow") || lower.contains("parso") || lower.contains("parson") -> {
                     targetDate = now.toLocalDate().plusDays(2)
                     precision = DuePrecision.DATE
                 }
-                lower.contains("tomorrow") -> {
+                lower.contains("tomorrow") || lower.contains("kal") -> {
                     targetDate = now.toLocalDate().plusDays(1)
                     precision = DuePrecision.DATE
                 }
-                lower.contains("tonight") -> {
+                lower.contains("narso") -> {
+                    targetDate = now.toLocalDate().plusDays(3)
+                    precision = DuePrecision.DATE
+                }
+                lower.contains("tonight") || lower.contains("aaj raat") -> {
                     targetDate = now.toLocalDate()
                     targetTime = LocalTime.of(21, 0)
                     precision = DuePrecision.DATETIME
                 }
-                lower.contains("today") -> {
+                lower.contains("today") || lower.contains("aaj") -> {
                     targetDate = now.toLocalDate()
                     precision = DuePrecision.DATE
                 }
-                lower.contains("next week") -> {
+                lower.contains("next week") || lower.contains("agla hafta") || lower.contains("agle hafte") -> {
                     targetDate = now.toLocalDate().plusDays(7)
                     precision = DuePrecision.DATE
                 }
@@ -134,7 +155,8 @@ object NaturalLanguageDateParser {
                     val dmMatcher = DAY_MONTH_REGEX.matcher(lower)
                     if (mdMatcher.find()) {
                         val month = parseMonth(mdMatcher.group(1).orEmpty())
-                        val day = mdMatcher.group(2)?.toIntOrNull() ?: 1
+                        val dayToken = mdMatcher.group(2).orEmpty().lowercase(Locale.ROOT)
+                        val day = ORDINAL_WORDS[dayToken] ?: dayToken.filter { it.isDigit() }.toIntOrNull() ?: 1
                         if (month != null) {
                             var year = now.year
                             val candidate = LocalDate.of(year, month, day.coerceIn(1, month.length(now.toLocalDate().isLeapYear)))
@@ -145,7 +167,8 @@ object NaturalLanguageDateParser {
                             precision = DuePrecision.DATE
                         }
                     } else if (dmMatcher.find()) {
-                        val day = dmMatcher.group(1)?.toIntOrNull() ?: 1
+                        val dayToken = dmMatcher.group(1).orEmpty().lowercase(Locale.ROOT)
+                        val day = ORDINAL_WORDS[dayToken] ?: dayToken.filter { it.isDigit() }.toIntOrNull() ?: 1
                         val month = parseMonth(dmMatcher.group(2).orEmpty())
                         if (month != null) {
                             var year = now.year
@@ -157,7 +180,7 @@ object NaturalLanguageDateParser {
                             precision = DuePrecision.DATE
                         }
                     } else {
-                        // Check for day of week (e.g. "on friday", "next monday")
+                        // Check for day of week (e.g. "on friday", "next monday", "somwar ko")
                         val dayOfWeek = findDayOfWeek(lower)
                         if (dayOfWeek != null) {
                             targetDate = findNextDayOfWeek(now.toLocalDate(), dayOfWeek)
@@ -168,21 +191,21 @@ object NaturalLanguageDateParser {
             }
         }
 
-        // 3. Detect Named Time Periods (e.g. "in afternoon", "afternoon", "in the morning", "evening", "at night")
+        // 3. Detect Named Time Periods (e.g. "in afternoon", "afternoon", "dopahar", "morning", "subah", "evening", "shaam", "night", "raat")
         when {
-            lower.contains("afternoon") -> {
+            lower.contains("afternoon") || lower.contains("dopahar") -> {
                 if (targetTime == null) targetTime = LocalTime.of(14, 0)
                 precision = DuePrecision.DATETIME
             }
-            lower.contains("morning") -> {
+            lower.contains("morning") || lower.contains("subah") || lower.contains("pratah") -> {
                 if (targetTime == null) targetTime = LocalTime.of(9, 0)
                 precision = DuePrecision.DATETIME
             }
-            lower.contains("evening") -> {
+            lower.contains("evening") || lower.contains("shaam") || lower.contains("sham") -> {
                 if (targetTime == null) targetTime = LocalTime.of(18, 0)
                 precision = DuePrecision.DATETIME
             }
-            lower.contains("night") && !lower.contains("tonight") -> {
+            (lower.contains("night") || lower.contains("raat")) && !lower.contains("tonight") && !lower.contains("aaj raat") -> {
                 if (targetTime == null) targetTime = LocalTime.of(21, 0)
                 precision = DuePrecision.DATETIME
             }
@@ -196,7 +219,7 @@ object NaturalLanguageDateParser {
             }
         }
 
-        // 4. Detect Explicit Clock Time (e.g. "12:00 p.m.", "12:00 pm", "12 pm", "5pm", "17:30")
+        // 4. Detect Explicit Clock Time (e.g. "12:00 p.m.", "12:00 pm", "12 pm", "5pm", "17:30", "5 baje", "11 baje")
         val matcher = TIME_REGEX.matcher(lower)
         while (matcher.find()) {
             val hourStr = matcher.group(1)
@@ -211,6 +234,13 @@ object NaturalLanguageDateParser {
                 var hour = rawHour
                 if (cleanAmpm == "pm" && hour < 12) hour += 12
                 if (cleanAmpm == "am" && hour == 12) hour = 0
+                if (cleanAmpm == "baje") {
+                    if ((lower.contains("shaam") || lower.contains("sham") || lower.contains("raat") || lower.contains("evening") || lower.contains("night")) && hour < 12) {
+                        hour += 12
+                    } else if ((lower.contains("dopahar") || lower.contains("afternoon")) && hour < 12 && hour <= 5) {
+                        hour += 12
+                    }
+                }
                 if (hour in 0..23 && rawMin in 0..59) {
                     targetTime = LocalTime.of(hour, rawMin)
                     precision = DuePrecision.DATETIME
@@ -246,10 +276,11 @@ object NaturalLanguageDateParser {
     fun cleanTitle(raw: String): String {
         var cleaned = raw
         val patternsToRemove = listOf(
+            "\\b(?:and\\s+)?(?:set|schedule|remind|create)\\s+(?:it\\s+)?(?:for|to|at|on)\\b.*$",
             "\\b(?:in|after)\\s+(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d+)\\s*(?:days?|weeks?|months?|hours?|hrs?|mins?|minutes?)\\b",
             "\\b(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\\d+)\\s*(?:days?|weeks?|months?|hours?|hrs?|mins?|minutes?)\\s+(?:after|later|from\\s+now)\\b",
-            "\\b(?:on|by\\s+)?(?:\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\b",
-            "\\b(?:on|by\\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\s+(?:\\d{1,2})(?:st|nd|rd|th)?\\b",
+            "\\b(?:on\\s+|by\\s+)?$ORD_PATTERN\\s+(?:of\\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\b",
+            "\\b(?:on\\s+|by\\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\s+$ORD_PATTERN\\b",
             "\\bday after tomorrow\\b",
             "\\btomorrow\\b",
             "\\btonight\\b",
@@ -264,13 +295,15 @@ object NaturalLanguageDateParser {
             "\\b(?:at|by|on)\\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\\b",
             "\\b(?:at|by\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:a\\.m\\.|p\\.m\\.|a\\.m|p\\.m|am|pm)",
             "\\b(?:at|by\\s+)?\\d{1,2}:\\d{2}\\b",
+            "\\b(?:ko\\s+call\\s+karna\\s+hai|call\\s+karna\\s+hai|karna\\s+hai|jana\\s+hai|bhejna\\s+hai|dena\\s+hai|lena\\s+hai|khareedna\\s+hai|peena\\s+hai|padhna\\s+hai|kar\\s+dena)\\b",
+            "\\b(?:kal|parso|parson|narso|aaj|subah|shaam|sham|dopahar|raat|baje|roz|har\\s+din|har\\s+roz|agle?\\s+somwar)\\b",
         )
         for (p in patternsToRemove) {
             cleaned = cleaned.replace(Regex(p, RegexOption.IGNORE_CASE), "")
         }
-        // Remove leading modal verbs: e.g. "I have to call...", "and I need to send..."
-        cleaned = cleaned.replace(Regex("^(?:and\\s+|also\\s+|then\\s+|plus\\s+|so\\s+)?(?:i\\s+(?:have\\s+to|need\\s+to|must|want\\s+to|will|should|gotta|plan\\s+to)\\s+)?", RegexOption.IGNORE_CASE), "")
-        cleaned = cleaned.replace(Regex("\\b(?:at|by|on|for|in|due)\\s*$", RegexOption.IGNORE_CASE), "")
+        // Remove leading modal verbs / task starters: e.g. "I have to call...", "schedule call with...", "remind me to send..."
+        cleaned = cleaned.replace(Regex("^(?:and\\s+|also\\s+|then\\s+|plus\\s+|so\\s+|please\\s+|aur\\s+|phir\\s+|fir\\s+|mujhe\\s+|hume\\s+)?(?:schedule\\s+|remind\\s+me\\s+to\\s+|remember\\s+to\\s+|i\\s+(?:have\\s+to|need\\s+to|must|want\\s+to|will|should|gotta|plan\\s+to)\\s+)?", RegexOption.IGNORE_CASE), "")
+        cleaned = cleaned.replace(Regex("\\b(?:at|by|on|for|in|due|and|also|then|set|it|to|ko|hai|se|me|mein)\\s*$", RegexOption.IGNORE_CASE), "")
         cleaned = cleaned.replace(Regex("\\s+"), " ").trim()
 
         if (cleaned.length < 2) {
@@ -281,16 +314,16 @@ object NaturalLanguageDateParser {
 
     private fun parseWordNumber(str: String): Int {
         return when (str.lowercase(Locale.ROOT)) {
-            "a", "an", "one" -> 1
-            "two" -> 2
-            "three" -> 3
-            "four" -> 4
-            "five" -> 5
-            "six" -> 6
-            "seven" -> 7
-            "eight" -> 8
-            "nine" -> 9
-            "ten" -> 10
+            "a", "an", "one", "ek" -> 1
+            "two", "do" -> 2
+            "three", "teen" -> 3
+            "four", "char" -> 4
+            "five", "paanch" -> 5
+            "six", "chhe" -> 6
+            "seven", "saat" -> 7
+            "eight", "aath" -> 8
+            "nine", "nau" -> 9
+            "ten", "das" -> 10
             else -> str.toIntOrNull() ?: 1
         }
     }
@@ -316,13 +349,13 @@ object NaturalLanguageDateParser {
 
     private fun findDayOfWeek(text: String): DayOfWeek? {
         return when {
-            text.contains("monday") -> DayOfWeek.MONDAY
-            text.contains("tuesday") -> DayOfWeek.TUESDAY
-            text.contains("wednesday") -> DayOfWeek.WEDNESDAY
-            text.contains("thursday") -> DayOfWeek.THURSDAY
-            text.contains("friday") -> DayOfWeek.FRIDAY
-            text.contains("saturday") -> DayOfWeek.SATURDAY
-            text.contains("sunday") -> DayOfWeek.SUNDAY
+            text.contains("monday") || text.contains("somwar") -> DayOfWeek.MONDAY
+            text.contains("tuesday") || text.contains("mangalwar") -> DayOfWeek.TUESDAY
+            text.contains("wednesday") || text.contains("budhwar") -> DayOfWeek.WEDNESDAY
+            text.contains("thursday") || text.contains("guruwar") || text.contains("veervar") -> DayOfWeek.THURSDAY
+            text.contains("friday") || text.contains("shukrawar") -> DayOfWeek.FRIDAY
+            text.contains("saturday") || text.contains("shaniwar") -> DayOfWeek.SATURDAY
+            text.contains("sunday") || text.contains("ravivar") || text.contains("itwar") -> DayOfWeek.SUNDAY
             else -> null
         }
     }

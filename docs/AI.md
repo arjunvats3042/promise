@@ -93,16 +93,38 @@ The AI layer utilizes structured JSON schema definitions. All raw LLM text outpu
 
 ---
 
-## 5. Voice Quick Capture & Client Architecture
+## 5. Voice Quick Capture & Natural Language Intent Architecture
 
 1. **Zero-Jargon UI**: The voice experience removes all technical AI jargon in favor of clear human outcomes (*"Setting up deadlines and schedules"*, *"Done Speaking"*, *"Retake"*, *"Continue"*).
-2. **Suspend-and-Await Creation**: The voice sheet awaits database insertion and event bus dispatch before dismissing, preventing coroutine cancellation and premature activity teardown.
-3. **Glance Widget Integration**: 1-tap floating mic widget (`VoiceMicGlanceWidget`) launches translucent `VoiceQuickCaptureActivity` directly from the home screen with theme and accent color synchronization.
+2. **Multilingual & Hinglish Ingestion**:
+   - Full support for Hindi, Hinglish, and mixed regional phrasing (e.g. *"kal subah 8 baje mummy ko call karna hai aur roz gym jana hai"*).
+   - Ingests Hindi temporal lexicon (`aaj`, `kal`, `parso`, `narso`, `subah`, `dopahar`, `shaam`, `raat`, `baje`, `roz`, `somwar`..`ravivar`).
+   - Automatically translates intentions into clean English titles (`"Call Mom"`, `"Gym Workout"`).
+3. **Strict Title Purification**:
+   - Automatically removes scheduling prepositions, adverbs, and spoken noise (e.g. *"and set it for..."*, *"first of October 11 am"*) leaving pristine English action titles with due dates parsed into structured UTC ISO-8601 timestamps.
+4. **Suspend-and-Await Creation**: The voice sheet awaits database insertion and event bus dispatch before dismissing, preventing coroutine cancellation and premature activity teardown.
+5. **Glance Widget Integration**: 1-tap floating mic widget (`VoiceMicGlanceWidget`) launches translucent `VoiceQuickCaptureActivity` directly from the home screen with theme and accent color synchronization.
 
 ---
 
-## 6. Security, Privacy & Safety Guardrails
+## 6. Promise Support Concierge Chatbot
 
+Promise includes an interactive, intelligent **Concierge Guide** (`POST /api/v1/ai/support/ask/`) that answers user questions regarding the application:
+
+1. **Domain Grounding & Knowledge Injection**:
+   - Full context grounding in `PROMISE_SUPPORT_BOT_PROMPT_V1`: Commitments (one-time tasks) vs Goals (recurring habits), Shared Goals & Room Chat, Offline-first Room DB synchronization, Glance widgets, Push Notifications, and Zero AI Data Training privacy guarantees.
+2. **Strict Guardrails for Off-Topic Queries**:
+   - Off-topic questions (e.g. trivia, homework, general coding) set `is_off_topic = true` and politely redirect the user back to Promise capabilities with 3 recommended exploration chips.
+3. **Conversational Experience (`PromiseSupportChatSheet.kt`)**:
+   - Interactive modal chat stream with markdown formatting, bolding, bullet points, typing shimmer animation, and 1-tap dynamic suggested follow-up question chips.
+4. **Floating Concierge Orb (`FloatingPromiseConciergeOrb.kt`)**:
+   - Globally accessible floating assistant circle with spring-snapping physics (snaps to screen edges with natural damping), ambient radial breathing glow, live status micro-dot, and tactile haptic feedback.
+
+---
+
+## 7. Security, Privacy & Safety Guardrails
+
+- **Zero User Data for Model Training (Absolute Guarantee)**: User inputs and commitments processed through AI services are ephemeral and strictly used for runtime inference. They are **never stored by third-party model providers or used to train public foundation models**.
 - **Pseudonymous Context Only**: Prompts receive only necessary entity metadata (e.g. title, target frequency, completion percentage). User identity, email addresses, phone numbers, and cryptographic keys are never sent to the LLM.
 - **Prompt Injection Defense**: User-supplied input is wrapped in isolated, delimited text blocks with explicit system instructions prohibiting override of output schemas or system roles.
 - **Failure Isolation & Graceful Fallbacks**: If Gemini is unreachable or rate-limited, fallback services take over seamlessly to guarantee continuous service availability.

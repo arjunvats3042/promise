@@ -262,6 +262,12 @@ data class GoalCheckInDto(
     val createdAt: String,
     @SerialName("updated_at")
     val updatedAt: String,
+    @SerialName("user_id")
+    val userId: String? = null,
+    @SerialName("user_name")
+    val userName: String? = null,
+    @SerialName("user_avatar_url")
+    val userAvatarUrl: String? = null,
 )
 
 @Serializable
