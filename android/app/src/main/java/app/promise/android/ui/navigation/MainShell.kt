@@ -99,6 +99,8 @@ fun MainShell(
     val detailSlidePx = with(density) { 48.dp.roundToPx() }
     val coroutineScope = rememberCoroutineScope()
     var showSupportSheet by remember { mutableStateOf(false) }
+    var supportOriginX by remember { androidx.compose.runtime.mutableFloatStateOf(0.9f) }
+    var supportOriginY by remember { androidx.compose.runtime.mutableFloatStateOf(0.8f) }
 
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { TabDestinations.items.size })
 
@@ -353,13 +355,30 @@ fun MainShell(
 
                     // Floating Interactive Concierge Orb
                     FloatingPromiseConciergeOrb(
-                        onClick = { showSupportSheet = true },
+                        onClick = { px, py ->
+                            supportOriginX = px
+                            supportOriginY = py
+                            showSupportSheet = true
+                        },
                     )
 
-                    // Concierge Modal Chat Sheet
+                    // Concierge Modal Chat Sheet with MacBook Zoom Animation
                     if (showSupportSheet) {
                         PromiseSupportChatSheet(
+                            originX = supportOriginX,
+                            originY = supportOriginY,
                             onDismiss = { showSupportSheet = false },
+                            onAction = { actionType ->
+                                coroutineScope.launch {
+                                    when (actionType) {
+                                        "CREATE_GOAL", "OPEN_SHARED_GOALS" -> pagerState.animateScrollToPage(3)
+                                        "CREATE_COMMITMENT" -> pagerState.animateScrollToPage(1)
+                                        "OPEN_PROFILE", "OPEN_THEME", "OPEN_NOTIFICATIONS" -> pagerState.animateScrollToPage(4)
+                                        "OPEN_VOICE_CAPTURE" -> pagerState.animateScrollToPage(0)
+                                        else -> pagerState.animateScrollToPage(0)
+                                    }
+                                }
+                            },
                         )
                     }
                 }

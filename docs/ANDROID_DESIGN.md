@@ -812,22 +812,27 @@ Simplified the commitments view from 5 overlapping categories down to 3 focused 
 ## 26. Interactive Craft Components, Multilingual Voice & Global Floating Concierge
 
 ### 26.1. Interactive Multi-Member History Calendar (`PromiseHistoryCalendar.kt`)
-- **Interactive Day Popover**: Tapping any calendar day opens an animated glassmorphic modal popover (`DayDetailDialog`) displaying exact check-in proof, notes, metrics, and completion timestamps.
+- **Interactive Day Popover**: Tapping any past calendar day between the goal start date and today opens an animated modal popover (`DayDetailDialog`) displaying exact check-in proof, notes, metrics, and completion timestamps.
+- **Locked Boundaries & Integrity**: Days prior to `goal.startDate` and future dates are strictly non-clickable (`isClickable = !isFuture && !isBeforeStart`) with muted visual indicators to preserve historical data integrity.
 - **Shared Goal Multi-Member Status**: For shared accountability rooms, the popover displays each participant's status (`COMPLETED`, `PENDING`, `MISSED`) with their avatar and role badge (`CREATOR`, `MEMBER`).
 - **Smooth Month Transitions**: Fluid cross-fade and scale animation when navigating past/future months.
 
-### 26.2. Profile Screen Architecture & Fluid Sliding Theme Controller (`ProfileScreen.kt`)
+### 26.2. Profile Screen Architecture & Fluid Sliding Theme Controller (`ProfileScreen.kt`, `Theme.kt`)
 - **Hero Profile Header**: Streamlined layout removing greetings and redundant email text (email is housed in Security & Identity). Tapping the profile photo directly launches the photo picker.
 - **Strict Information Hierarchy**: Section order: `Notifications -> Widgets -> Security -> Devices -> Account Management`.
 - **Fluid Theme Segmented Controller**: Positioned at the very bottom of the screen. Utilizes `Motion.fluidSpring()`, `animateDpAsState`, and `animateColorAsState` for a tactile, physical sliding pill transition between Light and Dark modes.
+- **Safe Context Unwrapping**: `tailrec fun Context.findActivity(): Activity?` safely unwraps `ContextWrapper` chains in `SideEffect`, eliminating `ClassCastException` across theme swaps.
 
 ### 26.3. Goal Chat Date Grouping & Member Avatars (`GoalChatScreen.kt`)
 - **Local Day Header Grouping**: Message timestamps are grouped relative to the user's local timezone via `formatHeaderDate` (`"Today"`, `"Yesterday"`, `"EEEE, MMM d"`), guaranteeing messages sent today appear under "Today".
 - **Sender Avatars & Clustering**: Incoming messages render sender profile photos (`PromiseAvatar(size = AvatarSize.SM)`) with smart vertical clustering to group consecutive messages from the same sender within 5 minutes.
 
-### 26.4. Floating Promise Concierge Orb (`FloatingPromiseConciergeOrb.kt`)
+### 26.4. Floating Promise Concierge Orb & MacBook Zoom Window (`FloatingPromiseConciergeOrb.kt`, `PromiseSupportChatSheet.kt`)
 - **Spring-Snapping Physics**: Full 1:1 drag gesture tracking. When released, it computes the nearest screen edge and springs cleanly to the left or right margin with natural bouncy damping (`Spring.DampingRatioMediumBouncy`).
-- **Ambient Breathing Glow**: Continuous radial pulse animation (`InfiniteTransition`, 2200ms) with cyan/violet light diffusion and micro-rotating AI spark icon (`Icons.Rounded.AutoAwesome`).
-- **Global MainShell Overlay**: Floats unobtrusively above all 5 main app tabs (`Home`, `Commitments`, `Roadmap`, `Goals`, `Profile`). Tapping opens `PromiseSupportChatSheet` with markdown styling, shimmer typing animation, and 1-tap follow-up question chips.
+- **MacBook-Style Exact-Origin Zoom Expansion**: Tapping the orb calculates its exact screen coordinates `(originX, originY)`. The support chat window zooms outward directly from the orb's center (`scale: 0.12f → 1.0f`) using spring physics (`Spring.DampingRatioLowBouncy`), fading in the frosted backdrop.
+- **Smooth Collapse on Dismissal**: Tapping **Close**, clicking the backdrop, or pressing the Android system **Back** button shrinks the window back into the floating orb (`scale: 1.0f → 0.12f`, `alpha: 1f → 0f`).
+- **1-Tap Action Deep-Link Badges**: Concierge responses render interactive action chips (`CREATE_GOAL`, `CREATE_COMMITMENT`, `OPEN_THEME`, `OPEN_SHARED_GOALS`, `OPEN_PROFILE`, `OPEN_VOICE_CAPTURE`) that close the window and route to destination screens in 1 tap.
+- **0ms Instant Local-First Resolution**: Frequently asked questions resolve in 0ms without network spinners from `PromiseSupportViewModel`.
+- **Smooth Typewriter Stream Rendering**: Text reveals smoothly character-by-character with tap-to-skip support.
 
 

@@ -8,7 +8,7 @@ import javax.inject.Singleton
 
 @Singleton
 class SharedPrefsThemeStore @Inject constructor(
-    @ApplicationContext context: Context,
+    @param:ApplicationContext private val context: Context,
 ) : ThemeStore {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

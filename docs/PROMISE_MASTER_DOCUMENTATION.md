@@ -565,8 +565,12 @@ sequenceDiagram
 - **Dual-Layer Date Parsing**: On-device Kotlin parser (`NaturalLanguageDateParser.kt`) mirrors backend Python heuristic parsing when offline.
 
 ### 9.4 Promise Support Concierge Chatbot & Floating Orb
-- **Conversational Concierge (`POST /api/v1/ai/support/ask/`)**: Grounded in application architecture (Commitments vs Goals, Shared Goals, Offline sync, Widgets, Privacy).
-- **Domain Guardrails**: Rejects off-topic queries (`is_off_topic = true`) with helpful recommendations and dynamic exploration chips.
+- **Conversational Concierge (`POST /api/v1/ai/support/ask/`)**: Grounded in application architecture (Commitments vs Goals, Creation Procedures, Shared Goals, Offline sync, Widgets, 4-step Account Deletion, Privacy).
+- **MacBook-Style Exact-Origin Zoom Window**: Support chat window dynamically zooms outward directly from the floating orb's screen coordinates `(originX, originY)` using bouncy spring physics and collapses cleanly back on close or back gesture.
+- **1-Tap Action Deep-Link Badges**: Concierge responses render actionable deep-link pills (`CREATE_GOAL`, `CREATE_COMMITMENT`, `OPEN_THEME`, `OPEN_SHARED_GOALS`, `OPEN_PROFILE`, `OPEN_VOICE_CAPTURE`).
+- **0ms Instant Local-First Resolution**: Frequently asked questions resolve in 0ms without network latency from in-memory cache in `PromiseSupportViewModel`.
+- **Smooth Typewriter Stream Rendering**: Text streams in character-by-character with tap-to-skip support.
+- **Domain Guardrails**: Rejects off-topic queries (`is_off_topic = true`) with polite app concierge redirect.
 - **Floating Concierge Orb (`FloatingPromiseConciergeOrb.kt`)**: Draggable 54dp circle with spring-snapping physics, ambient radial breathing glow, and global availability across main tabs.
 
 ---
@@ -603,14 +607,14 @@ val PrimaryDark     = Color(0xFFE2DDD5)
 ```
 
 ### 11.2 Custom Component Suite
-1. **`PromiseHistoryCalendar`**: Interactive monthly history calendar with clickable date inspection popover, check-in notes, proof, and multi-member status in shared goals.
-2. **`FloatingPromiseConciergeOrb`**: Floating draggable AI guide with spring-snapping physics and luminous aura.
+1. **`PromiseHistoryCalendar`**: Interactive monthly history calendar with locked boundary interactions (unclickable before `startDate` and future dates), day inspection popover, check-in notes, proof, and multi-member status in shared goals.
+2. **`FloatingPromiseConciergeOrb`**: Floating draggable AI guide with spring-snapping physics, exact-origin zoom expansion coordinate tracking, and luminous aura.
 3. **`PromiseDatePicker`**: Custom calendar grid with month navigation, AA contrast in Light/Dark, and 48dp touch targets.
 4. **`PromiseClockPicker`**: Analog clock face with rotatable hour/minute hands + AM/PM segment controls and large digital readouts.
 5. **`PromiseSkeleton`**: Layout-preserving shimmer loaders eliminating abrupt layout shift during tab switches.
 6. **`bouncyClickable` & `pressScale`**: Tactile micro-interaction modifiers utilizing spring physics (`Motion.fluidSpring()`).
 7. **`GoalChatScreen`**: Real-time room chat with local day grouping (`"Today"`, `"Yesterday"`), member profile avatars, and message clustering.
-8. **`ProfileScreen`**: Refined settings hierarchy (`Notifications -> Widgets -> Security -> Devices -> Account Management`) with smooth physical theme slider at the bottom.
+8. **`ProfileScreen`**: Refined settings hierarchy (`Notifications -> Widgets -> Security -> Devices -> Account Management`) with safe Activity context unwrapping (`findActivity()`) and smooth physical theme slider at the bottom.
 
 ### 11.3 Autonomous Glance Widget Suite
 - **`GoalsGlanceWidget`**: Displays daily habits with Glance `LazyColumn` and 1-tap in-widget check-ins.

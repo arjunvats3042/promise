@@ -139,8 +139,15 @@ data class SupportBotMessage(
 )
 
 @Serializable
+data class SupportActionChip(
+    val label: String,
+    val actionType: String,
+)
+
+@Serializable
 data class SupportBotAnswer(
     val answer: String,
     val suggestedFollowups: List<String> = emptyList(),
     val isOffTopic: Boolean = false,
+    val actionChips: List<SupportActionChip> = emptyList(),
 )

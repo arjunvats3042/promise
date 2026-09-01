@@ -156,15 +156,18 @@ fun PromiseTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
-            @Suppress("DEPRECATION")
-            window.statusBarColor = colorScheme.background.toArgb()
-            @Suppress("DEPRECATION")
-            window.navigationBarColor = colorScheme.background.toArgb()
-            val controller = WindowCompat.getInsetsController(window, view)
-            val lightIcons = mode == PromiseThemeMode.Light
-            controller.isAppearanceLightStatusBars = lightIcons
-            controller.isAppearanceLightNavigationBars = lightIcons
+            val activity = view.context.findActivity()
+            if (activity != null) {
+                val window = activity.window
+                @Suppress("DEPRECATION")
+                window.statusBarColor = colorScheme.background.toArgb()
+                @Suppress("DEPRECATION")
+                window.navigationBarColor = colorScheme.background.toArgb()
+                val controller = WindowCompat.getInsetsController(window, view)
+                val lightIcons = mode == PromiseThemeMode.Light
+                controller.isAppearanceLightStatusBars = lightIcons
+                controller.isAppearanceLightNavigationBars = lightIcons
+            }
         }
     }
     val currentDensity = androidx.compose.ui.platform.LocalDensity.current
@@ -186,4 +189,10 @@ fun PromiseTheme(
             content = content,
         )
     }
+}
+
+private tailrec fun android.content.Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

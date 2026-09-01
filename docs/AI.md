@@ -112,12 +112,20 @@ The AI layer utilizes structured JSON schema definitions. All raw LLM text outpu
 Promise includes an interactive, intelligent **Concierge Guide** (`POST /api/v1/ai/support/ask/`) that answers user questions regarding the application:
 
 1. **Domain Grounding & Knowledge Injection**:
-   - Full context grounding in `PROMISE_SUPPORT_BOT_PROMPT_V1`: Commitments (one-time tasks) vs Goals (recurring habits), Shared Goals & Room Chat, Offline-first Room DB synchronization, Glance widgets, Push Notifications, and Zero AI Data Training privacy guarantees.
-2. **Strict Guardrails for Off-Topic Queries**:
-   - Off-topic questions (e.g. trivia, homework, general coding) set `is_off_topic = true` and politely redirect the user back to Promise capabilities with 3 recommended exploration chips.
-3. **Conversational Experience (`PromiseSupportChatSheet.kt`)**:
-   - Interactive modal chat stream with markdown formatting, bolding, bullet points, typing shimmer animation, and 1-tap dynamic suggested follow-up question chips.
-4. **Floating Concierge Orb (`FloatingPromiseConciergeOrb.kt`)**:
+   - Full context grounding in `PROMISE_SUPPORT_BOT_PROMPT_V1`: Commitments (one-time tasks) vs Goals (recurring habits), Goal / Commitment creation procedures (Method 1: Manual `+`, Method 2: Voice Quick Capture), Shared Goals & Room Chat, Offline-first Room DB synchronization, Glance widgets, Push Notifications, 4-step direct Account Deletion, and Zero AI Data Training privacy guarantees.
+2. **MacBook-Style Exact-Origin Zoom Window**:
+   - The support window dynamically blooms outward directly from the floating orb's screen coordinates `(originX, originY)` using bouncy spring physics (`Spring.DampingRatioLowBouncy`, `Spring.StiffnessMediumLow`), scaling from `0.12f` to `1.0f` with frosted scrim fade.
+   - On dismissal (close button, backdrop tap, or Android system back button), the sheet smoothly shrinks and collapses back into the orb.
+3. **1-Tap Action Deep-Link Badges (`SupportActionChip`)**:
+   - Structured action badges returned in `action_chips` (`CREATE_GOAL`, `CREATE_COMMITMENT`, `OPEN_THEME`, `OPEN_SHARED_GOALS`, `OPEN_PROFILE`, `OPEN_VOICE_CAPTURE`) render below responses.
+   - 1 tap smoothly closes the chat window and navigates directly to the designated tab or creation sheet.
+4. **0ms Instant Local-First Resolution**:
+   - Frequently asked questions and follow-up suggestion chips (*"Goal vs. Commitment difference"*, *"How can I create a goal?"*, *"How does offline sync work?"*, *"How do Shared Goals work?"*, etc.) resolve **instantly in 0ms** from an in-memory knowledge store in `PromiseSupportViewModel`, bypassing network latency and eliminating loading spinners.
+5. **Smooth Typewriter Stream Rendering**:
+   - Text streams in naturally character-by-character with calibrated cadence and tap-to-skip support.
+6. **Strict Guardrails for Off-Topic Queries**:
+   - Off-topic questions (e.g. trivia, homework, general coding, or profanities) set `is_off_topic = true` and politely redirect the user back to Promise capabilities with recommended exploration chips.
+7. **Floating Concierge Orb (`FloatingPromiseConciergeOrb.kt`)**:
    - Globally accessible floating assistant circle with spring-snapping physics (snaps to screen edges with natural damping), ambient radial breathing glow, live status micro-dot, and tactile haptic feedback.
 
 ---

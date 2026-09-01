@@ -96,6 +96,7 @@ fun PromiseHistoryCalendar(
     targetValue: Int? = null,
     participants: List<GoalParticipant> = emptyList(),
     isShared: Boolean = false,
+    startDate: String? = null,
     modifier: Modifier = Modifier,
     initialDate: LocalDate = LocalDate.now(),
 ) {
@@ -103,8 +104,22 @@ fun PromiseHistoryCalendar(
     val haptics = LocalHapticFeedback.current
     val today = remember { LocalDate.now() }
 
+    val parsedStartDate = remember(startDate) {
+        runCatching {
+            startDate?.take(10)?.let { LocalDate.parse(it) }
+        }.getOrNull()
+    }
+
     var currentMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
-    var selectedDate by remember { mutableStateOf(initialDate) }
+    var selectedDate by remember {
+        val candidate = initialDate
+        val validCandidate = when {
+            candidate.isAfter(today) -> today
+            parsedStartDate != null && candidate.isBefore(parsedStartDate) -> parsedStartDate
+            else -> candidate
+        }
+        mutableStateOf(validCandidate)
+    }
     var showDayDetailSheet by remember { mutableStateOf(false) }
 
     // Map date -> list of check-ins on that date
@@ -117,6 +132,7 @@ fun PromiseHistoryCalendar(
         currentMonth.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault()))
     }
 
+    val canGoPrev = parsedStartDate == null || currentMonth.isAfter(YearMonth.from(parsedStartDate))
     val canGoNext = currentMonth.isBefore(YearMonth.from(today))
 
     Column(
@@ -132,15 +148,18 @@ fun PromiseHistoryCalendar(
             ) {
                 IconButton(
                     onClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        currentMonth = currentMonth.minusMonths(1)
+                        if (canGoPrev) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            currentMonth = currentMonth.minusMonths(1)
+                        }
                     },
+                    enabled = canGoPrev,
                     modifier = Modifier.size(TouchTarget.min),
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
                         contentDescription = "Previous month",
-                        tint = colors.textPrimary,
+                        tint = if (canGoPrev) colors.textPrimary else colors.textSecondary.copy(alpha = 0.3f),
                     )
                 }
 
@@ -238,6 +257,8 @@ fun PromiseHistoryCalendar(
                                 val isSelected = date == selectedDate
                                 val isToday = date == today
                                 val isFuture = date.isAfter(today)
+                                val isBeforeStart = parsedStartDate != null && date.isBefore(parsedStartDate)
+                                val isClickable = !isFuture && !isBeforeStart
 
                                 CalendarDayCell(
                                     day = dayNumber,
@@ -247,10 +268,13 @@ fun PromiseHistoryCalendar(
                                     isSelected = isSelected,
                                     isToday = isToday,
                                     isFuture = isFuture,
+                                    isBeforeStart = isBeforeStart,
                                     onClick = {
-                                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        selectedDate = date
-                                        showDayDetailSheet = true
+                                        if (isClickable) {
+                                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            selectedDate = date
+                                            showDayDetailSheet = true
+                                        }
                                     },
                                     modifier = Modifier.weight(1f),
                                 )
@@ -331,25 +355,27 @@ private fun CalendarDayCell(
     isSelected: Boolean,
     isToday: Boolean,
     isFuture: Boolean,
+    isBeforeStart: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = PromiseThemeColors.current
+    val isClickable = !isFuture && !isBeforeStart
 
     val cellBg = when {
-        isSelected -> colors.accent.copy(alpha = 0.16f)
+        isSelected && isClickable -> colors.accent.copy(alpha = 0.16f)
         isToday -> colors.surfaceMuted
         else -> Color.Transparent
     }
 
     val borderColor = when {
-        isSelected -> colors.accent
+        isSelected && isClickable -> colors.accent
         isToday -> colors.accent.copy(alpha = 0.6f)
         else -> Color.Transparent
     }
 
     val textColor = when {
-        isFuture -> colors.textSecondary.copy(alpha = 0.35f)
+        !isClickable -> colors.textSecondary.copy(alpha = 0.28f)
         isSelected -> colors.textPrimary
         isToday -> colors.accent
         else -> colors.textPrimary
@@ -365,11 +391,17 @@ private fun CalendarDayCell(
             .clip(RoundedCornerShape(Radius.sm))
             .background(cellBg)
             .border(1.dp, borderColor, RoundedCornerShape(Radius.sm))
-            .pressScale(0.92f, enabled = !isFuture)
-            .clickable(
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                indication = ripple(color = colors.accent),
-                onClick = onClick,
+            .pressScale(0.92f, enabled = isClickable)
+            .then(
+                if (isClickable) {
+                    Modifier.clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = ripple(color = colors.accent),
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                }
             )
             .semantics {
                 contentDescription = "Day $day, $completedCount of $totalParticipants completed"
@@ -383,12 +415,12 @@ private fun CalendarDayCell(
             Text(
                 text = day.toString(),
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
+                fontWeight = if ((isSelected || isToday) && isClickable) FontWeight.Bold else FontWeight.Normal,
                 color = textColor,
                 fontSize = 13.sp,
             )
 
-            if (!isFuture) {
+            if (isClickable) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),

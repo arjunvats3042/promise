@@ -97,47 +97,49 @@ object PromiseWidgetUpdater {
     }
 
     suspend fun updateGlanceWidgetState(context: Context, widgetData: PromiseWidgetData) {
-        val glanceManager = GlanceAppWidgetManager(context)
+        runCatching {
+            val glanceManager = GlanceAppWidgetManager(context)
 
-        // 1. Update Goals Widgets
-        val goalsIds = glanceManager.getGlanceIds(GoalsGlanceWidget::class.java)
-        for (glanceId in goalsIds) {
-            runCatching {
-                updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
-                    val mutable = prefs.toMutablePreferences()
-                    mutable[WIDGET_DATA_PREF_KEY] = widgetData.toJson()
-                    mutable
+            // 1. Update Goals Widgets
+            val goalsIds = glanceManager.getGlanceIds(GoalsGlanceWidget::class.java)
+            for (glanceId in goalsIds) {
+                runCatching {
+                    updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+                        val mutable = prefs.toMutablePreferences()
+                        mutable[WIDGET_DATA_PREF_KEY] = widgetData.toJson()
+                        mutable
+                    }
+                    GoalsGlanceWidget().update(context, glanceId)
                 }
-                GoalsGlanceWidget().update(context, glanceId)
             }
-        }
 
-        // 2. Update Commitments Widgets
-        val commitmentsIds = glanceManager.getGlanceIds(CommitmentsGlanceWidget::class.java)
-        for (glanceId in commitmentsIds) {
-            runCatching {
-                updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
-                    val mutable = prefs.toMutablePreferences()
-                    mutable[WIDGET_DATA_PREF_KEY] = widgetData.toJson()
-                    mutable
+            // 2. Update Commitments Widgets
+            val commitmentsIds = glanceManager.getGlanceIds(CommitmentsGlanceWidget::class.java)
+            for (glanceId in commitmentsIds) {
+                runCatching {
+                    updateAppWidgetState(context, PreferencesGlanceStateDefinition, glanceId) { prefs ->
+                        val mutable = prefs.toMutablePreferences()
+                        mutable[WIDGET_DATA_PREF_KEY] = widgetData.toJson()
+                        mutable
+                    }
+                    CommitmentsGlanceWidget().update(context, glanceId)
                 }
-                CommitmentsGlanceWidget().update(context, glanceId)
             }
-        }
 
-        // 3. Update Roadmap Widgets
-        val roadmapIds = glanceManager.getGlanceIds(RoadmapGlanceWidget::class.java)
-        for (glanceId in roadmapIds) {
-            runCatching {
-                RoadmapGlanceWidget().update(context, glanceId)
+            // 3. Update Roadmap Widgets
+            val roadmapIds = glanceManager.getGlanceIds(RoadmapGlanceWidget::class.java)
+            for (glanceId in roadmapIds) {
+                runCatching {
+                    RoadmapGlanceWidget().update(context, glanceId)
+                }
             }
-        }
 
-        // 4. Update Voice Mic Widgets
-        val voiceIds = glanceManager.getGlanceIds(VoiceMicGlanceWidget::class.java)
-        for (glanceId in voiceIds) {
-            runCatching {
-                VoiceMicGlanceWidget().update(context, glanceId)
+            // 4. Update Voice Mic Widgets
+            val voiceIds = glanceManager.getGlanceIds(VoiceMicGlanceWidget::class.java)
+            for (glanceId in voiceIds) {
+                runCatching {
+                    VoiceMicGlanceWidget().update(context, glanceId)
+                }
             }
         }
     }

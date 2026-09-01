@@ -9,6 +9,7 @@ import app.promise.android.domain.PlannedOrderItem
 import app.promise.android.domain.PlanningSuggestion
 import app.promise.android.domain.ReflectionCoaching
 import app.promise.android.domain.SharedGoalAiSummary
+import app.promise.android.domain.SupportActionChip
 import app.promise.android.domain.SupportBotAnswer
 import app.promise.android.domain.SupportBotMessage
 import app.promise.android.domain.WeeklyAiFacts
@@ -316,14 +317,27 @@ data class SupportBotRequestDto(
 )
 
 @Serializable
+data class SupportActionChipDto(
+    val label: String,
+    @SerialName("action_type") val actionType: String = "",
+) {
+    fun toDomain(): SupportActionChip = SupportActionChip(
+        label = label,
+        actionType = actionType,
+    )
+}
+
+@Serializable
 data class SupportBotResponseDto(
     val answer: String,
     @SerialName("suggested_followups") val suggestedFollowups: List<String> = emptyList(),
     @SerialName("is_off_topic") val isOffTopic: Boolean = false,
+    @SerialName("action_chips") val actionChips: List<SupportActionChipDto> = emptyList(),
 ) {
     fun toDomain(): SupportBotAnswer = SupportBotAnswer(
         answer = answer,
         suggestedFollowups = suggestedFollowups,
         isOffTopic = isOffTopic,
+        actionChips = actionChips.map { it.toDomain() },
     )
 }

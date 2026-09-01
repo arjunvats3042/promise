@@ -58,7 +58,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun FloatingPromiseConciergeOrb(
-    onClick: () -> Unit,
+    onClick: (pivotX: Float, pivotY: Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = PromiseThemeColors.current
@@ -181,7 +181,9 @@ fun FloatingPromiseConciergeOrb(
                     indication = null,
                     onClick = {
                         haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                        onClick()
+                        val pivotX = if (screenWidthPx > 0) ((offsetX.value + orbSizePx / 2f) / screenWidthPx).coerceIn(0.05f, 0.95f) else 0.9f
+                        val pivotY = if (screenHeightPx > 0) ((offsetY.value + orbSizePx / 2f) / screenHeightPx).coerceIn(0.05f, 0.95f) else 0.8f
+                        onClick(pivotX, pivotY)
                     }
                 ),
             contentAlignment = Alignment.Center,

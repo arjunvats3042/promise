@@ -669,33 +669,6 @@ private fun DetailContent(
                     }
                 }
             }
-
-            if (ui.recentActivity.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(Spacing.md))
-                PromiseCardSurface {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        PromiseMicroLabel("RECENT ACTIVITY")
-                        Text(
-                            text = "View all",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = colors.accent,
-                            modifier = Modifier
-                                .clickable { onOpenActivityHistory() }
-                                .padding(4.dp),
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(Spacing.xs))
-                    Column {
-                        ui.recentActivity.take(4).forEach { item ->
-                            ActivityRowItem(item = item)
-                        }
-                    }
-                }
-            }
         }
 
         Spacer(modifier = Modifier.height(Spacing.section))
@@ -719,6 +692,7 @@ private fun DetailContent(
                 targetValue = goal.targetValue,
                 participants = goal.participants,
                 isShared = goal.isShared,
+                startDate = goal.startDate,
             )
         }
 
@@ -778,6 +752,34 @@ private fun DetailContent(
                         .semantics { contentDescription = "Leave goal" },
                 ) {
                     Text("Leave goal", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+
+        // Recent Activity Card (Shifted to the bottom as requested)
+        if (ui.recentActivity.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(Spacing.section))
+            PromiseCardSurface {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PromiseMicroLabel("RECENT ACTIVITY")
+                    Text(
+                        text = "View all",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.accent,
+                        modifier = Modifier
+                            .clickable { onOpenActivityHistory() }
+                            .padding(4.dp),
+                    )
+                }
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Column {
+                    ui.recentActivity.take(4).forEach { item ->
+                        ActivityRowItem(item = item)
+                    }
                 }
             }
         }
