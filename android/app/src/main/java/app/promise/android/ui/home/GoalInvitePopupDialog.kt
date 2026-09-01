@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -108,14 +110,19 @@ fun GoalInvitePopupDialog(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(Radius.sm))
                                 .background(colors.accent.copy(alpha = 0.15f))
-                                .padding(horizontal = Spacing.xs + 2.dp, vertical = Spacing.xxs),
+                                .padding(horizontal = Spacing.sm, vertical = Spacing.xxs),
                         ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Group,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(14.dp),
+                            )
                             Text(
-                                text = "🤝 SHARED GOAL INVITE",
+                                text = "Shared Goal Invitation",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = colors.accent,
-                                letterSpacing = 0.5.sp,
                             )
                         }
 

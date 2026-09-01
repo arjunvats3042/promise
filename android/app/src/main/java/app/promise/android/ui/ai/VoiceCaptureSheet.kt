@@ -17,6 +17,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -361,9 +362,9 @@ fun VoiceCaptureSheet(
                         Text(
                             text = when (currentStep) {
                                 VoicePipelineStep.RECORDING -> titleText
-                                VoicePipelineStep.REVIEW -> "Review Spoken Words"
-                                VoicePipelineStep.AI_PROCESSING -> "Structuring Promise..."
-                                VoicePipelineStep.FINALIZE -> "Create Promise(s)"
+                                VoicePipelineStep.REVIEW -> "Review Transcript"
+                                VoicePipelineStep.AI_PROCESSING -> "Organizing Tasks..."
+                                VoicePipelineStep.FINALIZE -> "Review & Confirm"
                             },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
@@ -372,9 +373,9 @@ fun VoiceCaptureSheet(
                         Text(
                             text = when (currentStep) {
                                 VoicePipelineStep.RECORDING -> subtitleText
-                                VoicePipelineStep.REVIEW -> "Check what was heard or tap Retake."
+                                VoicePipelineStep.REVIEW -> "Review what was transcribed or tap Retake."
                                 VoicePipelineStep.AI_PROCESSING -> "Setting up dates and schedules..."
-                                VoicePipelineStep.FINALIZE -> "Confirm items to add to your plan."
+                                VoicePipelineStep.FINALIZE -> "Select the items you want to schedule."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.textSecondary,
@@ -514,7 +515,7 @@ fun VoiceCaptureSheet(
                             OutlinedTextField(
                                 value = transcriptText,
                                 onValueChange = { transcriptText = it },
-                                label = { Text("Spoken Words") },
+                                label = { Text("Transcript") },
                                 modifier = Modifier.fillMaxWidth(),
                                 minLines = 3,
                                 maxLines = 6,
@@ -644,17 +645,16 @@ fun VoiceCaptureSheet(
                                         contentColor = colors.surfaceMuted,
                                     ),
                                 ) {
-                                    Text("Edit Spoken Words")
+                                    Text("Edit Transcript")
                                 }
                             }
                         } else {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    text = "PROMISES TO CREATE (${selectedIndices.size}/${items.size})",
+                                    text = "Detected Items (${selectedIndices.size} of ${items.size})",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = colors.accent,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.8.sp,
+                                    color = colors.textSecondary,
+                                    fontWeight = FontWeight.SemiBold,
                                 )
                                 Spacer(modifier = Modifier.height(Spacing.sm))
 
@@ -849,26 +849,56 @@ private fun AcousticWaveform(
             }
         }
 
-        // Inner Action Circle Button
-        Surface(
-            onClick = onToggleListening,
-            modifier = Modifier
-                .size((72 * baseScale).dp)
-                .clip(CircleShape),
-            shape = CircleShape,
-            color = if (isListening) colors.accent else colors.surfaceMuted,
-            shadowElevation = if (isListening) 4.dp else 1.dp,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.fillMaxWidth(),
+            // Inner Action Circle Button
+            Surface(
+                onClick = onToggleListening,
+                modifier = Modifier
+                    .size((72 * baseScale).dp)
+                    .clip(CircleShape),
+                shape = CircleShape,
+                color = if (isListening) colors.accent else colors.surfaceMuted,
+                shadowElevation = if (isListening) 4.dp else 1.dp,
             ) {
-                Icon(
-                    imageVector = if (isListening) Icons.Outlined.Mic else Icons.Outlined.MicOff,
-                    contentDescription = if (isListening) "Tap to pause" else "Tap to speak",
-                    tint = if (isListening) colors.surfaceMuted else colors.textPrimary,
-                    modifier = Modifier.size(32.dp),
-                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = if (isListening) Icons.Outlined.Mic else Icons.Outlined.MicOff,
+                        contentDescription = if (isListening) "Tap to pause" else "Tap to speak",
+                        tint = if (isListening) colors.surfaceMuted else colors.textPrimary,
+                        modifier = Modifier.size(32.dp),
+                    )
+                }
+            }
+
+            // Real-time 5-bar reactive audio equalizer
+            if (!reduceMotion && isListening) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val barMultipliers = listOf(0.6f, 1.1f, 1.5f, 0.9f, 0.5f)
+                    barMultipliers.forEachIndexed { i, mult ->
+                        val barHeight by animateFloatAsState(
+                            targetValue = (6f + smoothRms * 22f * mult).coerceIn(4f, 28f),
+                            animationSpec = spring(stiffness = 350f + i * 50f, dampingRatio = 0.6f),
+                            label = "bar-$i",
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(3.5.dp)
+                                .height(barHeight.dp)
+                                .clip(RoundedCornerShape(Radius.pill))
+                                .background(colors.accent.copy(alpha = (0.5f + smoothRms * 0.5f).coerceIn(0.4f, 1f))),
+                        )
+                    }
+                }
             }
         }
     }

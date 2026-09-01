@@ -54,19 +54,30 @@ fun PromiseSkeletonBox(
         )
     } else {
         val transition = rememberInfiniteTransition(label = "skeleton_shimmer")
-        val alpha by transition.animateFloat(
-            initialValue = 0.35f,
-            targetValue = 0.75f,
+        val translateAnim by transition.animateFloat(
+            initialValue = -300f,
+            targetValue = 1200f,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse,
+                animation = tween(durationMillis = 1300, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Restart,
             ),
-            label = "shimmer_alpha",
+            label = "shimmer_translate",
+        )
+        val baseColor = colors.surfaceMuted
+        val highlightColor = if (colors.isDark) {
+            colors.surfaceRaised.copy(alpha = 0.6f)
+        } else {
+            colors.surfaceRaised.copy(alpha = 0.85f)
+        }
+        val brush = Brush.linearGradient(
+            colors = listOf(baseColor, highlightColor, baseColor),
+            start = androidx.compose.ui.geometry.Offset(translateAnim - 400f, translateAnim - 400f),
+            end = androidx.compose.ui.geometry.Offset(translateAnim, translateAnim),
         )
         Box(
             modifier = modifier
                 .clip(shape)
-                .background(colors.surfaceMuted.copy(alpha = alpha)),
+                .background(brush),
         )
     }
 }

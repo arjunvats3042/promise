@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,8 +21,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.IosShare
@@ -90,6 +93,7 @@ fun YearProgressModal(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.screenHorizontal)
                 .padding(bottom = Spacing.xl),
         ) {
@@ -101,17 +105,15 @@ fun YearProgressModal(
             ) {
                 Column {
                     Text(
-                        text = "${progressInfo.year} LIFE ROADMAP",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.textSecondary,
-                        letterSpacing = 1.5.sp,
-                    )
-                    Text(
-                        text = "Day ${progressInfo.currentDayOfYear} of ${progressInfo.totalDays}",
+                        text = "${progressInfo.year} Progress",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = colors.textPrimary,
+                    )
+                    Text(
+                        text = "Day ${progressInfo.currentDayOfYear} of ${progressInfo.totalDays}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
                     )
                 }
 
@@ -146,13 +148,13 @@ fun YearProgressModal(
                     ) {
                         Column {
                             Text(
-                                text = "${progressInfo.percentElapsed}% ELAPSED",
+                                text = "${progressInfo.percentElapsed}%",
                                 style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = colors.accent,
                             )
                             Text(
-                                text = "${progressInfo.daysRemaining} days left to make this year count",
+                                text = "${progressInfo.daysRemaining} days remaining in ${progressInfo.year}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary,
                             )
@@ -192,49 +194,56 @@ fun YearProgressModal(
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.md))
+            // Selected Day Inspection Pill with smooth AnimatedContent transition
+            androidx.compose.animation.AnimatedContent(
+                targetState = selectedDay,
+                transitionSpec = {
+                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(120)) + androidx.compose.animation.slideInVertically { 8 })
+                        .togetherWith(androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(100)))
+                },
+                label = "day-inspect",
+            ) { currentDay ->
+                val date = remember(currentDay, progressInfo.year) {
+                    LocalDate.ofYearDay(progressInfo.year, currentDay)
+                }
+                val dateFormatted = remember(date) {
+                    date.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy", Locale.getDefault()))
+                }
+                val dayStatus = when {
+                    currentDay < progressInfo.currentDayOfYear -> "Passed"
+                    currentDay == progressInfo.currentDayOfYear -> "Today ✨"
+                    else -> "Upcoming"
+                }
 
-            // Selected Day Inspection Pill
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(Radius.md))
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(Radius.md)),
-                color = colors.surfaceMuted.copy(alpha = 0.6f),
-            ) {
-                Row(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+                        .clip(RoundedCornerShape(Radius.md))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(Radius.md)),
+                    color = colors.surfaceMuted.copy(alpha = 0.6f),
                 ) {
-                    Column {
-                        Text(
-                            text = "DAY $selectedDay",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (selectedDay == progressInfo.currentDayOfYear) colors.accent else colors.textSecondary,
-                        )
-                        Text(
-                            text = selectedDateFormatted,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.textPrimary,
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column {
+                            Text(
+                                text = "DAY $currentDay · $dayStatus".uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (currentDay == progressInfo.currentDayOfYear) colors.accent else colors.textSecondary,
+                            )
+                            Text(
+                                text = dateFormatted,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.textPrimary,
+                            )
+                        }
                     }
-
-                    val statusLabel = when {
-                        selectedDay == progressInfo.currentDayOfYear -> "TODAY"
-                        selectedDay < progressInfo.currentDayOfYear -> "PAST"
-                        else -> "${selectedDay - progressInfo.currentDayOfYear}d AWAY"
-                    }
-
-                    Text(
-                        text = statusLabel,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (selectedDay == progressInfo.currentDayOfYear) colors.accent else colors.textSecondary,
-                    )
                 }
             }
 

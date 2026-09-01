@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -70,6 +71,7 @@ import app.promise.android.domain.GoalStatus
 import app.promise.android.domain.GoalTrackingKind
 import app.promise.android.ui.components.TabSwipeContainer
 import app.promise.android.ui.navigation.LocalTabSwipeHost
+import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
@@ -156,8 +158,8 @@ fun GoalsListScreen(
                     is LoadState.Ready -> {
                         val swipeHost = LocalTabSwipeHost.current
                         TabSwipeContainer(
-                            currentIndex = swipeHost?.currentIndex ?: 2,
-                            tabCount = swipeHost?.tabCount ?: 4,
+                            currentIndex = swipeHost?.currentIndex ?: 3,
+                            tabCount = swipeHost?.tabCount ?: 5,
                             enabled = swipeHost?.enabled == true,
                             modalBlocking = showCreate || checkInGoal != null,
                             onSwipe = { direction -> swipeHost?.onSwipe(direction) },
@@ -298,20 +300,34 @@ private fun FilterChipsRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = Spacing.screenHorizontal),
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
         GoalListFilter.entries.forEach { filter ->
             val isSelected = filter == selected
+            val chipBg by androidx.compose.animation.animateColorAsState(
+                targetValue = if (isSelected) colors.accent.copy(alpha = 0.14f) else colors.surfaceMuted,
+                animationSpec = Motion.standardTween(Motion.FilterChangeMs),
+                label = "chip-bg",
+            )
+            val chipBorder by androidx.compose.animation.animateColorAsState(
+                targetValue = if (isSelected) colors.accent.copy(alpha = 0.38f) else Color.Transparent,
+                animationSpec = Motion.standardTween(Motion.FilterChangeMs),
+                label = "chip-border",
+            )
+            val chipFg by androidx.compose.animation.animateColorAsState(
+                targetValue = if (isSelected) colors.accent else colors.textSecondary,
+                animationSpec = Motion.standardTween(Motion.FilterChangeMs),
+                label = "chip-fg",
+            )
+
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(Radius.pill))
-                    .background(if (isSelected) colors.accent.copy(alpha = 0.12f) else colors.surfaceMuted)
-                    .border(
-                        1.dp,
-                        if (isSelected) colors.accent.copy(alpha = 0.35f) else Color.Transparent,
-                        RoundedCornerShape(Radius.pill),
-                    )
+                    .background(chipBg)
+                    .border(1.dp, chipBorder, RoundedCornerShape(Radius.pill))
+                    .pressScale(0.95f)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = androidx.compose.material3.ripple(color = colors.accent),
@@ -328,7 +344,7 @@ private fun FilterChipsRow(
                     text = filter.label(),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (isSelected) colors.accent else colors.textSecondary,
+                    color = chipFg,
                 )
             }
         }
@@ -345,6 +361,7 @@ fun GoalRow(
 ) {
     val colors = PromiseThemeColors.current
     val progressLine = GoalPresentation.progressLine(goal)
+    val fraction = GoalPresentation.progressFraction(goal)
     val streak = GoalPresentation.streakLine(goal)
     val statusPrefix = if (goal.status == GoalStatus.PAUSED) "Paused, " else ""
     val sharedDesc = if (goal.isShared) "Shared goal" else "Personal goal"
@@ -360,8 +377,25 @@ fun GoalRow(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Progress ring — leading visual anchor
+            app.promise.android.ui.components.PromiseProgressRing(
+                progress = fraction,
+                size = 48.dp,
+                strokeWidth = 4.5.dp,
+            ) {
+                Text(
+                    text = "${(fraction * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary,
+                )
+            }
+
+            Spacer(modifier = Modifier.width(Spacing.md))
+
+            // Title + meta
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = goal.title,
@@ -369,7 +403,7 @@ fun GoalRow(
                     fontWeight = FontWeight.SemiBold,
                     color = colors.textPrimary,
                 )
-                Spacer(modifier = Modifier.height(Spacing.xs))
+                Spacer(modifier = Modifier.height(Spacing.xxs))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (goal.status == GoalStatus.PAUSED) {
                         Box(
@@ -402,9 +436,11 @@ fun GoalRow(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     ) {
-                        Text(
-                            text = "💬",
-                            fontSize = 11.sp,
+                        Icon(
+                            imageVector = Icons.Outlined.ChatBubbleOutline,
+                            contentDescription = null,
+                            tint = if (goal.unreadChatCount > 0) colors.accent else colors.textSecondary,
+                            modifier = Modifier.size(13.dp),
                         )
                         if (goal.unreadChatCount > 0) {
                             Text(
@@ -429,46 +465,48 @@ fun GoalRow(
                     }
                 }
             }
+
+            // Streak badge — top-right accent
             if (streak != null) {
                 app.promise.android.ui.components.PromiseStreakBadge(
                     streakText = streak,
                 )
             }
         }
-        Spacer(modifier = Modifier.height(Spacing.md))
+
+        // Progress detail row
+        Spacer(modifier = Modifier.height(Spacing.sm))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            app.promise.android.ui.components.PromiseMicroLabel(
-                text = if (goal.trackingKind == GoalTrackingKind.COUNT) "WEEKLY PROGRESS" else "CONSISTENCY",
-            )
             Text(
                 text = progressLine,
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.textSecondary,
             )
-        }
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        app.promise.android.ui.components.PromiseLinearProgressBar(
-            progress = GoalPresentation.progressFraction(goal),
-        )
-        if (GoalPresentation.needsCheckInToday(goal)) {
-            Spacer(modifier = Modifier.height(Spacing.sm))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(
-                    onClick = onCheckIn,
+            // Elevated check-in chip
+            if (GoalPresentation.needsCheckInToday(goal)) {
+                Box(
                     modifier = Modifier
+                        .clip(RoundedCornerShape(Radius.pill))
+                        .background(colors.accent.copy(alpha = 0.12f))
+                        .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(Radius.pill))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = androidx.compose.material3.ripple(color = colors.accent),
+                            onClick = onCheckIn,
+                        )
+                        .padding(horizontal = Spacing.md, vertical = Spacing.xs + 2.dp)
                         .heightIn(min = TouchTarget.min)
                         .semantics { contentDescription = "Check in" },
+                    contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "Check in today",
-                        style = MaterialTheme.typography.labelLarge,
+                        text = "Check in",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
                         color = colors.accent,
                     )
                 }

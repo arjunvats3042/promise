@@ -141,7 +141,7 @@ fun CommitmentsListScreen(
                     val swipeHost = LocalTabSwipeHost.current
                     TabSwipeContainer(
                         currentIndex = swipeHost?.currentIndex ?: 1,
-                        tabCount = swipeHost?.tabCount ?: 4,
+                        tabCount = swipeHost?.tabCount ?: 5,
                         enabled = swipeHost?.enabled == true,
                         modalBlocking = showCreate,
                         onSwipe = { direction -> swipeHost?.onSwipe(direction) },

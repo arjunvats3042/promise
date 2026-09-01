@@ -1,6 +1,7 @@
 package app.promise.android.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,9 +23,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -447,10 +451,11 @@ fun PromiseStreakBadge(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        Text(
-            text = "🔥",
-            style = MaterialTheme.typography.labelSmall,
-            fontSize = 11.sp,
+        Icon(
+            imageVector = Icons.Outlined.LocalFireDepartment,
+            contentDescription = null,
+            tint = colors.accent,
+            modifier = Modifier.size(13.dp),
         )
         Text(
             text = streakText,
@@ -704,4 +709,56 @@ fun PromiseStatusChip(
     }
 }
 
+@Composable
+fun PromiseAnimatedCounter(
+    value: Int,
+    prefix: String = "",
+    suffix: String = "",
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleLarge,
+    color: Color = PromiseThemeColors.current.textPrimary,
+    fontWeight: FontWeight = FontWeight.Bold,
+    modifier: Modifier = Modifier,
+) {
+    val reduceMotion = app.promise.android.ui.theme.rememberReduceMotion()
+    if (reduceMotion) {
+        Text(
+            text = "$prefix$value$suffix",
+            style = style,
+            color = color,
+            fontWeight = fontWeight,
+            modifier = modifier,
+        )
+        return
+    }
+
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (prefix.isNotEmpty()) {
+            Text(text = prefix, style = style, color = color, fontWeight = fontWeight)
+        }
+        val digits = value.toString().toList()
+        digits.forEach { digit ->
+            androidx.compose.animation.AnimatedContent(
+                targetState = digit,
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        (androidx.compose.animation.slideInVertically { height -> height } + androidx.compose.animation.fadeIn())
+                            .togetherWith(androidx.compose.animation.slideOutVertically { height -> -height } + androidx.compose.animation.fadeOut())
+                    } else {
+                        (androidx.compose.animation.slideInVertically { height -> -height } + androidx.compose.animation.fadeIn())
+                            .togetherWith(androidx.compose.animation.slideOutVertically { height -> height } + androidx.compose.animation.fadeOut())
+                    }
+                },
+                label = "digit-roll",
+            ) { d ->
+                Text(text = d.toString(), style = style, color = color, fontWeight = fontWeight)
+            }
+        }
+        if (suffix.isNotEmpty()) {
+            Text(text = suffix, style = style, color = color, fontWeight = fontWeight)
+        }
+    }
+}
 

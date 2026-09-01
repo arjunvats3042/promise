@@ -15,8 +15,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -91,20 +91,20 @@ fun CommitmentRefinerSheet(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.AutoAwesome,
+                    imageVector = Icons.Outlined.EditNote,
                     contentDescription = null,
                     tint = colors.accent,
                     modifier = Modifier.size(24.dp),
                 )
                 Text(
-                    text = "Refine Commitment with AI",
+                    text = "Refine Commitment",
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
-                text = "Turn vague thoughts into clear, bounded commitments.",
+                text = "Turn rough notes into clear, actionable commitments with target dates.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
@@ -181,7 +181,7 @@ fun CommitmentRefinerSheet(
                         )
                     } else {
                         Text(
-                            text = "Refine with AI",
+                            text = "Refine Commitment",
                             style = MaterialTheme.typography.labelLarge,
                         )
                     }

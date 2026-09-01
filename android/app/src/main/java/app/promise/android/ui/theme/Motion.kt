@@ -5,6 +5,7 @@ import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -56,6 +57,11 @@ object Motion {
     fun <T> exitTween(durationMs: Int) = tween<T>(
         durationMillis = durationMs,
         easing = ExitEasing,
+    )
+
+    fun <T> fluidSpring(): SpringSpec<T> = spring(
+        dampingRatio = 0.75f,
+        stiffness = 380f,
     )
 
     fun <T> snappySpring(): SpringSpec<T> = spring(
@@ -131,5 +137,43 @@ fun Modifier.bouncyClickable(
             onClickLabel = onClickLabel,
             onClick = onClick,
         )
+}
+
+/**
+ * Applies a living, breathing pulse aura to an element (subtle scale and alpha oscillation).
+ */
+fun Modifier.pulseAura(
+    enabled: Boolean = true,
+    minScale: Float = 0.95f,
+    maxScale: Float = 1.05f,
+    minAlpha: Float = 0.6f,
+    maxAlpha: Float = 1.0f,
+    durationMs: Int = 1800,
+): Modifier = composed {
+    if (!enabled) return@composed this
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse-aura")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = minScale,
+        targetValue = maxScale,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = tween<Float>(durationMillis = durationMs, easing = FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "aura-scale",
+    )
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = minAlpha,
+        targetValue = maxAlpha,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = tween<Float>(durationMillis = durationMs, easing = FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "aura-alpha",
+    )
+    this.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+        this.alpha = alpha
+    }
 }
 

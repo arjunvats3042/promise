@@ -16,8 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.TrackChanges
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -89,20 +89,20 @@ fun GoalAiBuilderSheet(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.AutoAwesome,
+                    imageVector = Icons.Outlined.TrackChanges,
                     contentDescription = null,
                     tint = colors.accent,
                     modifier = Modifier.size(24.dp),
                 )
                 Text(
-                    text = "AI Goal Builder",
+                    text = "Goal Setup",
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
-                text = "Describe your habit or practice. AI will suggest a structured goal for your review and confirmation.",
+                text = "Describe your habit or practice. We'll configure the cadence, schedule, and tracking format for your review.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
@@ -178,7 +178,7 @@ fun GoalAiBuilderSheet(
                         )
                     } else {
                         Text(
-                            text = "Generate Suggestion",
+                            text = "Configure Goal",
                             style = MaterialTheme.typography.labelLarge,
                         )
                     }

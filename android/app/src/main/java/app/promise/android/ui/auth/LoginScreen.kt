@@ -65,6 +65,7 @@ import app.promise.android.core.ActionState
 import app.promise.android.core.ErrorKind
 import app.promise.android.core.toUserMessage
 import app.promise.android.ui.components.PromiseGreetingText
+import app.promise.android.ui.components.PromiseLogo
 import app.promise.android.ui.theme.Elevation
 import app.promise.android.ui.theme.Motion
 import app.promise.android.ui.theme.PromiseThemeColors
@@ -154,9 +155,17 @@ fun LoginScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(Spacing.lg))
+                    Spacer(modifier = Modifier.height(Spacing.md))
 
-                    // Category Pill (Clean, without sparkle emoji)
+                    // Brand Logo Emblem
+                    PromiseLogo(
+                        size = 56.dp,
+                        animated = true,
+                    )
+
+                    Spacer(modifier = Modifier.height(Spacing.md))
+
+                    // Category Pill
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(Radius.pill))

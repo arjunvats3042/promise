@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,13 +25,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.GroupAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -84,6 +88,7 @@ import app.promise.android.ui.components.PromiseSectionHeader
 import app.promise.android.ui.components.PromiseStatusChip
 import app.promise.android.ui.components.PromiseStreakBadge
 import app.promise.android.ui.components.PromiseTimelineItem
+import app.promise.android.ui.home.HomeViewModel
 import app.promise.android.ui.theme.PromiseThemeColors
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
@@ -356,45 +361,56 @@ private fun DetailContent(
             .padding(horizontal = Spacing.screenHorizontal),
     ) {
         Spacer(modifier = Modifier.height(Spacing.sm))
+
+        // Back button — Material IconButton
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(Radius.pill))
-                    .background(colors.surfaceMuted)
-                    .clickable(onClick = onBack)
-                    .padding(horizontal = Spacing.md, vertical = Spacing.xs),
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier.size(48.dp),
             ) {
-                Text(
-                    text = "← Back",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.textPrimary,
+                Icon(
+                    Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = "Back",
+                    tint = colors.textPrimary,
                 )
             }
         }
-        Spacer(modifier = Modifier.height(Spacing.md))
-        AnimatedContent(
-            targetState = goal.status,
-            transitionSpec = { fadeIn() togetherWith fadeOut() },
-            label = "goal-status",
-        ) { status ->
-            PromiseMicroLabel(
-                text = GoalPresentation.statusLabel(status),
-                color = colors.accent,
+
+        Spacer(modifier = Modifier.height(Spacing.sm))
+
+        // Title + status chip on the same row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = goal.title,
+                style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.Bold,
+                color = colors.textPrimary,
+                modifier = Modifier.weight(1f, fill = false),
             )
+            Spacer(modifier = Modifier.width(Spacing.sm))
+            AnimatedContent(
+                targetState = goal.status,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "goal-status",
+            ) { status ->
+                PromiseStatusChip(
+                    label = GoalPresentation.statusLabel(status),
+                    isAccent = status == GoalStatus.ACTIVE,
+                    isWarning = status == GoalStatus.PAUSED,
+                )
+            }
         }
-        Spacer(modifier = Modifier.height(Spacing.xs))
-        Text(
-            text = goal.title,
-            style = MaterialTheme.typography.displayMedium,
-            fontWeight = FontWeight.Bold,
-            color = colors.textPrimary,
-        )
+
         Spacer(modifier = Modifier.height(Spacing.xs))
 
+        // Meta line
         Text(
             text = detailMeta(goal),
             style = MaterialTheme.typography.bodyMedium,
@@ -409,7 +425,7 @@ private fun DetailContent(
             )
         }
 
-        Spacer(modifier = Modifier.height(Spacing.md))
+        Spacer(modifier = Modifier.height(Spacing.lg))
 
         // Hero Progress Card
         PromiseGoalHero(
@@ -469,12 +485,19 @@ private fun DetailContent(
 
         if (ui.canCheckInToday()) {
             Spacer(modifier = Modifier.height(Spacing.lg))
-            InlineCheckIn(
-                goal = goal,
-                prompt = ui.checkInPrompt(),
-                busy = busy,
-                onSubmit = onCheckIn,
-            )
+
+            // Elevated check-in card with accent glow
+            PromiseCardSurface(
+                backgroundColor = colors.glowAccent,
+                borderColor = colors.accent.copy(alpha = 0.35f),
+            ) {
+                InlineCheckIn(
+                    goal = goal,
+                    prompt = ui.checkInPrompt(),
+                    busy = busy,
+                    onSubmit = onCheckIn,
+                )
+            }
         }
 
         if (!goal.isShared && goal.isOwnerViewer && !goal.isTerminal) {
@@ -489,13 +512,23 @@ private fun DetailContent(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(
-                            text = "🤝",
-                            fontSize = 24.sp,
-                        )
-                        Spacer(modifier = Modifier.width(Spacing.sm))
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(Radius.md))
+                                .background(colors.accent.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.GroupAdd,
+                                contentDescription = null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(22.dp),
+                            )
+                        }
                         Column {
                             Text(
                                 text = "Make this a Shared Goal",
@@ -530,16 +563,45 @@ private fun DetailContent(
             )
             Spacer(modifier = Modifier.height(Spacing.xs))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+            PromiseCardSurface(
+                onClick = onManageParticipants,
             ) {
-                TextButton(
-                    onClick = onManageParticipants,
-                    modifier = Modifier.semantics { contentDescription = "View participants" },
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("View ${goal.participants.size.takeIf { it > 0 } ?: ""} Participants", color = colors.accent)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        val avatarList = goal.participants.map {
+                            val initials = HomeViewModel.initialsFor(it.userName.ifBlank { "User" })
+                            initials to it.avatarUrl
+                        }
+                        if (avatarList.isNotEmpty()) {
+                            PromiseAvatarStack(members = avatarList, size = AvatarSize.SM)
+                        }
+                        Column {
+                            Text(
+                                text = "${goal.participants.size} ${if (goal.participants.size == 1) "Participant" else "Participants"}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.textPrimary,
+                            )
+                            Text(
+                                text = "Tap to manage team & invitations",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                            )
+                        }
+                    }
+                    Icon(
+                        Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = colors.textSecondary,
+                    )
                 }
             }
 
@@ -693,7 +755,7 @@ private fun DetailContent(
             title = "History",
             subtitle = if (ui.checkIns.isNotEmpty()) "${ui.checkIns.size} check-ins" else null,
         )
-        Spacer(modifier = Modifier.height(Spacing.xs))
+        Spacer(modifier = Modifier.height(Spacing.sm))
         if (ui.checkIns.isEmpty()) {
             Text(
                 text = "No check-ins yet.",
@@ -701,8 +763,21 @@ private fun DetailContent(
                 color = colors.textSecondary,
             )
         } else {
+            // Weekly history grid — 4 weeks of check-in dots
+            PromiseCardSurface {
+                app.promise.android.ui.components.PromiseWeeklyHistoryGrid(
+                    checkIns = ui.checkIns,
+                )
+            }
+
+            // Timeline detail rows below the grid
+            Spacer(modifier = Modifier.height(Spacing.md))
+            PromiseSectionHeader(
+                title = "Details",
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
             Column {
-                ui.checkIns.forEach { row ->
+                ui.checkIns.take(10).forEach { row ->
                     HistoryRow(row)
                 }
             }

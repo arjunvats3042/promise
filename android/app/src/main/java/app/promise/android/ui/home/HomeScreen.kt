@@ -22,11 +22,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -385,7 +387,7 @@ private fun HomeContent(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.AutoAwesome,
+                            imageVector = Icons.Outlined.TaskAlt,
                             contentDescription = null,
                             tint = colors.accent,
                             modifier = Modifier.size(18.dp),
@@ -451,12 +453,23 @@ private fun HomeContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "🤝 Shared Goal Invite (${model.pendingInvites.size})",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.accent,
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Group,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(16.dp),
+                                )
+                                Text(
+                                    text = "Shared Goal Invitation (${model.pendingInvites.size})",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.accent,
+                                )
+                            }
                             Spacer(modifier = Modifier.height(Spacing.xxs))
                             Text(
                                 text = model.pendingInvites.first().let { "${it.inviterName} invited you to \"${it.title}\"" },
@@ -558,12 +571,14 @@ private fun HomeContent(
             }
             else -> {
                 items(visibleTodayCommitments, key = { it.id }) { commitment ->
-                    CommitmentTodayRow(
-                        commitment = commitment,
-                        reduceMotion = reduceMotion,
-                        onOpen = { onOpenCommitment(commitment.id) },
-                        onComplete = { onComplete(commitment.id) },
-                    )
+                    Box(modifier = Modifier.animateItem()) {
+                        CommitmentTodayRow(
+                            commitment = commitment,
+                            reduceMotion = reduceMotion,
+                            onOpen = { onOpenCommitment(commitment.id) },
+                            onComplete = { onComplete(commitment.id) },
+                        )
+                    }
                 }
                 item { Spacer(modifier = Modifier.height(Spacing.sectionGap)) }
             }
@@ -621,18 +636,20 @@ private fun HomeContent(
             }
             else -> {
                 items(visiblePractices, key = { it.id }) { practice ->
-                    if (practice.isShared) {
-                        SharedPracticeCard(
-                            practice = practice,
-                            onOpen = { onOpenPractice(practice.id) },
-                            onCheckIn = { onCheckIn(practice) },
-                        )
-                    } else {
-                        PersonalPracticeCard(
-                            practice = practice,
-                            onOpen = { onOpenPractice(practice.id) },
-                            onCheckIn = { onCheckIn(practice) },
-                        )
+                    Box(modifier = Modifier.animateItem()) {
+                        if (practice.isShared) {
+                            SharedPracticeCard(
+                                practice = practice,
+                                onOpen = { onOpenPractice(practice.id) },
+                                onCheckIn = { onCheckIn(practice) },
+                            )
+                        } else {
+                            PersonalPracticeCard(
+                                practice = practice,
+                                onOpen = { onOpenPractice(practice.id) },
+                                onCheckIn = { onCheckIn(practice) },
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.height(Spacing.sm))
                 }
@@ -665,12 +682,15 @@ fun DailyMomentumHeroCard(
     val percent = (progress * 100).toInt()
     val copy = MomentumCopy.forProgress(completedCount, totalCount)
 
+    val isFull = totalCount > 0 && completedCount >= totalCount
+    val cardBorderColor = if (isFull) colors.accent.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.65f)
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.xl))
-            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.65f), RoundedCornerShape(Radius.xl)),
-        color = colors.surfaceRaised,
+            .border(1.dp, cardBorderColor, RoundedCornerShape(Radius.xl)),
+        color = if (isFull) colors.accent.copy(alpha = 0.05f) else colors.surfaceRaised,
         shadowElevation = 0.dp,
     ) {
         Row(
@@ -682,7 +702,7 @@ fun DailyMomentumHeroCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "DAILY FOCUS",
+                    text = if (isFull) "DAILY FOCUS · COMPLETED ✨" else "DAILY FOCUS",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = colors.accent,
@@ -712,12 +732,22 @@ fun DailyMomentumHeroCard(
                 color = colors.accent,
                 trackColor = colors.surfaceMuted,
                 centerContent = {
-                    Text(
-                        text = if (totalCount > 0) "$percent%" else "—",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.textPrimary,
-                    )
+                    if (totalCount > 0) {
+                        app.promise.android.ui.components.PromiseAnimatedCounter(
+                            value = percent,
+                            suffix = "%",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary,
+                        )
+                    } else {
+                        Text(
+                            text = "—",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary,
+                        )
+                    }
                 },
             )
         }
@@ -909,37 +939,22 @@ fun HomeHeader(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.pill))
-                        .background(colors.surfaceMuted)
-                        .padding(horizontal = Spacing.sm, vertical = 2.dp),
-                ) {
+                Text(
+                    text = dateLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.textSecondary,
+                )
+                if (!isOnline) {
                     Text(
-                        text = dateLabel.uppercase(),
+                        text = "· Working offline",
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.textSecondary,
-                        letterSpacing = 0.8.sp,
+                        color = colors.warning,
+                        fontWeight = FontWeight.Medium,
                     )
                 }
-                if (!isOnline) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(Radius.pill))
-                            .background(colors.surfaceMuted)
-                            .padding(horizontal = Spacing.sm, vertical = 2.dp),
-                    ) {
-                        Text(
-                            text = "● Working offline · Changes saved locally",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.textSecondary,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
-                }
             }
-            Spacer(modifier = Modifier.height(Spacing.xs))
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = userName.ifBlank { "Welcome back" },
                 style = MaterialTheme.typography.displayMedium,
@@ -1223,9 +1238,11 @@ fun SharedPracticeCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             ) {
-                Text(
-                    text = "💬",
-                    fontSize = 11.sp,
+                Icon(
+                    imageVector = Icons.Outlined.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = if (practice.unreadChatCount > 0) colors.accent else colors.textSecondary,
+                    modifier = Modifier.size(13.dp),
                 )
                 if (practice.unreadChatCount > 0) {
                     Text(
@@ -1246,6 +1263,7 @@ fun SharedPracticeCard(
                     color = if (practice.unreadChatCount > 0) colors.textPrimary else colors.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
             }
         }

@@ -70,9 +70,19 @@ fun PromiseCelebrationBurst(
             val center = Offset(size.width / 2f, size.height / 2f)
             val alpha = (1f - t * t).coerceIn(0f, 1f)
 
+            // Expanding celebratory ambient shockwave ring
+            val shockwaveRadius = (size.minDimension * 0.35f) * t
+            val shockwaveAlpha = ((1f - t) * 0.35f).coerceIn(0f, 1f)
+            drawCircle(
+                color = Color(0xFF10B981).copy(alpha = shockwaveAlpha),
+                radius = shockwaveRadius,
+                center = center,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = (4f * (1f - t)).coerceAtLeast(1f)),
+            )
+
             particles.forEach { p ->
-                val distance = p.speed * t
-                val gravity = 120f * t * t
+                val distance = p.speed * t * (1.2f - 0.2f * t)
+                val gravity = 160f * t * t
                 val x = center.x + distance * cos(p.initialAngle)
                 val y = center.y + distance * sin(p.initialAngle) + gravity
 
@@ -82,14 +92,14 @@ fun PromiseCelebrationBurst(
                     if (p.isCircle) {
                         drawCircle(
                             color = particleColor,
-                            radius = p.radius * (1f - t * 0.3f),
+                            radius = p.radius * (1f - t * 0.35f),
                             center = Offset(x, y),
                         )
                     } else {
                         drawRect(
                             color = particleColor,
                             topLeft = Offset(x - p.radius, y - p.radius),
-                            size = androidx.compose.ui.geometry.Size(p.radius * 2f, p.radius * 1.4f),
+                            size = androidx.compose.ui.geometry.Size(p.radius * 2.2f, p.radius * 1.5f),
                         )
                     }
                 }

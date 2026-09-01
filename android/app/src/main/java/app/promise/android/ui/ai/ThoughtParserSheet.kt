@@ -23,9 +23,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -167,20 +167,20 @@ fun ThoughtParserSheet(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.AutoAwesome,
+                    imageVector = Icons.Outlined.EditNote,
                     contentDescription = null,
                     tint = colors.accent,
                     modifier = Modifier.size(24.dp),
                 )
                 Text(
-                    text = "Thought → Promise",
+                    text = "Quick Capture",
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
-                text = "Paste a brain dump of multiple tasks or habits. AI will decompose it into structured items for your selection.",
+                text = "Type or dictate multiple tasks and habits. We'll automatically break them down into structured items.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
@@ -239,11 +239,10 @@ fun ThoughtParserSheet(
                 if (thoughtText.isBlank() && !isLoading) {
                     Spacer(modifier = Modifier.height(Spacing.xs))
                     Text(
-                        text = "IDEAS TO TRY",
+                        text = "EXAMPLES",
                         style = MaterialTheme.typography.labelSmall,
                         color = colors.textSecondary,
                         fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.8.sp,
                     )
                     Spacer(modifier = Modifier.height(Spacing.xxs))
                     Row(
@@ -307,7 +306,7 @@ fun ThoughtParserSheet(
                         )
                     } else {
                         Text(
-                            text = "Decompose Thoughts",
+                            text = "Extract Tasks",
                             style = MaterialTheme.typography.labelLarge,
                         )
                     }
@@ -322,7 +321,7 @@ fun ThoughtParserSheet(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.AutoAwesome,
+                            imageVector = Icons.Outlined.EditNote,
                             contentDescription = null,
                             tint = colors.accent,
                             modifier = Modifier.size(36.dp),
@@ -363,7 +362,7 @@ fun ThoughtParserSheet(
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Outlined.AutoAwesome,
+                                            imageVector = Icons.Outlined.EditNote,
                                             contentDescription = null,
                                             tint = colors.accent,
                                             modifier = Modifier.size(16.dp),
@@ -394,16 +393,17 @@ fun ThoughtParserSheet(
                             shape = RoundedCornerShape(Radius.sm),
                         ) {
                             Text(
-                                text = "Edit My Thoughts",
+                                text = "Edit Input",
                                 style = MaterialTheme.typography.labelLarge,
                             )
                         }
                     }
                 } else {
                     Text(
-                        text = "SELECT ITEMS TO CREATE (${selectedIndices.size}/${items.size})",
+                        text = "Select Items to Create (${selectedIndices.size} of ${items.size})",
                         style = MaterialTheme.typography.labelSmall,
-                        color = colors.accent,
+                        color = colors.textSecondary,
+                        fontWeight = FontWeight.SemiBold,
                     )
                     Spacer(modifier = Modifier.height(Spacing.sm))
 

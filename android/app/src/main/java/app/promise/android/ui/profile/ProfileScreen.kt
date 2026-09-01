@@ -3,10 +3,12 @@ package app.promise.android.ui.profile
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,27 +27,52 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.Logout
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.DeleteForever
+import androidx.compose.material.icons.outlined.DevicesOther
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Smartphone
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.TrackChanges
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import app.promise.android.widget.PromiseGlanceWidgetPinHelper
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -55,8 +82,11 @@ import app.promise.android.domain.UserSession
 import app.promise.android.ui.auth.GreetingClock
 import app.promise.android.ui.components.AvatarSize
 import app.promise.android.ui.components.PromiseAvatar
-import app.promise.android.ui.components.PromiseGreetingText
+import app.promise.android.ui.components.PromiseCardSurface
 import app.promise.android.ui.components.PromiseHairlineDivider
+import app.promise.android.ui.components.PromiseLogo
+import app.promise.android.ui.components.PromiseSectionHeader
+import app.promise.android.ui.components.PromiseStatusChip
 import app.promise.android.ui.components.TabSwipeContainer
 import app.promise.android.ui.home.HomeViewModel
 import app.promise.android.ui.navigation.LocalTabSwipeHost
@@ -66,6 +96,8 @@ import app.promise.android.ui.theme.PromiseThemeMode
 import app.promise.android.ui.theme.Radius
 import app.promise.android.ui.theme.Spacing
 import app.promise.android.ui.theme.TouchTarget
+import app.promise.android.ui.theme.pressScale
+import app.promise.android.widget.PromiseGlanceWidgetPinHelper
 import java.util.Calendar
 
 data class FaqItem(
@@ -123,6 +155,7 @@ fun ProfileScreen(
     var sessionToRevoke by remember { mutableStateOf<UserSession?>(null) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var expandedFaqIndex by remember { mutableStateOf<Int?>(null) }
+    var showWidgetsDropdown by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -132,6 +165,7 @@ fun ProfileScreen(
         }
     }
 
+    val context = LocalContext.current
     val colors = PromiseThemeColors.current
     val swipeHost = LocalTabSwipeHost.current
     val scrollState = rememberScrollState()
@@ -143,8 +177,8 @@ fun ProfileScreen(
     )
 
     TabSwipeContainer(
-        currentIndex = swipeHost?.currentIndex ?: 3,
-        tabCount = swipeHost?.tabCount ?: 4,
+        currentIndex = swipeHost?.currentIndex ?: 4,
+        tabCount = swipeHost?.tabCount ?: 5,
         enabled = swipeHost?.enabled == true,
         onSwipe = { direction -> swipeHost?.onSwipe(direction) },
         modifier = Modifier.fillMaxSize(),
@@ -160,38 +194,51 @@ fun ProfileScreen(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .verticalScroll(scrollState)
-                    .padding(horizontal = Spacing.inset)
+                    .padding(horizontal = Spacing.screenHorizontal)
                     .padding(top = Spacing.sm, bottom = Spacing.xxl),
             ) {
-                // Profile header card: Prominent avatar, greeting, editorial serif name, email, and change action
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(Radius.xl))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.65f), RoundedCornerShape(Radius.xl)),
-                    color = colors.surfaceRaised,
+                // 1. HERO PROFILE CARD
+                val effectivePhoto = photoUri ?: user?.avatarUrl
+                PromiseCardSurface(
+                    onClick = {
+                        if (effectivePhoto != null) {
+                            showPhotoOptionsDialog = true
+                        } else {
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                            )
+                        }
+                    },
                 ) {
                     Row(
-                        modifier = Modifier.padding(Spacing.cardPadding),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        val effectivePhoto = photoUri ?: user?.avatarUrl
-                        PromiseAvatar(
-                            initials = initials,
-                            photoPath = effectivePhoto,
-                            size = AvatarSize.LG,
-                            onClick = {
-                                if (effectivePhoto != null) {
-                                    showPhotoOptionsDialog = true
-                                } else {
-                                    photoPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                                    )
-                                }
-                            },
-                            contentDescription = "Profile photo. Tap to choose from gallery",
-                        )
+                        Box(contentAlignment = Alignment.BottomEnd) {
+                            PromiseAvatar(
+                                initials = initials,
+                                photoPath = effectivePhoto,
+                                size = AvatarSize.LG,
+                                contentDescription = "Profile photo. Tap to choose from gallery",
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.accent)
+                                    .border(2.dp, colors.surfaceRaised, CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.PhotoCamera,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(13.dp),
+                                )
+                            }
+                        }
+
                         Column(modifier = Modifier.weight(1f)) {
                             Box(
                                 modifier = Modifier
@@ -210,37 +257,64 @@ fun ProfileScreen(
                             Spacer(modifier = Modifier.height(Spacing.xxs))
                             Text(
                                 text = name,
-                                style = MaterialTheme.typography.headlineLarge,
+                                style = MaterialTheme.typography.headlineMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = colors.textPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                             Spacer(modifier = Modifier.height(Spacing.xxs))
                             Text(
-                                text = email,
+                                text = email.ifBlank { "Signed in with Google" },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary,
-                            )
-                            Spacer(modifier = Modifier.height(Spacing.xs))
-                            Text(
-                                text = "Change photo",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colors.accent,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(Radius.sm))
-                                    .clickable {
-                                        photoPickerLauncher.launch(
-                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                                        )
-                                    }
-                                    .padding(vertical = 2.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
+
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = colors.textSecondary,
+                        )
                     }
                 }
-                Spacer(modifier = Modifier.height(Spacing.section))
 
-                // Notifications Section
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
+
+                // 2. APPEARANCE SECTION
+                PromiseSectionHeader(
+                    title = "Appearance",
+                    subtitle = "Customize application theme and contrast",
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
+
+                PromiseCardSurface {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        ThemeOptionTile(
+                            title = "Light",
+                            icon = Icons.Outlined.LightMode,
+                            selected = mode == PromiseThemeMode.Light,
+                            onSelect = { viewModel.setMode(PromiseThemeMode.Light) },
+                            modifier = Modifier.weight(1f),
+                        )
+                        ThemeOptionTile(
+                            title = "Dark",
+                            icon = Icons.Outlined.DarkMode,
+                            selected = mode == PromiseThemeMode.Dark,
+                            onSelect = { viewModel.setMode(PromiseThemeMode.Dark) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
+
+                // 3. NOTIFICATIONS SECTION
                 NotificationPreferencesSection(
                     preferences = preferences,
                     onUpdate = { patch -> viewModel.updatePreferences(patch) },
@@ -249,101 +323,142 @@ fun ProfileScreen(
                     testFeedback = testFeedback,
                 )
 
-                Spacer(modifier = Modifier.height(Spacing.section))
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
-                // Security & Account Section (Google-only)
-                Text(
-                    text = "Security & Account",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.textPrimary,
+                // 4. SECURITY & IDENTITY SECTION
+                PromiseSectionHeader(
+                    title = "Security & Identity",
+                    subtitle = "Account credentials and authentication provider",
                 )
-                Spacer(modifier = Modifier.height(Spacing.sm))
+                Spacer(modifier = Modifier.height(Spacing.xs))
 
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(Radius.lg))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.lg)),
-                    color = colors.surfaceRaised,
-                ) {
+                PromiseCardSurface {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.cardPadding),
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Google Account",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colors.textPrimary,
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Connected · $email",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.accent,
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(Radius.md))
+                                    .background(colors.accent.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Shield,
+                                    contentDescription = null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Google Account",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.textPrimary,
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = email.ifBlank { "Connected" },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
+                        PromiseStatusChip(
+                            label = "Connected",
+                            isAccent = true,
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.section))
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
-                // Home Screen Widgets Dropdown Section
-                val context = LocalContext.current
-                var showWidgetsDropdown by remember { mutableStateOf(false) }
+                // 5. HOME SCREEN GLANCE WIDGETS
+                PromiseSectionHeader(
+                    title = "Home Screen Widgets",
+                    subtitle = "1-tap interactive Glance widgets for habits and capture",
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
 
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(Radius.xl))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.65f), RoundedCornerShape(Radius.xl))
-                        .animateContentSize(),
-                    color = colors.surfaceRaised,
+                PromiseCardSurface(
+                    modifier = Modifier.animateContentSize(animationSpec = Motion.fluidSpring()),
                 ) {
-                    Column(modifier = Modifier.padding(Spacing.cardPadding)) {
+                    Column {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { showWidgetsDropdown = !showWidgetsDropdown }
-                                .padding(vertical = Spacing.xs),
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = ripple(color = colors.accent),
+                                ) {
+                                    showWidgetsDropdown = !showWidgetsDropdown
+                                }
+                                .padding(vertical = Spacing.xxs),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(Radius.md))
+                                        .background(colors.accent.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center,
                                 ) {
-                                    Text(
-                                        text = "Home Screen Widgets",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = colors.textPrimary,
+                                    Icon(
+                                        imageVector = Icons.Outlined.Widgets,
+                                        contentDescription = null,
+                                        tint = colors.accent,
+                                        modifier = Modifier.size(22.dp),
                                     )
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(Radius.pill))
-                                            .background(colors.accent.copy(alpha = 0.12f))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                }
+                                Column {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                                     ) {
                                         Text(
-                                            text = "4 available",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = colors.accent,
-                                            fontWeight = FontWeight.Bold,
+                                            text = "Glance Widgets",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = colors.textPrimary,
                                         )
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(Radius.pill))
+                                                .background(colors.accent.copy(alpha = 0.12f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                                        ) {
+                                            Text(
+                                                text = "4 AVAILABLE",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = colors.accent,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 10.sp,
+                                            )
+                                        }
                                     }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = if (showWidgetsDropdown) "Tap to collapse widget catalog" else "Tap to view and pin widgets to your home screen",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.textSecondary,
+                                    )
                                 }
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Tap to expand and pin Glance widgets to your home screen",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.textSecondary,
-                                )
                             }
                             Icon(
                                 imageVector = if (showWidgetsDropdown) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
@@ -354,199 +469,52 @@ fun ProfileScreen(
 
                         if (showWidgetsDropdown) {
                             Spacer(modifier = Modifier.height(Spacing.md))
+                            PromiseHairlineDivider()
+                            Spacer(modifier = Modifier.height(Spacing.sm))
+
                             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                                // Widget 1: Quick Voice
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(Radius.lg))
-                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(Radius.lg)),
-                                    color = colors.surfaceMuted,
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(Spacing.cardPadding),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Voice Capture",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = colors.textPrimary,
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = "Floating mic trigger straight into AI intention capture",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = colors.textSecondary,
-                                            )
-                                        }
-                                        if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
-                                            TextButton(
-                                                onClick = { PromiseGlanceWidgetPinHelper.requestPinVoiceWidget(context) },
-                                            ) {
-                                                Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Widget 2: Commitments & Schedule
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(Radius.lg))
-                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(Radius.lg)),
-                                    color = colors.surfaceMuted,
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(Spacing.cardPadding),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Commitments & Tasks",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = colors.textPrimary,
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = "Due dates, alerts & 1-tap completion",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = colors.textSecondary,
-                                            )
-                                        }
-                                        if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
-                                            TextButton(
-                                                onClick = { PromiseGlanceWidgetPinHelper.requestPinCommitmentsWidget(context) },
-                                            ) {
-                                                Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Widget 3: Daily Goals & Habits
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(Radius.lg))
-                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(Radius.lg)),
-                                    color = colors.surfaceMuted,
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(Spacing.cardPadding),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Daily Habits & Goals",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = colors.textPrimary,
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = "Habit streaks, consistency & 1-tap check-in",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = colors.textSecondary,
-                                            )
-                                        }
-                                        if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
-                                            TextButton(
-                                                onClick = { PromiseGlanceWidgetPinHelper.requestPinGoalsWidget(context) },
-                                            ) {
-                                                Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Widget 4: 365-Day Roadmap
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(Radius.lg))
-                                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(Radius.lg)),
-                                    color = colors.surfaceMuted,
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(Spacing.cardPadding),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically,
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "365-Day Roadmap",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = colors.textPrimary,
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = "Year progress, percentage elapsed & dots constellation",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = colors.textSecondary,
-                                            )
-                                        }
-                                        if (PromiseGlanceWidgetPinHelper.isPinSupported(context)) {
-                                            TextButton(
-                                                onClick = { PromiseGlanceWidgetPinHelper.requestPinRoadmapWidget(context) },
-                                            ) {
-                                                Text("Add to Home", color = colors.accent, fontWeight = FontWeight.SemiBold)
-                                            }
-                                        }
-                                    }
-                                }
+                                GlanceWidgetCatalogItem(
+                                    title = "Voice Capture",
+                                    description = "Floating microphone straight into AI intention parsing",
+                                    icon = Icons.Outlined.Mic,
+                                    onPin = { PromiseGlanceWidgetPinHelper.requestPinVoiceWidget(context) },
+                                )
+                                GlanceWidgetCatalogItem(
+                                    title = "Commitments & Tasks",
+                                    description = "Today's deadlines, overdue badges & 1-tap completion",
+                                    icon = Icons.Outlined.TaskAlt,
+                                    onPin = { PromiseGlanceWidgetPinHelper.requestPinCommitmentsWidget(context) },
+                                )
+                                GlanceWidgetCatalogItem(
+                                    title = "Daily Habits & Goals",
+                                    description = "Active streaks, daily counts & 1-tap check-in",
+                                    icon = Icons.Outlined.TrackChanges,
+                                    onPin = { PromiseGlanceWidgetPinHelper.requestPinGoalsWidget(context) },
+                                )
+                                GlanceWidgetCatalogItem(
+                                    title = "365-Day Life Roadmap",
+                                    description = "Full year progress percentage and dots matrix",
+                                    icon = Icons.Outlined.CalendarMonth,
+                                    onPin = { PromiseGlanceWidgetPinHelper.requestPinRoadmapWidget(context) },
+                                )
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.section))
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
-                // Devices & Active Sessions Section
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Devices & Sessions",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = colors.textPrimary,
-                    )
-                    if (sessions.count { !it.isCurrent } > 0) {
-                        TextButton(onClick = { showRevokeOtherDialog = true }) {
-                            Text("Sign out other devices", color = colors.accent)
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(Spacing.sm))
+                // 6. DEVICES & ACTIVE SESSIONS
+                PromiseSectionHeader(
+                    title = "Active Devices",
+                    subtitle = "${sessions.size} connected session${if (sessions.size != 1) "s" else ""}",
+                    actionLabel = if (sessions.count { !it.isCurrent } > 0) "Sign out others" else null,
+                    onActionClick = { showRevokeOtherDialog = true },
+                )
+                Spacer(modifier = Modifier.height(Spacing.xs))
 
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(Radius.lg))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.lg)),
-                    color = colors.surfaceRaised,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(Spacing.cardPadding),
-                        verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    ) {
+                PromiseCardSurface {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         if (sessions.isEmpty()) {
                             Text(
                                 text = "No active sessions found",
@@ -557,46 +525,70 @@ fun ProfileScreen(
                             sessions.forEachIndexed { index, session ->
                                 if (index > 0) {
                                     PromiseHairlineDivider()
+                                    Spacer(modifier = Modifier.height(Spacing.xs))
                                 }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = session.deviceName,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = colors.textPrimary,
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                                        modifier = Modifier.weight(1f),
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(38.dp)
+                                                .clip(CircleShape)
+                                                .background(if (session.isCurrent) colors.accent.copy(alpha = 0.14f) else colors.surfaceMuted),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Smartphone,
+                                                contentDescription = null,
+                                                tint = if (session.isCurrent) colors.accent else colors.textSecondary,
+                                                modifier = Modifier.size(18.dp),
                                             )
-                                            if (session.isCurrent) {
-                                                Spacer(modifier = Modifier.width(Spacing.xs))
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(Radius.pill))
-                                                        .background(colors.accent.copy(alpha = 0.15f))
-                                                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                                                ) {
-                                                    Text(
-                                                        text = "This device",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = colors.accent,
-                                                        fontWeight = FontWeight.Medium,
-                                                    )
+                                        }
+                                        Column {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                            ) {
+                                                Text(
+                                                    text = session.deviceName,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = colors.textPrimary,
+                                                )
+                                                if (session.isCurrent) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .clip(RoundedCornerShape(Radius.pill))
+                                                            .background(colors.accent.copy(alpha = 0.15f))
+                                                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    ) {
+                                                        Text(
+                                                            text = "THIS DEVICE",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = colors.accent,
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 9.sp,
+                                                        )
+                                                    }
                                                 }
                                             }
+                                            Text(
+                                                text = "Platform: ${session.platform.replaceFirstChar { it.uppercase() }}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = colors.textSecondary,
+                                            )
                                         }
-                                        Text(
-                                            text = "Platform: ${session.platform.replaceFirstChar { it.uppercase() }}",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = colors.textSecondary,
-                                        )
                                     }
                                     if (!session.isCurrent) {
                                         TextButton(onClick = { sessionToRevoke = session }) {
-                                            Text("Sign out", color = MaterialTheme.colorScheme.error)
+                                            Text("Sign out", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
                                         }
                                     }
                                 }
@@ -605,26 +597,17 @@ fun ProfileScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.section))
+                Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
-                // Help & FAQ Section
-                Text(
-                    text = "Help & FAQ",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.textPrimary,
+                // 7. HELP & KNOWLEDGE BASE
+                PromiseSectionHeader(
+                    title = "Help & FAQ",
+                    subtitle = "Product concepts, AI privacy, and local-first architecture",
                 )
-                Spacer(modifier = Modifier.height(Spacing.sm))
+                Spacer(modifier = Modifier.height(Spacing.xs))
 
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(Radius.lg))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.lg)),
-                    color = colors.surfaceRaised,
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = Spacing.cardPadding, vertical = Spacing.md),
-                    ) {
+                PromiseCardSurface {
+                    Column {
                         PROMISE_FAQS.forEachIndexed { index, item ->
                             if (index > 0) {
                                 Spacer(modifier = Modifier.height(Spacing.xs))
@@ -644,92 +627,129 @@ fun ProfileScreen(
 
                 Spacer(modifier = Modifier.height(Spacing.sectionGap))
 
-                // Appearance Section
-                Text(
-                    text = "Appearance",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.textPrimary,
+                // 8. ACCOUNT MANAGEMENT (DANGER ZONE)
+                PromiseSectionHeader(
+                    title = "Account Management",
+                    subtitle = "Sign out sessions and manage account termination",
                 )
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = TouchTarget.min)
-                        .clip(RoundedCornerShape(Radius.pill))
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(Radius.pill))
-                        .background(colors.surfaceMuted)
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    ThemeSegment(
-                        label = "☀️ Light",
-                        selected = mode == PromiseThemeMode.Light,
-                        onSelect = { viewModel.setMode(PromiseThemeMode.Light) },
-                        modifier = Modifier.weight(1f),
-                    )
-                    ThemeSegment(
-                        label = "🌙 Dark",
-                        selected = mode == PromiseThemeMode.Dark,
-                        onSelect = { viewModel.setMode(PromiseThemeMode.Dark) },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(Spacing.xl))
-
-                // Global Logout & Delete
-                TextButton(
-                    onClick = onSignOut,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = TouchTarget.min)
-                        .semantics { contentDescription = "Sign out" },
-                ) {
-                    Text(
-                        text = "Sign out",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
                 Spacer(modifier = Modifier.height(Spacing.xs))
-                TextButton(
-                    onClick = { showLogoutAllDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = TouchTarget.min)
-                        .semantics { contentDescription = "Sign out of all devices" },
-                ) {
-                    Text(
-                        text = "Sign out of all devices",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = colors.textSecondary,
-                    )
-                }
-                Spacer(modifier = Modifier.height(Spacing.xs))
-                TextButton(
-                    onClick = { showDeleteAccountDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = TouchTarget.min)
-                        .semantics { contentDescription = "Delete account" },
-                ) {
-                    Text(
-                        text = "Delete account",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
-                    )
+
+                PromiseCardSurface {
+                    Column {
+                        // Sign out current device
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onSignOut)
+                                .padding(vertical = Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.Logout,
+                                contentDescription = null,
+                                tint = colors.textPrimary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                text = "Sign out of this device",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = colors.textPrimary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = colors.textSecondary,
+                            )
+                        }
+
+                        PromiseHairlineDivider()
+
+                        // Sign out all devices
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = { showLogoutAllDialog = true })
+                                .padding(vertical = Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.DevicesOther,
+                                contentDescription = null,
+                                tint = colors.textSecondary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text(
+                                text = "Sign out of all devices",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = colors.textPrimary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = colors.textSecondary,
+                            )
+                        }
+
+                        PromiseHairlineDivider()
+
+                        // Delete account
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = { showDeleteAccountDialog = true })
+                                .padding(vertical = Spacing.sm),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.DeleteForever,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Delete account",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                                Text(
+                                    text = "Permanently wipe habits, commitments and data",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.textSecondary,
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.5f),
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(Spacing.xxl))
 
-                // Techy Developer Signature Footer
+                // 9. ARCHITECTURAL & CRAFT FOOTER
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = Spacing.md),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xxs),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs),
                 ) {
+                    PromiseLogo(
+                        size = 36.dp,
+                        animated = false,
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
@@ -744,7 +764,7 @@ fun ProfileScreen(
                             text = "PROMISE CORE v${BuildConfig.VERSION_NAME} // BUILD 3042",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            fontFamily = FontFamily.Monospace,
                             color = colors.textSecondary,
                             letterSpacing = 1.2.sp,
                         )
@@ -752,17 +772,28 @@ fun ProfileScreen(
                     Text(
                         text = "ARCHITECTED & CRAFTED BY ARJUN VATS",
                         style = MaterialTheme.typography.labelSmall,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        fontFamily = FontFamily.Monospace,
                         color = colors.textSecondary.copy(alpha = 0.7f),
                         letterSpacing = 1.0.sp,
                     )
-                    Text(
-                        text = "SYSTEM STATUS: OPERATIONAL",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        color = colors.success,
-                        letterSpacing = 0.8.sp,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(colors.success),
+                        )
+                        Text(
+                            text = "SYSTEM STATUS: OPERATIONAL",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = colors.success,
+                            letterSpacing = 0.8.sp,
+                        )
+                    }
                 }
             }
         }
@@ -968,6 +999,145 @@ fun ProfileScreen(
 }
 
 @Composable
+private fun ThemeOptionTile(
+    title: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = PromiseThemeColors.current
+    val bg by animateColorAsState(
+        targetValue = if (selected) colors.accent.copy(alpha = 0.14f) else colors.surfaceMuted,
+        animationSpec = Motion.standardTween(Motion.FilterChangeMs),
+        label = "theme-bg",
+    )
+    val border by animateColorAsState(
+        targetValue = if (selected) colors.accent.copy(alpha = 0.45f) else Color.Transparent,
+        animationSpec = Motion.standardTween(Motion.FilterChangeMs),
+        label = "theme-border",
+    )
+    val fg by animateColorAsState(
+        targetValue = if (selected) colors.accent else colors.textSecondary,
+        animationSpec = Motion.standardTween(Motion.FilterChangeMs),
+        label = "theme-fg",
+    )
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(Radius.md))
+            .background(bg)
+            .border(1.dp, border, RoundedCornerShape(Radius.md))
+            .pressScale(0.96f)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(color = colors.accent),
+                onClick = onSelect,
+            )
+            .padding(horizontal = Spacing.md, vertical = Spacing.md)
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = fg,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = fg,
+            )
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Outlined.Check,
+                    contentDescription = null,
+                    tint = colors.accent,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlanceWidgetCatalogItem(
+    title: String,
+    description: String,
+    icon: ImageVector,
+    onPin: () -> Unit,
+) {
+    val colors = PromiseThemeColors.current
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.md))
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), RoundedCornerShape(Radius.md)),
+        color = colors.surfaceMuted,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.cardPadding),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                modifier = Modifier.weight(1f),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(Radius.sm))
+                        .background(colors.accent.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = colors.accent,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                Column {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.textSecondary,
+                    )
+                }
+            }
+            if (PromiseGlanceWidgetPinHelper.isPinSupported(LocalContext.current)) {
+                TextButton(
+                    onClick = onPin,
+                    modifier = Modifier.heightIn(min = TouchTarget.min),
+                ) {
+                    Text("Add", color = colors.accent, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun FaqAccordionRow(
     item: FaqItem,
     expanded: Boolean,
@@ -981,7 +1151,11 @@ fun FaqAccordionRow(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(animationSpec = Motion.standardTween(Motion.CompletionMs))
-            .clickable(onClick = onToggle)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(color = colors.accent),
+                onClick = onToggle,
+            )
             .semantics(mergeDescendants = true) {
                 contentDescription = semanticsDesc
             },
@@ -1016,32 +1190,8 @@ fun FaqAccordionRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
                 modifier = Modifier.padding(bottom = Spacing.md),
+                lineHeight = 22.sp,
             )
         }
-    }
-}
-
-@Composable
-private fun ThemeSegment(
-    label: String,
-    selected: Boolean,
-    onSelect: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = PromiseThemeColors.current
-    Box(
-        modifier = modifier
-            .heightIn(min = TouchTarget.min)
-            .background(if (selected) colors.primaryControl else colors.surfaceMuted)
-            .clickable(onClick = onSelect)
-            .semantics { contentDescription = "$label theme" },
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-            color = if (selected) colors.onPrimaryControl else colors.textPrimary,
-        )
     }
 }

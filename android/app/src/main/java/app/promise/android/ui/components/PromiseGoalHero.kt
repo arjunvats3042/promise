@@ -6,13 +6,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.promise.android.ui.theme.PromiseThemeColors
@@ -32,46 +33,56 @@ fun PromiseGoalHero(
     val colors = PromiseThemeColors.current
 
     PromiseCardSurface(modifier = modifier) {
+        PromiseMicroLabel(text = sectionLabel)
+
+        Spacer(modifier = Modifier.height(Spacing.lg))
+
+        // Ring + details row
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PromiseMicroLabel(text = sectionLabel)
-            if (streakDays != null && streakDays > 0) {
-                PromiseStreakBadge(streakText = "${streakDays}d")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(Spacing.sm))
-
-        Row(
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-        ) {
-            Text(
-                text = primaryProgressText,
-                style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold,
-                color = colors.textPrimary,
-            )
-            if (!progressSubtitle.isNullOrBlank()) {
+            // Progress ring with percentage inside
+            PromiseProgressRing(
+                progress = progressFraction,
+                size = 72.dp,
+                strokeWidth = 6.dp,
+            ) {
                 Text(
-                    text = progressSubtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.textSecondary,
-                    modifier = Modifier.padding(bottom = 4.dp),
+                    text = "${(progressFraction * 100).toInt()}%",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary,
+                    textAlign = TextAlign.Center,
                 )
             }
+
+            Spacer(modifier = Modifier.width(Spacing.lg))
+
+            // Text details
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = primaryProgressText,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary,
+                )
+                if (!progressSubtitle.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(Spacing.xxs))
+                    Text(
+                        text = progressSubtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.textSecondary,
+                    )
+                }
+                if (streakDays != null && streakDays > 0) {
+                    Spacer(modifier = Modifier.height(Spacing.sm))
+                    PromiseStreakBadge(streakText = "${streakDays}d")
+                }
+            }
         }
 
-        Spacer(modifier = Modifier.height(Spacing.sm))
-
-        PromiseLinearProgressBar(
-            progress = progressFraction,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
+        // Footer info row
         if (!nextCheckInLabel.isNullOrBlank() || !collectiveText.isNullOrBlank()) {
             Spacer(modifier = Modifier.height(Spacing.md))
             PromiseHairlineDivider()
@@ -85,7 +96,7 @@ fun PromiseGoalHero(
                 if (!nextCheckInLabel.isNullOrBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Next check-in: ",
+                            text = "Next: ",
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.textSecondary,
                         )
@@ -93,7 +104,7 @@ fun PromiseGoalHero(
                             text = nextCheckInLabel,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = colors.textPrimary,
+                            color = colors.accent,
                         )
                     }
                 }

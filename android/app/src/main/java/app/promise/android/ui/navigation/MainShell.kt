@@ -19,8 +19,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -177,72 +180,113 @@ fun MainShell(
                                 PromiseHairlineDivider(
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                Row(
+                                androidx.compose.foundation.layout.BoxWithConstraints(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .heightIn(min = 64.dp)
                                         .padding(horizontal = Spacing.sm),
-                                    horizontalArrangement = Arrangement.SpaceEvenly,
-                                    verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    TabDestinations.items.forEachIndexed { index, tab ->
-                                        val selected = index == pagerState.currentPage
-                                        val itemBg = if (selected) colors.accent.copy(alpha = 0.14f) else androidx.compose.ui.graphics.Color.Transparent
-                                        val itemFg = if (selected) colors.accent else colors.textSecondary
+                                    val totalWidth = maxWidth
+                                    val tabCount = TabDestinations.items.size
+                                    val tabWidth = totalWidth / tabCount
+                                    val currentPos = pagerState.currentPage + pagerState.currentPageOffsetFraction
 
-                                        Column(
+                                    // Real-time fluid sliding indicator pill
+                                    if (!reduceMotion) {
+                                        val pillWidth = minOf(tabWidth * 0.72f, 56.dp)
+                                        Box(
                                             modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(Radius.md))
-                                                .bouncyClickable(
-                                                    targetScale = 0.92f,
-                                                    onClickLabel = tab.label,
-                                                ) {
-                                                    if (pagerState.currentPage != index) {
-                                                        viewModel.haptics.selection()
-                                                        coroutineScope.launch {
-                                                            if (reduceMotion) {
-                                                                pagerState.scrollToPage(index)
-                                                            } else {
-                                                                pagerState.animateScrollToPage(
-                                                                    page = index,
-                                                                    animationSpec = Motion.snappySpring(),
-                                                                )
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                .padding(vertical = 4.dp)
-                                                .semantics {
-                                                    this.contentDescription = tab.contentDescription
-                                                    this.selected = selected
-                                                },
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.Center,
+                                                .offset(x = tabWidth * currentPos)
+                                                .width(tabWidth)
+                                                .padding(top = 4.dp),
+                                            contentAlignment = Alignment.TopCenter,
                                         ) {
                                             Box(
                                                 modifier = Modifier
+                                                    .width(pillWidth)
+                                                    .height(30.dp)
                                                     .clip(RoundedCornerShape(Radius.pill))
-                                                    .background(itemBg)
-                                                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                                                contentAlignment = Alignment.Center,
+                                                    .background(colors.accent.copy(alpha = 0.14f)),
+                                            )
+                                        }
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceEvenly,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        TabDestinations.items.forEachIndexed { index, tab ->
+                                            val selected = index == pagerState.currentPage
+                                            val itemFg = if (selected) colors.accent else colors.textSecondary
+                                            val iconScale by androidx.compose.animation.core.animateFloatAsState(
+                                                targetValue = if (selected) 1.08f else 1f,
+                                                animationSpec = Motion.bouncySpring(),
+                                                label = "tab-icon-scale",
+                                            )
+
+                                            Column(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(Radius.md))
+                                                    .bouncyClickable(
+                                                        targetScale = 0.92f,
+                                                        onClickLabel = tab.label,
+                                                    ) {
+                                                        if (pagerState.currentPage != index) {
+                                                            viewModel.haptics.selection()
+                                                            coroutineScope.launch {
+                                                                if (reduceMotion) {
+                                                                    pagerState.scrollToPage(index)
+                                                                } else {
+                                                                    pagerState.animateScrollToPage(
+                                                                        page = index,
+                                                                        animationSpec = Motion.fluidSpring(),
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    .padding(vertical = 4.dp)
+                                                    .semantics {
+                                                        this.contentDescription = tab.contentDescription
+                                                        this.selected = selected
+                                                    },
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.Center,
                                             ) {
-                                                Icon(
-                                                    imageVector = tab.icon,
-                                                    contentDescription = null,
-                                                    tint = itemFg,
-                                                    modifier = Modifier.size(24.dp),
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(Radius.pill))
+                                                        .background(
+                                                            if (reduceMotion && selected) colors.accent.copy(alpha = 0.14f)
+                                                            else androidx.compose.ui.graphics.Color.Transparent
+                                                        )
+                                                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                                                    contentAlignment = Alignment.Center,
+                                                ) {
+                                                    Icon(
+                                                        imageVector = tab.icon,
+                                                        contentDescription = null,
+                                                        tint = itemFg,
+                                                        modifier = Modifier
+                                                            .size(24.dp)
+                                                            .graphicsLayer {
+                                                                scaleX = iconScale
+                                                                scaleY = iconScale
+                                                            },
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = tab.label,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                    fontSize = 11.sp,
+                                                    color = itemFg,
+                                                    maxLines = 1,
                                                 )
                                             }
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = tab.label,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                                fontSize = 11.sp,
-                                                color = itemFg,
-                                                maxLines = 1,
-                                            )
                                         }
                                     }
                                 }
