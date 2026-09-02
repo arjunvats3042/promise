@@ -275,7 +275,7 @@ fun ProfileScreen(
                 // 3. HOME SCREEN GLANCE WIDGETS
                 PromiseSectionHeader(
                     title = "Home Screen Widgets",
-                    subtitle = "1-tap interactive Glance widgets for habits and capture",
+                    subtitle = "Add interactive widgets to your home screen",
                 )
                 Spacer(modifier = Modifier.height(Spacing.xs))
 
@@ -343,7 +343,7 @@ fun ProfileScreen(
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
-                                        text = if (showWidgetsDropdown) "Tap to collapse widget catalog" else "Tap to view and pin widgets to your home screen",
+                                        text = if (showWidgetsDropdown) "Tap to hide widgets" else "Tap to browse and add widgets",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = colors.textSecondary,
                                     )
@@ -549,7 +549,7 @@ fun ProfileScreen(
                 // 7. ACCOUNT MANAGEMENT (DANGER ZONE)
                 PromiseSectionHeader(
                     title = "Account Management",
-                    subtitle = "Sign out sessions and manage account termination",
+                    subtitle = "Manage active sessions and account options",
                 )
                 Spacer(modifier = Modifier.height(Spacing.xs))
 
@@ -641,7 +641,7 @@ fun ProfileScreen(
                                     fontSize = 15.sp,
                                 )
                                 Text(
-                                    text = "Permanently wipe habits, commitments and data",
+                                    text = "Permanently delete your account and all data",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = colors.textSecondary,
                                 )
@@ -660,7 +660,7 @@ fun ProfileScreen(
                 // 8. THEME & APPEARANCE SECTION (Positioned Last as Requested)
                 PromiseSectionHeader(
                     title = "Appearance",
-                    subtitle = "Customize application theme and contrast",
+                    subtitle = "Choose Dark or Light appearance",
                 )
                 Spacer(modifier = Modifier.height(Spacing.xs))
 

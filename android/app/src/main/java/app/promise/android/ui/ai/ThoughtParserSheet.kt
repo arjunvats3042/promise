@@ -180,7 +180,7 @@ fun ThoughtParserSheet(
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
-                text = "Type or dictate multiple tasks and habits. We'll automatically break them down into structured items.",
+                text = "Write out what's on your mind. We'll organize your tasks, habits, and deadlines automatically.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
@@ -196,27 +196,17 @@ fun ThoughtParserSheet(
                             if (errorMessage != null) errorMessage = null
                         }
                     },
-                    label = { Text("E.g. I need to submit resume, call doctor, and read 20 mins every day") },
+                    label = { Text("e.g. Submit project draft by 4pm, call doctor tomorrow, and gym Mon Wed Fri") },
                     supportingText = {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            Text(
-                                text = "${thoughtText.length} / 500",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (thoughtText.length >= 450) colors.accent else colors.textSecondary,
-                            )
-                        }
+                        Text(
+                            text = "${thoughtText.length}/500",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.textSecondary,
+                        )
                     },
-                    trailingIcon = if (speechManager != null) {
+                    trailingIcon = if (thoughtText.isBlank() && !isLoading && speechManager != null) {
                         {
-                            IconButton(
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    showVoiceCapture = true
-                                },
-                            ) {
+                            IconButton(onClick = { showVoiceCapture = true }) {
                                 Icon(
                                     imageVector = Icons.Outlined.Mic,
                                     contentDescription = "Speak thoughts",
@@ -239,7 +229,7 @@ fun ThoughtParserSheet(
                 if (thoughtText.isBlank() && !isLoading) {
                     Spacer(modifier = Modifier.height(Spacing.xs))
                     Text(
-                        text = "EXAMPLES",
+                        text = "IDEAS TO TRY",
                         style = MaterialTheme.typography.labelSmall,
                         color = colors.textSecondary,
                         fontWeight = FontWeight.SemiBold,
@@ -306,7 +296,7 @@ fun ThoughtParserSheet(
                         )
                     } else {
                         Text(
-                            text = "Extract Tasks",
+                            text = "Organize Thoughts",
                             style = MaterialTheme.typography.labelLarge,
                         )
                     }

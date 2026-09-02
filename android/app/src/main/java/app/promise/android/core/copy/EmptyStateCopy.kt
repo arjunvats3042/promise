@@ -18,28 +18,28 @@ object EmptyStateCopy {
     fun forCommitmentFilter(filter: CommitmentListFilter): EmptyStateContent {
         return when (filter) {
             CommitmentListFilter.OPEN -> EmptyStateContent(
-                title = "No open commitments",
-                description = "Your slate is completely clear. Capture a new promise whenever you are ready.",
-                actionLabel = "Create Commitment",
+                title = "All clear right now",
+                description = "You have no open tasks. Take a breather, or add something when you're ready.",
+                actionLabel = "Add Commitment",
             )
             CommitmentListFilter.OVERDUE -> EmptyStateContent(
-                title = "Zero overdue promises",
-                description = "You're completely on schedule. Integrity and pace are right on track.",
+                title = "Zero overdue tasks",
+                description = "Everything is right on track. Keep up the steady pace.",
                 actionLabel = null,
             )
             CommitmentListFilter.TODAY -> EmptyStateContent(
-                title = "Nothing scheduled for today",
-                description = "Enjoy the open space or add a priority task for today.",
+                title = "Nothing due today",
+                description = "Enjoy the free space or pick one priority to focus on.",
                 actionLabel = "Add for Today",
             )
             CommitmentListFilter.UPCOMING -> EmptyStateContent(
                 title = "No upcoming deadlines",
-                description = "Future promises and target dates will be organized here as you plan ahead.",
-                actionLabel = "Schedule Commitment",
+                description = "Tasks scheduled for future dates will appear here as you plan ahead.",
+                actionLabel = "Schedule Task",
             )
             CommitmentListFilter.DONE -> EmptyStateContent(
-                title = "No completed promises yet",
-                description = "Every promise fulfilled will be preserved here as proof of your consistency.",
+                title = "No completed tasks yet",
+                description = "As you complete commitments, your fulfilled promises will show up here.",
                 actionLabel = null,
             )
         }
@@ -49,17 +49,17 @@ object EmptyStateCopy {
         return when (filter) {
             GoalListFilter.ACTIVE -> EmptyStateContent(
                 title = "No active habits yet",
-                description = "Start a recurring daily or weekly practice to build unbreakable consistency.",
-                actionLabel = "Create Goal",
+                description = "What's one small practice you'd like to do every day? Start simple.",
+                actionLabel = "Create Habit",
             )
             GoalListFilter.PAUSED -> EmptyStateContent(
-                title = "No paused practices",
-                description = "All your active habits are in steady motion. Paused goals rest here.",
+                title = "No paused habits",
+                description = "All your habits are currently in progress. Paused routines will rest here.",
                 actionLabel = null,
             )
             GoalListFilter.COMPLETED -> EmptyStateContent(
-                title = "No archived milestones",
-                description = "Accomplished habits and finished goal challenges will be preserved here.",
+                title = "No archived goals",
+                description = "Completed goals and achieved milestones will be preserved here.",
                 actionLabel = null,
             )
         }
@@ -67,34 +67,34 @@ object EmptyStateCopy {
 
     object Home {
         val EmptyPersonalPractices = EmptyStateContent(
-            title = "No active personal habits",
-            description = "Create daily or weekly goals in the Goals tab to build compounding momentum.",
+            title = "No daily habits yet",
+            description = "Add daily or weekly practices to build steady momentum over time.",
             actionLabel = "Add a Habit",
         )
 
         val EmptyTodayCommitments = EmptyStateContent(
-            title = "No commitments due today",
-            description = "Capture an intention using your voice or tap + to schedule a task.",
-            actionLabel = "Add Promise",
+            title = "No tasks scheduled for today",
+            description = "Speak a quick thought or tap + to plan something for today.",
+            actionLabel = "Add Task",
         )
 
         val EmptySharedPractices = EmptyStateContent(
             title = "No shared goals yet",
-            description = "Invite friends or accountability partners to build daily practices together.",
+            description = "Invite friends or teammates to build daily practices together.",
             actionLabel = "Create Shared Goal",
         )
     }
 
     object Search {
         val Idle = EmptyStateContent(
-            title = "Search everything in Promise",
-            description = "Find commitments, recurring goals, deadlines, and shared groups.",
+            title = "Search your promises",
+            description = "Find tasks, recurring habits, deadlines, and group goals.",
             actionLabel = null,
         )
 
         val NoMatches = EmptyStateContent(
-            title = "No matching promises found",
-            description = "Try searching with a broader keyword, date, or tag name.",
+            title = "No results found",
+            description = "Try searching with a different word, name, or date.",
             actionLabel = null,
         )
     }

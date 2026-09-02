@@ -113,9 +113,9 @@ fun PromiseSupportChatSheet(
 
     val animProgress = remember { Animatable(0f) }
     var isDismissing by remember { mutableStateOf(false) }
-    var completedTypewriterIds by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var completedTypewriterIds by rememberSaveable { mutableStateOf(setOf("welcome-init")) }
 
-    // Mark initial messages as already animated on sheet open
+    // Seed all existing messages as completed on first composition
     LaunchedEffect(Unit) {
         if (uiState.messages.isNotEmpty()) {
             completedTypewriterIds = completedTypewriterIds + uiState.messages.map { it.id }
@@ -375,7 +375,7 @@ private fun SupportHeader(
                             .background(Color(0xFF10B981))
                     )
                     Text(
-                        text = "Online · App Knowledge Guide",
+                        text = "Always here · Product & Privacy Guide",
                         style = MaterialTheme.typography.labelSmall,
                         color = colors.textSecondary,
                         fontSize = 11.5.sp,
@@ -463,24 +463,29 @@ private fun AssistantChatCard(
     val colors = PromiseThemeColors.current
     val reduceMotion = rememberReduceMotion()
 
+    val shouldAnimate = !reduceMotion && !isAlreadyAnimated && item.id != "welcome-init"
+
     // Smooth Typewriter character reveal - runs strictly ONCE per new assistant response
-    var revealedChars by remember(item.id, item.text) {
-        mutableIntStateOf(if (reduceMotion || isAlreadyAnimated) item.text.length else 0)
+    var revealedChars by remember(item.id, item.text, shouldAnimate) {
+        mutableIntStateOf(if (shouldAnimate) 0 else item.text.length)
     }
 
-    LaunchedEffect(item.id, item.text, isAlreadyAnimated) {
-        if (!reduceMotion && !isAlreadyAnimated && revealedChars < item.text.length) {
+    LaunchedEffect(item.id, item.text, shouldAnimate) {
+        if (shouldAnimate && revealedChars < item.text.length) {
             while (revealedChars < item.text.length) {
-                revealedChars = (revealedChars + 5).coerceAtMost(item.text.length)
-                delay(12)
+                revealedChars = (revealedChars + 6).coerceAtMost(item.text.length)
+                delay(10)
             }
             onAnimationComplete()
-        } else if (!isAlreadyAnimated) {
-            onAnimationComplete()
+        } else {
+            revealedChars = item.text.length
+            if (!isAlreadyAnimated) {
+                onAnimationComplete()
+            }
         }
     }
 
-    val visibleText = item.text.take(revealedChars)
+    val visibleText = if (!shouldAnimate) item.text else item.text.take(revealedChars)
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -540,7 +545,7 @@ private fun AssistantChatCard(
         }
 
         // 1-Tap Action Deep-Link Badges
-        if (item.actionChips.isNotEmpty() && revealedChars >= item.text.length * 0.4f) {
+        if (item.actionChips.isNotEmpty() && (!shouldAnimate || revealedChars >= item.text.length * 0.4f)) {
             Spacer(modifier = Modifier.height(Spacing.xs))
             Row(
                 modifier = Modifier
@@ -590,7 +595,7 @@ private fun AssistantChatCard(
         }
 
         // Suggested Follow-up Question Chips
-        if (item.followups.isNotEmpty() && revealedChars >= item.text.length * 0.6f) {
+        if (item.followups.isNotEmpty() && (!shouldAnimate || revealedChars >= item.text.length * 0.6f)) {
             Spacer(modifier = Modifier.height(Spacing.xs))
             Row(
                 modifier = Modifier
@@ -622,10 +627,10 @@ private fun AssistantChatCard(
                             )
                             Text(
                                 text = followup,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = colors.textPrimary,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.textSecondary,
                                 fontWeight = FontWeight.Medium,
-                                fontSize = 12.5.sp,
+                                fontSize = 12.sp,
                             )
                         }
                     }
@@ -866,7 +871,7 @@ private fun SupportInputDock(
                 decorationBox = { innerTextField ->
                     if (inputText.isEmpty()) {
                         Text(
-                            text = "Ask anything about Promise…",
+                            text = "Ask about habits, tasks, or privacy…",
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.textSecondary.copy(alpha = 0.55f),
                             fontSize = 14.5.sp,

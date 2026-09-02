@@ -95,14 +95,14 @@ fun GoalAiBuilderSheet(
                     modifier = Modifier.size(24.dp),
                 )
                 Text(
-                    text = "Goal Setup",
+                    text = "Design a Habit",
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
-                text = "Describe your habit or practice. We'll configure the cadence, schedule, and tracking format for your review.",
+                text = "Tell us what you want to practice. We'll set up the schedule and format so you can start right away.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
@@ -116,7 +116,7 @@ fun GoalAiBuilderSheet(
                         promptText = it
                         if (errorMessage != null) errorMessage = null
                     },
-                    label = { Text("E.g. Read 30 minutes every weekday") },
+                    label = { Text("e.g. Read 20 minutes every night, or gym 4x a week") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     maxLines = 5,
@@ -179,7 +179,7 @@ fun GoalAiBuilderSheet(
                         )
                     } else {
                         Text(
-                            text = "Configure Goal",
+                            text = "Build Habit",
                             style = MaterialTheme.typography.labelLarge,
                         )
                     }
@@ -203,7 +203,7 @@ fun GoalAiBuilderSheet(
                             )
                             Spacer(modifier = Modifier.width(Spacing.xs))
                             Text(
-                                text = "CLARIFICATION NEEDED",
+                                text = "QUICK QUESTION",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = colors.accent,
                             )

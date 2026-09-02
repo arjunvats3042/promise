@@ -8,26 +8,26 @@ object PromiseCopy {
 
     // Brand Signature & Headings
     const val APP_TAGLINE = "Intentions kept. Momentum built."
-    const val DAILY_FOCUS_HEADER = "DAILY FOCUS"
-    const val TODAY_THOUGHT_HEADER = "TODAY'S THOUGHT"
-    const val DAILY_PRACTICE_HEADER = "Daily Practice"
+    const val DAILY_FOCUS_HEADER = "TODAY'S FOCUS"
+    const val TODAY_THOUGHT_HEADER = "DAILY NOTE"
+    const val DAILY_PRACTICE_HEADER = "Daily Rituals"
     const val TODAY_COMMITMENTS_HEADER = "Today's Commitments"
     const val UPCOMING_COMMITMENTS_HEADER = "Upcoming Commitments"
     const val SHARED_GOALS_HEADER = "Shared Goals"
 
     // Offline & Sync Status
-    const val STATUS_OFFLINE_BANNER = "● Working offline · Changes saved locally"
+    const val STATUS_OFFLINE_BANNER = "● Saved on device · Syncs when back online"
     const val STATUS_OFFLINE_INDICATOR = "Offline"
     const val SYNC_SUCCESS_TOAST = "Synced with cloud"
 
     // Action Microcopy
     object Actions {
         const val CREATE_PROMISE = "Create Promise"
-        const val CREATE_GOAL = "Create Goal"
-        const val CREATE_COMMITMENT = "Create Commitment"
-        const val QUICK_VOICE = "Speak Promise"
-        const val DECOMPOSE_THOUGHTS = "Decompose Thoughts"
-        const val REFINE_AI = "Refine with AI"
+        const val CREATE_GOAL = "New Goal"
+        const val CREATE_COMMITMENT = "New Commitment"
+        const val QUICK_VOICE = "Voice Capture"
+        const val DECOMPOSE_THOUGHTS = "Organize Thoughts"
+        const val REFINE_AI = "Add Details"
         const val TRY_AGAIN = "Try Again"
         const val RETRY = "Retry"
         const val DISMISS = "Dismiss"
@@ -36,7 +36,7 @@ object PromiseCopy {
         const val CONFIRM = "Confirm"
         const val SIGN_IN = "Sign In"
         const val REVIEW_INVITE = "Review"
-        const val EDIT_THOUGHTS = "Edit thoughts"
+        const val EDIT_THOUGHTS = "Edit text"
     }
 
     // AI Inspiration Prompts for Brain Dumps

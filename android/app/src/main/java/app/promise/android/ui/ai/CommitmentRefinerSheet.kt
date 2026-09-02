@@ -97,14 +97,14 @@ fun CommitmentRefinerSheet(
                     modifier = Modifier.size(24.dp),
                 )
                 Text(
-                    text = "Refine Commitment",
+                    text = "Add Details & Deadline",
                     style = MaterialTheme.typography.titleLarge,
                     color = colors.textPrimary,
                 )
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
-                text = "Turn rough notes into clear, actionable commitments with target dates.",
+                text = "Turn rough notes into clear tasks with dates and reminders.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.textSecondary,
             )
@@ -119,7 +119,7 @@ fun CommitmentRefinerSheet(
                         promptText = it
                         if (errorMessage != null) errorMessage = null
                     },
-                    label = { Text("E.g. Call Mom or finish report tomorrow") },
+                    label = { Text("e.g. Call Mom tomorrow at 5pm, or send report Friday") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 4,
@@ -181,7 +181,7 @@ fun CommitmentRefinerSheet(
                         )
                     } else {
                         Text(
-                            text = "Refine Commitment",
+                            text = "Add Details",
                             style = MaterialTheme.typography.labelLarge,
                         )
                     }
@@ -202,7 +202,7 @@ fun CommitmentRefinerSheet(
                 ) {
                     Column(modifier = Modifier.padding(Spacing.cardPadding)) {
                         Text(
-                            text = "REFINED COMMITMENT",
+                            text = "SUGGESTED TASK",
                             style = MaterialTheme.typography.labelSmall,
                             color = colors.accent,
                         )

@@ -18,7 +18,7 @@ object MomentumCopy {
         if (totalCount == 0) {
             return MomentumCardContent(
                 headline = "Clear slate for today",
-                subtitle = "Dictate promises with your voice or capture open thoughts.",
+                subtitle = "Speak a thought or tap + to plan what matters most today.",
             )
         }
 
@@ -27,26 +27,26 @@ object MomentumCopy {
         return when {
             completedCount == totalCount -> {
                 MomentumCardContent(
-                    headline = "All promises fulfilled!",
-                    subtitle = "Great follow-through today. Your consistency is compounding.",
+                    headline = "You kept every promise today ✨",
+                    subtitle = "Everything on your list is done. Enjoy the rest of your day.",
                 )
             }
             remaining == 1 -> {
                 MomentumCardContent(
-                    headline = "1 final action remaining",
-                    subtitle = "Almost across the finish line. Keep your daily streak alive.",
+                    headline = "Just 1 left for today",
+                    subtitle = "Almost done. Finish this last one to keep your streak going.",
                 )
             }
             completedCount == 0 -> {
                 MomentumCardContent(
-                    headline = "$totalCount actions planned today",
-                    subtitle = "Start with your highest-priority commitment to set the pace.",
+                    headline = "$totalCount things planned today",
+                    subtitle = "Pick one to start with and build your flow.",
                 )
             }
             else -> {
                 MomentumCardContent(
                     headline = "$completedCount of $totalCount completed",
-                    subtitle = "$remaining actions remaining. Stay in steady, calm momentum.",
+                    subtitle = "$remaining more to go. Keep moving at your own calm pace.",
                 )
             }
         }

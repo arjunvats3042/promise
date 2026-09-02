@@ -45,18 +45,18 @@ class PromiseSupportViewModel @Inject constructor(
                 SupportChatItem(
                     id = "welcome-init",
                     role = "assistant",
-                    text = "👋 **Hi there! I'm your Promise Concierge.**\n\nAsk me anything about managing commitments, building recurring habits, shared goals, offline sync, home screen widgets, voice capture, or data privacy!",
+                    text = "👋 **Hi! I'm here to help you get the most out of Promise.**\n\nAsk me anything about building daily habits, setting deadlines, group goals, offline sync, or your privacy.",
                     followups = listOf(
-                        "Goal vs. Commitment difference",
-                        "How can I create a goal?",
+                        "Difference between habits and tasks?",
+                        "How do I build a new habit?",
+                        "Can friends see my private tasks?",
                         "How does offline sync work?",
-                        "How do Shared Goals work?",
-                        "Is my data private from AI training?",
+                        "How do shared goals work?",
                     ),
                     actionChips = listOf(
-                        SupportActionChip("＋ Create Goal", "CREATE_GOAL"),
-                        SupportActionChip("＋ Create Commitment", "CREATE_COMMITMENT"),
-                        SupportActionChip("🎨 Appearance Settings", "OPEN_THEME"),
+                        SupportActionChip("＋ New Goal", "CREATE_GOAL"),
+                        SupportActionChip("＋ New Commitment", "CREATE_COMMITMENT"),
+                        SupportActionChip("🎨 Appearance", "OPEN_THEME"),
                     ),
                     isOffTopic = false,
                 )

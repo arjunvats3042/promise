@@ -469,7 +469,7 @@ fun VoiceCaptureSheet(
                                 Spacer(modifier = Modifier.height(Spacing.xs))
 
                                 Text(
-                                    text = if (isListening) "Listening… Speak your intentions" else "Tap microphone to speak",
+                                    text = if (isListening) "Listening… Speak naturally" else "Tap microphone to speak",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = if (isListening) colors.accent else colors.textSecondary,
                                     fontWeight = FontWeight.SemiBold,
@@ -506,7 +506,7 @@ fun VoiceCaptureSheet(
                                             )
                                         } else {
                                             Text(
-                                                text = "e.g. \"Send pnd mail on first of October 11 am, and gym 4 days a week\"",
+                                                text = "e.g. \"Send project update tomorrow at 11am, and read 20 mins daily\"",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = colors.textSecondary.copy(alpha = 0.55f),
                                             )
@@ -541,7 +541,7 @@ fun VoiceCaptureSheet(
                                     )
                                     Spacer(modifier = Modifier.width(Spacing.xs))
                                     Text(
-                                        "Decompose with AI",
+                                        "Organize Thoughts",
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.Bold,
                                     )
@@ -558,7 +558,7 @@ fun VoiceCaptureSheet(
                             OutlinedTextField(
                                 value = transcriptText,
                                 onValueChange = { transcriptText = it },
-                                label = { Text("Spoken Words") },
+                                label = { Text("What we heard") },
                                 modifier = Modifier.fillMaxWidth(),
                                 minLines = 3,
                                 maxLines = 6,
@@ -571,14 +571,13 @@ fun VoiceCaptureSheet(
                                 ),
                             )
 
-                            if (errorMessage != null) {
-                                Spacer(modifier = Modifier.height(Spacing.sm))
-                                Text(
-                                    text = errorMessage.orEmpty(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                )
-                            }
+                            Spacer(modifier = Modifier.height(Spacing.md))
+
+                            Text(
+                                text = "Edit your words if anything was misheard, then continue.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.textSecondary,
+                            )
 
                             Spacer(modifier = Modifier.height(Spacing.lg))
 
@@ -588,30 +587,29 @@ fun VoiceCaptureSheet(
                             ) {
                                 OutlinedButton(
                                     onClick = {
-                                        startListening()
+                                        transcriptText = ""
+                                        currentStep = VoicePipelineStep.RECORDING
                                     },
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(TouchTarget.min)
                                         .pressScale(0.97f),
                                     shape = RoundedCornerShape(Radius.pill),
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                                    border = BorderStroke(1.dp, colors.outlineStrong),
                                 ) {
                                     Icon(
                                         imageVector = Icons.Outlined.Refresh,
                                         contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
+                                        modifier = Modifier.size(16.dp),
                                     )
                                     Spacer(modifier = Modifier.width(Spacing.xs))
                                     Text("Retake", fontWeight = FontWeight.SemiBold)
                                 }
 
                                 Button(
-                                    onClick = {
-                                        proceedToAIProcessing()
-                                    },
+                                    onClick = { proceedToAIProcessing() },
                                     modifier = Modifier
-                                        .weight(1.3f)
+                                        .weight(1.2f)
                                         .height(TouchTarget.min)
                                         .pressScale(0.97f),
                                     shape = RoundedCornerShape(Radius.pill),
@@ -626,7 +624,7 @@ fun VoiceCaptureSheet(
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
                                         contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
+                                        modifier = Modifier.size(16.dp),
                                     )
                                 }
                             }
@@ -639,24 +637,13 @@ fun VoiceCaptureSheet(
                                 .fillMaxWidth()
                                 .padding(vertical = Spacing.xxl),
                             horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
                         ) {
-                            val infiniteTransition = rememberInfiniteTransition(label = "processingSpin")
-                            val pulseScale by infiniteTransition.animateFloat(
-                                initialValue = 0.9f,
-                                targetValue = 1.15f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(900, easing = FastOutSlowInEasing),
-                                    repeatMode = RepeatMode.Reverse,
-                                ),
-                                label = "processingPulse",
-                            )
-
                             Box(
                                 modifier = Modifier
                                     .size(72.dp)
-                                    .scale(pulseScale)
                                     .clip(CircleShape)
-                                    .background(colors.accent.copy(alpha = 0.15f))
+                                    .background(colors.accent.copy(alpha = 0.12f))
                                     .border(1.5.dp, colors.accent.copy(alpha = 0.40f), CircleShape),
                                 contentAlignment = Alignment.Center,
                             ) {
@@ -671,14 +658,14 @@ fun VoiceCaptureSheet(
                             Spacer(modifier = Modifier.height(Spacing.lg))
 
                             Text(
-                                text = "Structuring your promises…",
+                                text = "Organizing your intentions…",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = colors.textPrimary,
                             )
                             Spacer(modifier = Modifier.height(Spacing.xs))
                             Text(
-                                text = "Parsing dates, fixing grammar, and scheduling tasks",
+                                text = "Extracting deadlines, recurrence, and action items",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.textSecondary,
                             )
@@ -723,7 +710,7 @@ fun VoiceCaptureSheet(
                                         contentColor = Color.Black,
                                     ),
                                 ) {
-                                    Text("Edit Spoken Words", fontWeight = FontWeight.Bold)
+                                    Text("Edit Thoughts", fontWeight = FontWeight.Bold)
                                 }
                             }
                         } else {
@@ -734,7 +721,7 @@ fun VoiceCaptureSheet(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        text = "PROMISES TO CREATE (${selectedIndices.size}/${items.size})",
+                                        text = "READY TO ADD (${selectedIndices.size}/${items.size})",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = colors.accent,
                                         fontWeight = FontWeight.Bold,

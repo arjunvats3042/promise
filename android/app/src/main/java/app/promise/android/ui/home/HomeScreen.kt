@@ -394,7 +394,7 @@ private fun HomeContent(
                         )
                         Spacer(modifier = Modifier.width(Spacing.sm))
                         Text(
-                            text = "Capture a promise or thought...",
+                            text = "What's on your mind today?",
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.textSecondary,
                             maxLines = 1,
@@ -702,7 +702,7 @@ fun DailyMomentumHeroCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isFull) "DAILY FOCUS · COMPLETED ✨" else "DAILY FOCUS",
+                    text = if (isFull) "TODAY'S FOCUS · ALL DONE ✨" else "TODAY'S FOCUS",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = colors.accent,
