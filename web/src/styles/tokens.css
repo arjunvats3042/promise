@@ -1,0 +1,102 @@
+/* ─────────────────────────────────────────
+   PROMISE DESIGN TOKENS
+   Swiss Modernist Direction — Seed 27f85050
+   ───────────────────────────────────────── */
+
+:root {
+  /* Ground surfaces */
+  --color-ground: #0E0F0D;
+  --color-ground-raised: #141614;
+  --color-ground-float: #1C1F1C;
+  --color-ground-hover: #202320;
+
+  /* Typography ink */
+  --color-ink: #F2EDE6;
+  --color-ink-secondary: #A8A49E;
+  --color-ink-ghost: #4A4845;
+  --color-ink-inverted: #0E0F0D;
+
+  /* Promise Indigo accent */
+  --color-accent: #5B6AF0;
+  --color-accent-glow: rgba(91, 106, 240, 0.13);
+  --color-accent-hover: #7480F5;
+  --color-accent-soft: rgba(91, 106, 240, 0.08);
+  --color-accent-border: rgba(91, 106, 240, 0.25);
+
+  /* State colors */
+  --color-success: #3DAA6E;
+  --color-success-soft: rgba(61, 170, 110, 0.12);
+  --color-warning: #C4883A;
+  --color-warning-soft: rgba(196, 136, 58, 0.12);
+  --color-error: #C0544A;
+
+  /* Structural */
+  --color-border: #252825;
+  --color-border-hover: #353935;
+  --color-rule: rgba(242, 237, 230, 0.06);
+  --color-rule-strong: rgba(242, 237, 230, 0.12);
+
+  /* Typography scale */
+  --font-body: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+  --font-display: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+
+  /* Swiss grid type sizes */
+  --text-xs: 0.6875rem;    /* 11px */
+  --text-sm: 0.8125rem;    /* 13px */
+  --text-base: 0.9375rem;  /* 15px */
+  --text-md: 1.0625rem;    /* 17px */
+  --text-lg: 1.25rem;      /* 20px */
+  --text-xl: 1.5rem;       /* 24px */
+  --text-2xl: 2rem;        /* 32px */
+  --text-3xl: 2.75rem;     /* 44px */
+  --text-4xl: 3.75rem;     /* 60px */
+  --text-5xl: 5rem;        /* 80px */
+  --text-display: clamp(4rem, 10vw, 9rem);
+  --text-hero: clamp(5rem, 18vw, 16rem);
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --space-24: 6rem;
+  --space-32: 8rem;
+  --space-40: 10rem;
+  --space-48: 12rem;
+
+  /* Layout */
+  --max-width: 1400px;
+  --page-pad: clamp(1.5rem, 5vw, 5rem);
+  --nav-height: 64px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.5);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.6);
+  --shadow-accent: 0 0 32px rgba(91, 106, 240, 0.25);
+  --shadow-accent-sm: 0 0 16px rgba(91, 106, 240, 0.18);
+
+  /* Transitions */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+  --duration-slow: 400ms;
+  --duration-slower: 650ms;
+}

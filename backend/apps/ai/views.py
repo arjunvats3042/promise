@@ -43,7 +43,7 @@ from apps.goals.models import Goal, GoalParticipant
 
 
 @api_view(["GET"])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def daily_motivation_view(request):
     """Daily Motivation Quote shared by all users per calendar day."""
     quote = get_or_create_daily_quote()
@@ -76,16 +76,20 @@ def goal_suggestion_view(request):
 
 
 @api_view(["POST"])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def commitment_refinement_view(request):
     """Feature 2: AI Commitment Refinement."""
-    enforce_ai_rate_limit(request.user, "commitment_refiner")
+    if request.user and request.user.is_authenticated:
+        enforce_ai_rate_limit(request.user, "commitment_refiner")
     serializer = CommitmentRefinementRequestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
+    tz = serializer.validated_data.get("timezone") or (
+        getattr(request.user, "timezone", "Asia/Kolkata") if request.user and request.user.is_authenticated else "Asia/Kolkata"
+    )
     result = refine_commitment(
         user_prompt=serializer.validated_data["prompt"],
-        timezone=serializer.validated_data.get("timezone", getattr(request.user, "timezone", "Asia/Kolkata")),
+        timezone=tz,
     )
     return Response(result, status=status.HTTP_200_OK)
 

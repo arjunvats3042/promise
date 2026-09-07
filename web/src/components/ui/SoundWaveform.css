@@ -1,0 +1,15 @@
+.sound-waveform {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 40px;
+  padding: 0 8px;
+}
+
+.sound-waveform__bar {
+  display: inline-block;
+  width: 3px;
+  border-radius: 9999px;
+  will-change: height, opacity;
+  box-shadow: 0 0 8px rgba(91, 106, 240, 0.4);
+}

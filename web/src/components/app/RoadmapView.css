@@ -1,0 +1,934 @@
+.roadmap-view {
+  padding: 32px 0 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 36px;
+  color: #fff;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+/* 1. Header Telemetry */
+.roadmap-view__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.roadmap-view__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 5px 12px;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.roadmap-view__metric {
+  font-size: 72px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1;
+}
+
+.roadmap-view__sub {
+  font-size: 14px;
+  font-weight: 600;
+  color: #60a5fa;
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.roadmap-view__highlight {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* 2. Interactive Constellation Card */
+.roadmap-view__canvas-card {
+  width: 100%;
+  max-width: 460px;
+  background: rgba(18, 20, 29, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 28px;
+  padding: 28px 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.roadmap-view__grid {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  align-items: center;
+}
+
+.roadmap-dot-wrap {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: transform 0.15s ease;
+}
+
+.roadmap-dot-wrap:hover {
+  transform: scale(1.4);
+  z-index: 10;
+}
+
+.roadmap-dot {
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.roadmap-dot--past .roadmap-dot {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.roadmap-dot--future .roadmap-dot {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.roadmap-dot--today .roadmap-dot {
+  width: 8px;
+  height: 8px;
+  background: #60a5fa;
+  box-shadow: 0 0 12px #60a5fa;
+}
+
+.roadmap-dot__pulse {
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid #60a5fa;
+  animation: pulse-halo 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse-halo {
+  0%, 100% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.5); opacity: 0.1; }
+}
+
+.roadmap-dot--selected .roadmap-dot {
+  box-shadow: 0 0 8px #ffffff;
+}
+
+.roadmap-view__inspector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  font-size: 12px;
+}
+
+.roadmap-view__inspector-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.roadmap-view__inspector-icon {
+  color: #60a5fa;
+}
+
+.roadmap-view__inspector-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roadmap-view__inspector-pill {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+.roadmap-view__inspector-status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(96, 165, 250, 0.15);
+  color: #60a5fa;
+}
+
+/* 3. Flagship Native Android App Showcase Banner */
+.roadmap-view__app-banner {
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.9));
+  border: 1px solid rgba(96, 165, 250, 0.3);
+  border-radius: 24px;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.6),
+              0 0 30px rgba(59, 130, 246, 0.1);
+  backdrop-filter: blur(20px);
+}
+
+.roadmap-view__app-banner-glow {
+  position: absolute;
+  top: -50%;
+  left: 20%;
+  width: 60%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.roadmap-view__app-banner-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 580px;
+  z-index: 1;
+}
+
+.roadmap-view__app-banner-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.15);
+  padding: 4px 10px;
+  border-radius: 100px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  align-self: flex-start;
+}
+
+.roadmap-view__app-banner-heading {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.roadmap-view__app-banner-desc {
+  font-size: 13px;
+  color: #cbd5e1;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.roadmap-view__app-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.roadmap-view__app-feature-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 5px 12px;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.roadmap-view__app-pill-icon {
+  color: #60a5fa;
+}
+
+.roadmap-view__app-banner-action {
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+.roadmap-view__app-btn {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #ffffff;
+  border: none;
+  border-radius: 14px;
+  padding: 14px 22px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+  white-space: nowrap;
+}
+
+.roadmap-view__app-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.6);
+}
+
+/* 4. Wallpaper Studio Section */
+.roadmap-studio {
+  width: 100%;
+  background: rgba(15, 17, 26, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.roadmap-studio__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 24px;
+}
+
+.roadmap-studio__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #a78bfa;
+  margin-bottom: 8px;
+}
+
+.roadmap-studio__title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.02em;
+}
+
+.roadmap-studio__subtitle {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0;
+  max-width: 520px;
+  line-height: 1.5;
+}
+
+.roadmap-studio__dl-btn {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+  white-space: nowrap;
+}
+
+.roadmap-studio__dl-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(37, 99, 235, 0.5);
+}
+
+.roadmap-studio__controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.roadmap-studio__control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.roadmap-studio__control-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.roadmap-studio__segmented {
+  display: flex;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.roadmap-studio__seg-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.roadmap-studio__seg-btn--active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.roadmap-studio__palette-chips,
+.roadmap-studio__accent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.roadmap-studio__palette-btn,
+.roadmap-studio__accent-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #cbd5e1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.15s ease;
+}
+
+.roadmap-studio__palette-btn--active,
+.roadmap-studio__accent-btn--active {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.roadmap-studio__palette-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+}
+
+.roadmap-studio__accent-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+/* 5. Live Mockup Preview Stage */
+.roadmap-studio__preview-stage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 32px 16px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.02) 0%, rgba(0, 0, 0, 0.4) 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+/* Realistic Phone Mockup */
+.mockup-phone {
+  width: 280px;
+  height: 570px;
+  border-radius: 48px;
+  border: 8px solid #2d3345;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.9),
+              0 0 0 2px rgba(255, 255, 255, 0.1),
+              inset 0 0 0 2px rgba(0, 0, 0, 0.6);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 14px 12px;
+  user-select: none;
+}
+
+.mockup-phone__island {
+  width: 76px;
+  height: 20px;
+  background: #000000;
+  border-radius: 14px;
+  margin-bottom: 8px;
+  z-index: 2;
+}
+
+.mockup-phone__status-bar {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0 8px;
+  margin-bottom: 24px;
+}
+
+.mockup-phone__status-icons {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mockup-phone__battery {
+  width: 18px;
+  height: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 3px;
+  position: relative;
+}
+
+.mockup-phone__battery::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  bottom: 1px;
+  right: 4px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 1px;
+}
+
+.mockup-phone__lock-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.mockup-phone__date {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mockup-phone__clock {
+  font-size: 48px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.mockup-phone__screen-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.mockup-phone__tag {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.mockup-phone__metric {
+  font-size: 26px;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1;
+}
+
+.mockup-phone__sub {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 10px;
+}
+
+.mockup-phone__grid {
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: 3px;
+  margin-bottom: 16px;
+}
+
+.mockup-phone__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+}
+
+.mockup-phone__quote {
+  font-size: 8.5px;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+  max-width: 200px;
+  line-height: 1.35;
+}
+
+.mockup-phone__home-indicator {
+  position: absolute;
+  bottom: 8px;
+  width: 90px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+}
+
+/* Realistic Desktop Mockup */
+.mockup-desktop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 620px;
+}
+
+.mockup-desktop__screen {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 16px;
+  border: 10px solid #202430;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8),
+              0 0 0 1px rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.mockup-desktop__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.mockup-desktop__tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.mockup-desktop__metric {
+  font-size: 40px;
+  font-weight: 900;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1;
+}
+
+.mockup-desktop__sub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 0 0 12px 0;
+}
+
+.mockup-desktop__grid {
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.mockup-desktop__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.mockup-desktop__quote {
+  font-size: 10px;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0;
+}
+
+.mockup-desktop__neck {
+  width: 60px;
+  height: 36px;
+  background: linear-gradient(180deg, #1b202c, #0e1118);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mockup-desktop__base {
+  width: 160px;
+  height: 10px;
+  background: #1e2430;
+  border-radius: 6px 6px 0 0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* 6. Native App Explanation Modal */
+.roadmap-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.roadmap-modal {
+  background: rgba(18, 20, 29, 0.96);
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  box-shadow: 0 28px 70px -10px rgba(0, 0, 0, 0.8),
+              0 0 50px rgba(59, 130, 246, 0.15);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 520px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.roadmap-modal__header {
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.roadmap-modal__icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(99, 102, 241, 0.2));
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #60a5fa;
+  flex-shrink: 0;
+}
+
+.roadmap-modal__title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 3px 0;
+}
+
+.roadmap-modal__sub {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.roadmap-modal__close {
+  margin-left: auto;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.roadmap-modal__close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.roadmap-modal__body {
+  padding: 24px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.roadmap-modal__card {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 16px;
+  padding: 16px 18px;
+}
+
+.roadmap-modal__card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #60a5fa;
+  margin-bottom: 8px;
+}
+
+.roadmap-modal__card-text {
+  font-size: 13px;
+  color: #e2e8f0;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.roadmap-modal__card-text code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: #93c5fd;
+  font-size: 12px;
+}
+
+.roadmap-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.roadmap-modal__list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.roadmap-modal__list-check {
+  color: #10b981;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.roadmap-modal__list-item strong {
+  display: block;
+  font-size: 13px;
+  color: #ffffff;
+  margin-bottom: 2px;
+}
+
+.roadmap-modal__list-item p {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.roadmap-modal__download-box {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.roadmap-modal__dl-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.roadmap-modal__dl-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+.roadmap-modal__dl-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.roadmap-modal__dl-sub {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.roadmap-modal__action-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.roadmap-modal__action-btn:hover {
+  background: #1d4ed8;
+}
+
+@media (max-width: 768px) {
+  .roadmap-view__app-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .roadmap-studio__header {
+    flex-direction: column;
+  }
+}

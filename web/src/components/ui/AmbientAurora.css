@@ -1,0 +1,86 @@
+.ambient-aurora {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.ambient-aurora__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.22;
+  will-change: transform;
+}
+
+.ambient-aurora__orb--1 {
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, #5B6AF0 0%, rgba(91, 106, 240, 0) 70%);
+  top: -150px;
+  left: 15%;
+  animation: aurora-float-1 22s ease-in-out infinite alternate;
+}
+
+.ambient-aurora__orb--2 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, #9D7BFF 0%, rgba(157, 123, 255, 0) 70%);
+  top: 35%;
+  right: 5%;
+  animation: aurora-float-2 26s ease-in-out infinite alternate;
+}
+
+.ambient-aurora__orb--3 {
+  width: 550px;
+  height: 550px;
+  background: radial-gradient(circle, #3DAA6E 0%, rgba(61, 170, 110, 0) 70%);
+  bottom: 5%;
+  left: 25%;
+  animation: aurora-float-3 30s ease-in-out infinite alternate;
+  opacity: 0.12;
+}
+
+.ambient-aurora__noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+@keyframes aurora-float-1 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(60px, 80px, 0) scale(1.15);
+  }
+  100% {
+    transform: translate3d(-40px, 40px, 0) scale(0.9);
+  }
+}
+
+@keyframes aurora-float-2 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-70px, -50px, 0) scale(1.1);
+  }
+  100% {
+    transform: translate3d(30px, -90px, 0) scale(0.95);
+  }
+}
+
+@keyframes aurora-float-3 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(50px, -60px, 0) scale(1.2);
+  }
+  100% {
+    transform: translate3d(-50px, 30px, 0) scale(0.85);
+  }
+}

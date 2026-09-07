@@ -1,0 +1,442 @@
+/* ─── Pinned Lifecycle Stage (Keynote Scroll-Lock) ─── */
+.pinned-stage {
+  position: relative;
+  height: 280vh; /* Taller parent creates the scroll distance */
+  background: var(--color-ground);
+}
+
+.pinned-stage__sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Ambient Radial Aura shifting with scroll */
+.pinned-stage__aura {
+  position: absolute;
+  width: 800px;
+  height: 800px;
+  border-radius: 50%;
+  top: 50%;
+  left: 60%;
+  transform: translate(-50%, -50%);
+  filter: blur(140px);
+  pointer-events: none;
+  z-index: 0;
+  transition: background 0.5s ease;
+}
+
+.pinned-stage__container {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 85vh;
+  justify-content: space-between;
+}
+
+.pinned-stage__intro {
+  margin-bottom: var(--space-4);
+}
+
+.pinned-stage__supertag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--color-accent);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: inline-block;
+}
+
+.pinned-stage__main-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #fff;
+  margin: 0 0 6px;
+}
+
+.pinned-stage__scrub-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--color-ink-secondary);
+}
+
+.pinned-stage__scrub-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 8px var(--color-accent);
+  animation: livePulse 2s ease-in-out infinite;
+}
+
+/* 2-Column Split: Timeline on Left, 3D Cards on Right */
+.pinned-stage__split {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 48px;
+  align-items: center;
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .pinned-stage__split {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .pinned-timeline {
+    display: none;
+  }
+}
+
+/* Timeline Scrubber */
+.pinned-timeline {
+  display: flex;
+  gap: 20px;
+  height: 100%;
+  max-height: 380px;
+}
+
+.pinned-timeline__track {
+  width: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pinned-timeline__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(180deg, #5B6AF0, #F59E0B, #10B981);
+  box-shadow: 0 0 12px rgba(91, 106, 240, 0.8);
+  border-radius: 9999px;
+}
+
+.pinned-timeline__nodes {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.pinned-timeline__node {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.pinned-timeline__bullet {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.pinned-timeline__meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.pinned-timeline__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #fff;
+}
+
+.pinned-timeline__sub {
+  font-size: 10px;
+  color: var(--color-ink-secondary);
+}
+
+/* Stacked 3D Keynote Showcase Cards Viewport */
+.pinned-cards-viewport {
+  position: relative;
+  height: 100%;
+  max-height: 420px;
+  display: flex;
+  align-items: center;
+}
+
+.pinned-card {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform, opacity;
+}
+
+.pinned-card__glass {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: rgba(22, 25, 24, 0.85);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 28px;
+  padding: 36px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.7),
+              inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+.pinned-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.pinned-card__step-pill {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #5B6AF0;
+  background: rgba(91, 106, 240, 0.15);
+  border: 1px solid rgba(91, 106, 240, 0.3);
+  padding: 4px 12px;
+  border-radius: 9999px;
+}
+
+.pinned-card__step-pill--amber {
+  color: #F59E0B;
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.pinned-card__step-pill--green {
+  color: #10B981;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.pinned-card__gemini-pill,
+.pinned-card__badge-amber,
+.pinned-card__badge-green {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pinned-card__gemini-pill { color: #9D7BFF; }
+.pinned-card__badge-amber { color: #F59E0B; }
+.pinned-card__badge-green { color: #10B981; }
+
+.pinned-card__heading {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 2.2vw, 2rem);
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin: 0 0 10px;
+}
+
+.pinned-card__desc {
+  font-size: var(--text-sm);
+  color: var(--color-ink-secondary);
+  line-height: 1.6;
+  max-width: 54ch;
+  margin: 0 0 20px;
+}
+
+/* Card 1 Demo: Speech-to-Promise Wave */
+.pinned-voice-input {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 16px 20px;
+}
+
+.pinned-voice-input__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pinned-voice-input__pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #5B6AF0;
+  box-shadow: 0 0 8px #5B6AF0;
+}
+
+.pinned-voice-input__status {
+  font-size: 11px;
+  color: var(--color-ink-secondary);
+  font-weight: 500;
+}
+
+.pinned-voice-input__wave {
+  height: 38px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.pinned-voice-input__transcription {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
+}
+
+.pinned-voice-input__quote {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--color-ink-secondary);
+}
+
+.pinned-voice-input__result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #fff;
+}
+
+/* Card 2 Demo: Temporal Lock */
+.pinned-time-demo {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pinned-time-demo__dial {
+  display: flex;
+  flex-direction: column;
+}
+
+.pinned-time-demo__time {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #F59E0B;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.pinned-time-demo__date {
+  font-size: 12px;
+  color: var(--color-ink-secondary);
+  margin-top: 4px;
+}
+
+.pinned-time-demo__lock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+
+.pinned-time-demo__lock-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #F59E0B;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pinned-time-demo__lock-text {
+  font-size: 11px;
+  color: var(--color-ink-secondary);
+}
+
+/* Card 3 Demo: Quiet Triumph */
+.pinned-triumph-demo {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 24px;
+}
+
+.pinned-triumph-demo__score-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.pinned-triumph-demo__check-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.3);
+  flex-shrink: 0;
+}
+
+.pinned-triumph-demo__meta {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.pinned-triumph-demo__status {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.pinned-triumph-demo__sub {
+  font-size: 12px;
+  color: var(--color-ink-secondary);
+  margin-top: 2px;
+}
+
+.pinned-triumph-demo__streak-pill {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #F59E0B;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.2);
+}
